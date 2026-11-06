@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-framework</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>tuoyu-common-tenant</artifactId>
+
+    <description>
+        tuoyu-common-tenant 多租户（默认关闭）：共享表按 tenant_id 隔离，租户上下文跨线程、跨服务透传并签名（见 docs/adr/0006-多租户.md）
+    </description>
+
+    <properties>
+        <!-- 核心模块：行覆盖率不低于 50%，未达到时 verify 失败 -->
+        <tuoyu.coverage.line-minimum>0.50</tuoyu.coverage.line-minimum>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-core</artifactId>
+        </dependency>
+
+        <!-- SQL 隔离只在有 MyBatis-Plus 的服务中加载（tuoyu-auth 没有数据库） -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-mybatis</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 超级管理员切换进入的租户保存在 Redis 中 -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-redis</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+
+        <!-- 测试：在真实的 MySQL 上做跨租户越权测试（Testcontainers，MIT），需要 Docker -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-framework</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>tuoyu-common-satoken</artifactId>
+
+    <description>
+        tuoyu-common-satoken 权限认证服务
+    </description>
+
+    <properties>
+        <!-- 核心模块：行覆盖率不低于 50%，未达到时 verify 失败 -->
+        <tuoyu.coverage.line-minimum>0.50</tuoyu.coverage.line-minimum>
+    </properties>
+
+    <dependencies>
+
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-core</artifactId>
+        </dependency>
+
+        <!-- TuoYu Api System -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-api-system</artifactId>
+        </dependency>
+
+        <!-- TuoYu Common Redis-->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-redis</artifactId>
+        </dependency>
+
+        <!-- Sa-Token 1.45.0 之后需要显式补充 WebMVC 依赖 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
+        <!-- Sa-Token 整合 jwt -->
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-jwt</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>cn.hutool</groupId>
+                    <artifactId>hutool-all</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+    </dependencies>
+
+</project>

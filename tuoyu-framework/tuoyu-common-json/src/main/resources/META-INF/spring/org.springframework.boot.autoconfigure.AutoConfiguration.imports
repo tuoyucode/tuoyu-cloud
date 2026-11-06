@@ -1,0 +1,2 @@
+org.tuoyu.common.json.config.JacksonConfig
+org.tuoyu.common.json.config.JsonEnhancementConfig

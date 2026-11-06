@@ -1,0 +1,4 @@
+org.tuoyu.common.core.service.impl.DictServiceImpl
+org.tuoyu.common.core.service.impl.PermissionServiceImpl
+org.tuoyu.common.core.service.impl.DataScopeServiceImpl
+org.tuoyu.common.core.service.impl.TenantDirectoryImpl

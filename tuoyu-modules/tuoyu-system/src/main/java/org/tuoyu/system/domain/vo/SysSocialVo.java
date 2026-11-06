@@ -1,0 +1,150 @@
+package org.tuoyu.system.domain.vo;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.github.linpeilie.annotations.AutoMapper;
+import lombok.Data;
+import org.tuoyu.system.domain.SysSocial;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
+
+/**
+ * 社会化关系视图对象 sys_social
+ * <p>
+ * 第三方平台的令牌、授权码与签名密钥不返回给前端（@JsonIgnore），只在服务端使用
+ *
+ * @author thiszhc
+ */
+@Data
+@AutoMapper(target = SysSocial.class)
+public class SysSocialVo implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * 主键
+     */
+    private Long id;
+
+    /**
+     * 用户ID
+     */
+    private Long userId;
+
+    /**
+     * 认证唯一ID
+     */
+    private String authId;
+
+    /**
+     * 用户来源
+     */
+    private String source;
+
+    /**
+     * 用户的授权令牌
+     */
+    @JsonIgnore
+    private String accessToken;
+
+    /**
+     * 用户的授权令牌的有效期，部分平台可能没有
+     */
+    private int expireIn;
+
+    /**
+     * 刷新令牌，部分平台可能没有
+     */
+    @JsonIgnore
+    private String refreshToken;
+
+    /**
+     * 用户的 open id
+     */
+    private String openId;
+
+    /**
+     * 授权的第三方账号
+     */
+    private String userName;
+
+    /**
+     * 授权的第三方昵称
+     */
+    private String nickName;
+
+    /**
+     * 授权的第三方邮箱
+     */
+    private String email;
+
+    /**
+     * 授权的第三方头像地址
+     */
+    private String avatar;
+
+
+    /**
+     * 平台的授权信息，部分平台可能没有
+     */
+    @JsonIgnore
+    private String accessCode;
+
+    /**
+     * 用户的 unionid
+     */
+    private String unionId;
+
+    /**
+     * 授予的权限，部分平台可能没有
+     */
+    private String scope;
+
+    /**
+     * 个别平台的授权信息，部分平台可能没有
+     */
+    private String tokenType;
+
+    /**
+     * id token，部分平台可能没有
+     */
+    @JsonIgnore
+    private String idToken;
+
+    /**
+     * 小米平台用户的附带属性，部分平台可能没有
+     */
+    private String macAlgorithm;
+
+    /**
+     * 小米平台用户的附带属性，部分平台可能没有
+     */
+    @JsonIgnore
+    private String macKey;
+
+    /**
+     * 用户的授权code，部分平台可能没有
+     */
+    @JsonIgnore
+    private String code;
+
+    /**
+     * Twitter平台用户的附带属性，部分平台可能没有
+     */
+    @JsonIgnore
+    private String oauthToken;
+
+    /**
+     * Twitter平台用户的附带属性，部分平台可能没有
+     */
+    @JsonIgnore
+    private String oauthTokenSecret;
+
+    /**
+     * 显示绑定时间
+     */
+    private LocalDateTime createTime;
+}

@@ -1,0 +1,401 @@
+#!/usr/bin/env bash
+# TuoYu-Cloud 一键开发环境。Windows 用户也可以使用同目录的 dev.ps1，两者命令相同。
+# 用法：./dev help
+set -u
+
+ROOT=$(cd "$(dirname "$0")" && pwd)
+cd "$ROOT" || exit 1
+
+COMPOSE_DIR=deploy/docker
+MONOLITH_MODULE=tuoyu-boot/tuoyu-boot-all
+MONOLITH_JAR=$MONOLITH_MODULE/target/tuoyu-boot-all.jar
+
+# 没有默认值、缺失时服务拒绝启动的变量
+REQUIRED_VARS="TUOYU_DB_PASSWORD TUOYU_REDIS_PASSWORD TUOYU_NACOS_PASSWORD TUOYU_JWT_SECRET TUOYU_API_CRYPTO_PRIVATE_KEY TUOYU_MONITOR_PASSWORD TUOYU_SNAILJOB_TOKEN"
+# 只有用 docker compose 部署 Nacos、MinIO 时才需要的变量
+COMPOSE_VARS="TUOYU_NACOS_AUTH_TOKEN TUOYU_NACOS_IDENTITY_KEY TUOYU_NACOS_IDENTITY_VALUE TUOYU_MINIO_ACCESS_KEY TUOYU_MINIO_SECRET_KEY"
+# 已废弃的变量（换用新的接口加密方案后不再使用）
+OBSOLETE_VARS="TUOYU_API_REQUEST_PRIVATE_KEY TUOYU_API_RESPONSE_PUBLIC_KEY"
+# 运行 tools 下的 Java 工具时按 UTF-8 输出（Git Bash 等终端为 UTF-8，Windows 上 Java 默认按系统编码输出会乱码）
+JAVA_TOOL_FLAGS="-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8"
+
+info() { printf '%s\n' "$*"; }
+warn() { printf '[警告] %s\n' "$*" >&2; }
+fail() { printf '[错误] %s\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<'EOF'
+TuoYu-Cloud 一键开发环境
+
+用法：./dev <命令> [参数]
+
+命令：
+  env [--force]          生成 .env（已存在时只检查；--force 重新生成，会覆盖现有口令），并检查必填项与已废弃的变量
+  up                     准备本地开发所需的中间件：
+                           有 Docker 时用 compose 启动 MySQL、Redis、Nacos，并初始化 Nacos 账号、导入配置；
+                           没有 Docker 时检查本机的 MySQL、Redis、Nacos 能否连接，并给出提示
+  down [参数]            停止并删除 compose 启动的容器（保留数据卷；加 -v 同时删除数据卷）
+  status                 查看 .env、JDK、Maven、Docker，以及中间件与各服务端口的状态
+  monolith [--no-build] [程序参数...]
+                         构建并启动单体（需要 JDK 21；构建会运行测试）。--no-build：已有 jar 时跳过构建
+  nacos-import [参数]    把 deploy/config/nacos 下的配置导入 Nacos，默认只预览；
+                           --apply 导入，--apply --overwrite 覆盖内容不同的已有配置
+  compose <core|full|monolith|extras> [docker compose 参数...]
+                         用指定的 compose 文件执行 docker compose 命令，例如：
+                           ./dev compose core up -d --build
+                           ./dev compose full logs -f tuoyu-system
+                           ./dev compose extras --profile metrics up -d    （extras = full + 附加组件）
+  help                   显示本帮助
+
+说明：
+  - 所有命令都在仓库根目录执行，读取仓库根目录的 .env；同名的环境变量优先于 .env；
+  - 需要 JDK 的命令优先使用 JAVA_HOME 中的 java，其次使用 PATH 中的 java；
+  - 三套 compose 的说明见 deploy/docker/README.md。
+EOF
+}
+
+# ---------- .env ----------
+
+# 读取变量：环境变量优先，其次 .env（空值视为未设置）
+env_value() {
+  local name=$1 value
+  value=$(printenv "$name" 2>/dev/null || true)
+  if [ -z "$value" ] && [ -f .env ]; then
+    value=$(sed -n "s/^${name}=//p" .env | tail -n 1 | tr -d '\r')
+  fi
+  printf '%s' "$value"
+}
+
+# ---------- JDK / 工具 ----------
+
+java_cmd() {
+  if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    printf '%s' "$JAVA_HOME/bin/java"
+  elif [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java.exe" ]; then
+    printf '%s' "$JAVA_HOME/bin/java.exe"
+  elif command -v java > /dev/null 2>&1; then
+    printf 'java'
+  fi
+}
+
+# 输出 java 主版本号（1.8 记为 8），无法判断时输出空
+java_major() {
+  local java=$1 line major
+  line=$("$java" -version 2>&1 | head -n 1)
+  major=$(printf '%s' "$line" | sed -n 's/.*version "\([0-9]*\).*/\1/p')
+  if [ "$major" = "1" ]; then
+    major=$(printf '%s' "$line" | sed -n 's/.*version "1\.\([0-9]*\).*/\1/p')
+  fi
+  printf '%s' "$major"
+}
+
+# 要求 JDK 达到指定主版本，返回可用的 java 命令
+require_java() {
+  local min=$1 java major
+  java=$(java_cmd)
+  [ -n "$java" ] || fail "找不到 java。请安装 JDK 21，并设置 JAVA_HOME 或把 java 加入 PATH"
+  major=$(java_major "$java")
+  if [ -z "$major" ] || [ "$major" -lt "$min" ]; then
+    fail "需要 JDK $min 及以上，当前为 ${major:-未知}（$java）。请把 JAVA_HOME 指向 JDK 21，例如：JAVA_HOME=\"/path/to/jdk-21\" ./dev ..."
+  fi
+  printf '%s' "$java"
+}
+
+mvn_cmd() {
+  if command -v mvn > /dev/null 2>&1; then
+    printf 'mvn'
+  else
+    printf './mvnw'
+  fi
+}
+
+docker_ready() {
+  command -v docker > /dev/null 2>&1 && docker info > /dev/null 2>&1 && docker compose version > /dev/null 2>&1
+}
+
+compose_files() {
+  case "${1:-}" in
+    core) printf '%s' "-f $COMPOSE_DIR/compose-core.yml" ;;
+    full) printf '%s' "-f $COMPOSE_DIR/compose-full.yml" ;;
+    monolith) printf '%s' "-f $COMPOSE_DIR/compose-monolith.yml" ;;
+    extras) printf '%s' "-f $COMPOSE_DIR/compose-full.yml -f $COMPOSE_DIR/compose-extras.yml" ;;
+    *) return 1 ;;
+  esac
+}
+
+# ---------- 网络检查 ----------
+
+# 在超时内执行一段 bash（timeout 不存在时直接执行）
+with_timeout() {
+  local seconds=$1
+  shift
+  if command -v timeout > /dev/null 2>&1; then
+    timeout "$seconds" bash -c "$@"
+  else
+    bash -c "$@"
+  fi
+}
+
+tcp_open() {
+  with_timeout 3 'exec 3<>"/dev/tcp/$0/$1"' "$1" "$2" 2> /dev/null
+}
+
+# MySQL：读取握手包中的版本号
+mysql_probe() {
+  with_timeout 3 'exec 3<>"/dev/tcp/$0/$1" && head -c 40 <&3 | tr -c "[:print:]" " "' "$1" "$2" 2> /dev/null \
+    | grep -o '[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*[^ ]*' | head -n 1
+}
+
+# Redis：AUTH 后 PING，输出服务端的回复。
+# 逐行读取，读到 PING 的结果就结束（不用 QUIT：Windows 上服务端关闭连接时可能丢弃尚未读取的回复）
+redis_probe() {
+  local host=$1 port=$2 password=$3
+  with_timeout 3 '
+    exec 3<>"/dev/tcp/$0/$1" || exit 1
+    if [ -n "$2" ]; then
+      printf "*2\r\n\$4\r\nAUTH\r\n\$%d\r\n%s\r\n" "${#2}" "$2" >&3
+    fi
+    printf "*1\r\n\$4\r\nPING\r\n" >&3
+    while IFS= read -r -t 2 line <&3; do
+      printf "%s\n" "$line"
+      case "$line" in +PONG*|-NOAUTH*) break ;; esac
+    done' "$host" "$port" "$password" 2> /dev/null | tr -d '\r'
+}
+
+# HTTP GET，输出状态行
+http_status() {
+  local host=$1 port=$2 path=$3
+  with_timeout 5 'exec 3<>"/dev/tcp/$0/$1" || exit 1
+    printf "GET %s HTTP/1.0\r\nHost: %s\r\n\r\n" "$2" "$0" >&3
+    head -n 1 <&3' "$host" "$port" "$path" 2> /dev/null | tr -d '\r'
+}
+
+db_host() { local v; v=$(env_value TUOYU_DB_HOST); printf '%s' "${v:-localhost}"; }
+db_port() {
+  local v type
+  v=$(env_value TUOYU_DB_PORT)
+  type=$(env_value TUOYU_DB_TYPE)
+  if [ -n "$v" ]; then printf '%s' "$v"; elif [ "$type" = "postgresql" ]; then printf '5432'; else printf '3306'; fi
+}
+redis_host() { local v; v=$(env_value TUOYU_REDIS_HOST); printf '%s' "${v:-localhost}"; }
+redis_port() { local v; v=$(env_value TUOYU_REDIS_PORT); printf '%s' "${v:-6379}"; }
+nacos_server() { local v; v=$(env_value TUOYU_NACOS_SERVER); v=${v#http://}; printf '%s' "${v:-127.0.0.1:8848}"; }
+
+# 检查数据库，返回 0 表示可连接
+check_db() {
+  local host port type version
+  host=$(db_host); port=$(db_port); type=$(env_value TUOYU_DB_TYPE)
+  if [ "$type" = "postgresql" ]; then
+    if tcp_open "$host" "$port"; then info "  [可连接] PostgreSQL  $host:$port"; return 0; fi
+    info "  [不可连接] PostgreSQL  $host:$port"
+    return 1
+  fi
+  version=$(mysql_probe "$host" "$port")
+  if [ -n "$version" ]; then
+    info "  [可连接] MySQL $version  $host:$port"
+    return 0
+  fi
+  if tcp_open "$host" "$port"; then
+    info "  [可连接] MySQL（未读到版本号）  $host:$port"
+    return 0
+  fi
+  info "  [不可连接] MySQL  $host:$port"
+  return 1
+}
+
+check_redis() {
+  local host port reply
+  host=$(redis_host); port=$(redis_port)
+  reply=$(redis_probe "$host" "$port" "$(env_value TUOYU_REDIS_PASSWORD)")
+  case "$reply" in
+    *PONG*)
+      case "$reply" in
+        *WRONGPASS*|*invalid*) info "  [口令错误] Redis  $host:$port（检查 TUOYU_REDIS_PASSWORD）"; return 1 ;;
+      esac
+      info "  [可连接] Redis  $host:$port"; return 0 ;;
+    *NOAUTH*|*WRONGPASS*|*invalid*) info "  [口令错误] Redis  $host:$port（检查 TUOYU_REDIS_PASSWORD）"; return 1 ;;
+    *) info "  [不可连接] Redis  $host:$port"; return 1 ;;
+  esac
+}
+
+check_nacos() {
+  local server host port status
+  server=$(nacos_server); host=${server%%:*}; port=${server##*:}
+  [ "$host" = "$port" ] && port=8848
+  status=$(http_status "$host" "$port" /nacos/v1/console/health/readiness)
+  case "$status" in
+    HTTP/*" 200"*) info "  [可连接] Nacos  $host:$port"; return 0 ;;
+    HTTP/*) info "  [未就绪] Nacos  $host:$port（$status）"; return 1 ;;
+    *) info "  [不可连接] Nacos  $host:$port（单体不需要 Nacos）"; return 1 ;;
+  esac
+}
+
+# ---------- 命令 ----------
+
+cmd_env() {
+  local force="" java missing=0 name value
+  [ "${1:-}" = "--force" ] && force="--force"
+  if [ ! -f .env ] || [ -n "$force" ]; then
+    java=$(require_java 21)
+    info "生成 .env（tools/secrets/GenerateEnv.java）..."
+    "$java" $JAVA_TOOL_FLAGS tools/secrets/GenerateEnv.java $force || fail "生成 .env 失败"
+  else
+    info ".env 已存在，只做检查（重新生成：./dev env --force，会覆盖现有口令）"
+  fi
+
+  info ""
+  info "检查 .env："
+  for name in $REQUIRED_VARS; do
+    value=$(env_value "$name")
+    if [ -z "$value" ]; then info "  [缺少] $name（必填，缺失时服务拒绝启动）"; missing=1; fi
+  done
+  for name in $COMPOSE_VARS; do
+    value=$(env_value "$name")
+    [ -z "$value" ] && info "  [缺少] $name（用 docker compose 部署 Nacos、MinIO 时必填）"
+  done
+  if [ "$(env_value TUOYU_TENANT_ENABLED)" = "true" ] && [ -z "$(env_value TUOYU_TENANT_CONTEXT_SECRET)" ]; then
+    info "  [缺少] TUOYU_TENANT_CONTEXT_SECRET（已开启多租户，必填）"
+    missing=1
+  fi
+  for name in $OBSOLETE_VARS; do
+    grep -q "^${name}=" .env && info "  [已废弃] $name（接口加密已换用新方案，请从 .env 中删除）"
+  done
+  if [ "$(env_value TUOYU_PROFILES_ACTIVE)" = "prod" ]; then
+    for name in TUOYU_ACTUATOR_EXPOSURE TUOYU_HEALTH_SHOW_DETAILS TUOYU_API_DOCS_ENABLED TUOYU_GATEWAY_DISCOVERY_LOCATOR; do
+      [ -n "$(env_value "$name")" ] && info "  [注意] $name 是开发便利项，prod 下启动自检会拒绝不安全的值，生产环境请删除"
+    done
+  fi
+  # 未登记在 .env.example 中的变量（多为拼写错误；第三方登录变量按平台统一说明，不逐个登记）
+  if [ -f .env.example ]; then
+    grep -o '^TUOYU_[A-Z0-9_]*' .env | sort -u | while read -r name; do
+      case "$name" in TUOYU_SOCIAL_*) continue ;; esac
+      if ! grep -q "^${name}=" .env.example && ! printf '%s\n' $OBSOLETE_VARS | grep -qx "$name"; then
+        info "  [未知] $name 未登记在 .env.example 中，请检查拼写"
+      fi
+    done
+  fi
+  if [ "$missing" = 0 ]; then
+    info "  必填项齐全"
+  else
+    return 1
+  fi
+}
+
+cmd_up() {
+  [ -f .env ] || { info "未找到 .env，先生成："; cmd_env || return 1; info ""; }
+  if docker_ready; then
+    info "检测到 Docker：启动 MySQL、Redis、Nacos（compose-core.yml 中的中间件），并初始化 Nacos 账号、导入配置..."
+    # shellcheck disable=SC2046
+    docker compose --env-file .env $(compose_files core) up -d mysql redis nacos nacos-init || return 1
+    info ""
+    info "中间件已在后台启动（首次启动需要初始化，约 1 ~ 2 分钟），端口只绑定本机："
+    info "  MySQL 127.0.0.1:3306、Redis 127.0.0.1:6379、Nacos 127.0.0.1:8848（控制台 http://127.0.0.1:8848/nacos，账号 nacos，口令为 .env 中的 TUOYU_NACOS_PASSWORD）"
+    info "  查看进度：./dev compose core ps；Nacos 配置导入日志：./dev compose core logs nacos-init"
+    info "  .env 中的地址保持 localhost / 127.0.0.1 即可在 IDE 中启动各服务；表结构由服务启动时的 Flyway 迁移创建"
+    return 0
+  fi
+
+  info "没有可用的 Docker（未安装或未启动），检查本机的中间件（地址与口令来自 .env）："
+  local ok=1
+  check_db || ok=0
+  check_redis || ok=0
+  check_nacos || true
+  info ""
+  if [ "$ok" = 1 ]; then
+    info "MySQL、Redis 可以连接。注意："
+  else
+    info "部分中间件不可用，请先安装或启动，并核对 .env 中的地址与口令："
+    info "  - MySQL 8.x：TUOYU_DB_HOST、TUOYU_DB_PORT、TUOYU_DB_USERNAME、TUOYU_DB_PASSWORD"
+    info "  - Redis：TUOYU_REDIS_HOST、TUOYU_REDIS_PORT、TUOYU_REDIS_PASSWORD（需要开启口令）"
+  fi
+  info "  - 需要 tuoyu-cloud、tuoyu-workflow、tuoyu-job 三个库：首次使用执行 deploy/docker/mysql/init/01-create-databases.sql 建库，表由服务启动时的 Flyway 迁移创建"
+  info "  - 单体（./dev monolith）不需要 Nacos；微服务方式需要 Nacos 2.x，配置导入：./dev nacos-import（预览）→ ./dev nacos-import --apply"
+  [ "$ok" = 1 ]
+}
+
+cmd_down() {
+  docker_ready || fail "没有可用的 Docker"
+  docker compose -p tuoyu down --remove-orphans "$@"
+}
+
+cmd_status() {
+  local java major name port
+  info "环境："
+  if [ -f .env ]; then info "  .env      已存在"; else info "  .env      不存在（./dev env 生成）"; fi
+  java=$(java_cmd)
+  if [ -n "$java" ]; then
+    major=$(java_major "$java")
+    if [ -n "$major" ] && [ "$major" -ge 21 ]; then info "  JDK       $major（$java）"; else info "  JDK       ${major:-未知}（$java），构建与运行需要 JDK 21"; fi
+  else
+    info "  JDK       未找到"
+  fi
+  if command -v mvn > /dev/null 2>&1; then info "  Maven     mvn"; else info "  Maven     未在 PATH 中，将使用 ./mvnw"; fi
+  if docker_ready; then info "  Docker    可用"; else info "  Docker    不可用"; fi
+  [ -f "$MONOLITH_JAR" ] && info "  单体 jar  $MONOLITH_JAR"
+
+  info ""
+  info "中间件："
+  check_db || true
+  check_redis || true
+  check_nacos || true
+
+  info ""
+  info "服务端口（本机）："
+  for entry in "网关 / 单体:8081" "tuoyu-system:9201" "tuoyu-auth:9210" "tuoyu-resource:9204" "tuoyu-workflow:9205" \
+               "tuoyu-gen:9202" "tuoyu-job:9203" "tuoyu-monitor:9100" "tuoyu-snailjob-server:8800"; do
+    name=${entry%:*}; port=${entry##*:}
+    if tcp_open 127.0.0.1 "$port"; then info "  [运行中] $name  127.0.0.1:$port"; else info "  [未运行] $name  127.0.0.1:$port"; fi
+  done
+
+  if docker_ready; then
+    info ""
+    info "compose 容器（项目 tuoyu）："
+    docker compose -p tuoyu ps
+  fi
+}
+
+cmd_monolith() {
+  local build=1 java mvn
+  if [ "${1:-}" = "--no-build" ]; then build=0; shift; fi
+  [ -f "$MONOLITH_MODULE/pom.xml" ] || fail "找不到单体启动器模块 $MONOLITH_MODULE"
+  [ -f .env ] || { info "未找到 .env，先生成："; cmd_env || return 1; info ""; }
+  java=$(require_java 21)
+  if [ "$build" = 1 ] || [ ! -f "$MONOLITH_JAR" ]; then
+    mvn=$(mvn_cmd)
+    info "构建单体（$mvn -pl $MONOLITH_MODULE -am package，会运行测试）..."
+    "$mvn" -B -ntp -pl "$MONOLITH_MODULE" -am package || fail "构建失败"
+  fi
+  info ""
+  info "启动单体：http://localhost:8081（配置读取 deploy/config/nacos，地址与口令来自 .env；Ctrl+C 停止）"
+  exec "$java" -jar "$MONOLITH_JAR" "$@"
+}
+
+cmd_nacos_import() {
+  local java
+  java=$(require_java 21)
+  "$java" $JAVA_TOOL_FLAGS tools/nacos/ImportNacosConfig.java "$@"
+}
+
+cmd_compose() {
+  local files
+  files=$(compose_files "${1:-}") || fail "用法：./dev compose <core|full|monolith|extras> [docker compose 参数...]"
+  shift
+  docker_ready || fail "没有可用的 Docker"
+  [ -f .env ] || fail "未找到 .env，请先执行 ./dev env"
+  # shellcheck disable=SC2086
+  docker compose --env-file .env $files "$@"
+}
+
+command=${1:-help}
+[ $# -gt 0 ] && shift
+case "$command" in
+  env) cmd_env "$@" ;;
+  up) cmd_up "$@" ;;
+  down) cmd_down "$@" ;;
+  status) cmd_status "$@" ;;
+  monolith) cmd_monolith "$@" ;;
+  nacos-import) cmd_nacos_import "$@" ;;
+  compose) cmd_compose "$@" ;;
+  help|-h|--help) usage ;;
+  *) usage; exit 1 ;;
+esac

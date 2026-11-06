@@ -1,0 +1,406 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, dev ]
+  pull_request:
+    branches: [ master, dev ]
+  workflow_dispatch:
+
+# 同一分支有新提交时，取消尚未完成的旧构建
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # 各服务可执行 jar 的后缀：留空时自动选择 target/<模块>-exec.jar，没有时用 target/<模块>.jar（见 tools/ci/e2e.sh）
+  APP_JAR_SUFFIX: ''
+  # 单体启动器模块（可执行 jar 与 Dockerfile 都在这里）
+  MONOLITH_DIR: tuoyu-boot/tuoyu-boot-all
+  # 依赖扫描工具：CycloneDX Maven 插件（Apache-2.0）生成 SBOM，Trivy（Apache-2.0）扫描漏洞。
+  # Trivy 按版本下载并校验 SHA-256（取自该版本发布页的 checksums 文件），升级时两项一起改
+  CYCLONEDX_VERSION: 2.9.3
+  TRIVY_VERSION: 0.74.0
+  TRIVY_SHA256: 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
+
+jobs:
+  # 规则检查：测试不允许被跳过；仓库内不得出现明文口令
+  guard:
+    name: 规则检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 禁止在 pom 中跳过测试
+        run: |
+          if grep -rn --include=pom.xml -E '<skipTests>\s*true|<maven\.test\.skip>\s*true' .; then
+            echo "::error::pom.xml 中不允许跳过测试（见 CONTRIBUTING.md 基本规则）"
+            exit 1
+          fi
+
+      - name: 禁止提交弱口令与已公开的默认密钥
+        run: |
+          grep -vE '^\s*(#|$)' tools/secrets/forbidden-patterns.txt > /tmp/forbidden.txt
+          # 只扫描纳入版本管理的文件（本地 .env、构建产物等不在扫描范围内）
+          if git ls-files -z -- . ':!docs' ':!tools/secrets/forbidden-patterns.txt' \
+               | xargs -0 grep -nIE -f /tmp/forbidden.txt; then
+            echo "::error::发现弱口令或已公开的默认密钥，请改为环境变量（见 .env.example）"
+            exit 1
+          fi
+
+      - name: 配置中引用的环境变量必须登记在 .env.example
+        run: |
+          grep -rhoE '\$\{TUOYU_[A-Z0-9_]+' deploy --include=*.yml --include=*.yaml --include=*.properties \
+            | sed 's/^\${//' | sort -u > /tmp/referenced.txt
+          find . -path '*/src/main/resources/*' \( -name '*.yml' -o -name '*.yaml' -o -name '*.properties' \) \
+            -exec grep -hoE '\$\{TUOYU_[A-Z0-9_]+' {} + | sed 's/^\${//' | sort -u >> /tmp/referenced.txt
+          sort -u -o /tmp/referenced.txt /tmp/referenced.txt
+          # 第三方登录变量按平台统一说明，不逐个登记
+          grep -oE '^TUOYU_[A-Z0-9_]+' .env.example | sort -u > /tmp/documented.txt
+          missing=$(comm -23 /tmp/referenced.txt /tmp/documented.txt | grep -v '^TUOYU_SOCIAL_' || true)
+          if [ -n "$missing" ]; then
+            echo "::error::以下环境变量未登记在 .env.example：$missing"
+            exit 1
+          fi
+
+  # 提交说明格式：只检查本次 push 或 PR 新增的提交，merge 提交放行，不要求 DCO
+  commit-message:
+    name: 提交说明格式
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 检查新增提交的说明
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            set -- "$PR_BASE..$PR_HEAD"
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            set -- "$BEFORE..$AFTER"
+          else
+            # 新建分支或强制推送：只检查其他分支上没有的提交；仓库里只有这一个分支时只检查最新的提交
+            others=$(git for-each-ref --format='%(refname)' refs/remotes/origin/ \
+              | grep -vxF -e "refs/remotes/origin/$BRANCH" -e "refs/remotes/origin/HEAD" || true)
+            if [ -n "$others" ]; then
+              # shellcheck disable=SC2086
+              set -- "$AFTER" --not $others
+            else
+              set -- --max-count=1 "$AFTER"
+            fi
+          fi
+          python3 tools/ci/check_commit_messages.py "$@"
+
+  # 主构建：编译 + 全部测试
+  build:
+    name: 构建与测试（JDK ${{ matrix.java }}）
+    needs: guard
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [ '21', '25' ]
+    # JDK 25 先作为观察项，失败不阻断合并；稳定后去掉
+    continue-on-error: ${{ matrix.java == '25' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: 构建并运行测试
+        # 含数据库迁移的集成测试（MigrationIntegrationTest）：用 Testcontainers 在 MySQL、PostgreSQL 上执行迁移，
+        # 依赖 runner 自带的 Docker。CI=true 时必须执行，没有 Docker 时失败，不会跳过
+        run: mvn -B -ntp clean verify
+
+      - name: 端到端测试客户端的单元测试（测试向量，不需要被测系统）
+        run: mvn -B -ntp -P e2e -pl tuoyu-e2e test
+
+      - name: 上传测试报告
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-jdk${{ matrix.java }}
+          path: '**/target/surefire-reports/'
+          if-no-files-found: ignore
+
+      # 镜像与两种部署方式的端到端测试都使用这里产出的 jar，不再重复编译
+      - name: 上传可执行 jar
+        if: matrix.java == '21'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jars
+          path: |
+            tuoyu-gateway/target/*.jar
+            tuoyu-modules/*/target/*.jar
+            tuoyu-visual/*/target/*.jar
+            tuoyu-boot/*/target/*.jar
+          if-no-files-found: error
+          retention-days: 3
+          # jar 本身已压缩
+          compression-level: 0
+
+  # 可选扩展模块：确保默认不参与构建的模块也能持续编译通过
+  extensions:
+    name: 可选扩展模块
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: 构建扩展模块及其依赖
+        # 需要直接指定子模块：只写聚合模块 tuoyu-extensions 时，-am 不会带上它的子模块
+        run: mvn -B -ntp clean verify -P extensions -pl :tuoyu-ai,:tuoyu-snailai-server -am
+
+  # 依赖漏洞与协议扫描：SBOM 由 Maven 解析得到，与实际构建使用的依赖一致；不需要先编译
+  supply-chain:
+    name: 依赖漏洞与协议扫描
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: 生成 SBOM（CycloneDX）
+        id: sbom
+        # bom-runtime：默认构建的运行时依赖（不含测试依赖），用于漏洞扫描；
+        # bom-all：另含可选扩展模块与测试依赖，用于协议检查（基本规则第 7 条对测试依赖同样适用）
+        run: |
+          mvn -B -ntp org.cyclonedx:cyclonedx-maven-plugin:${CYCLONEDX_VERSION}:makeAggregateBom \
+            -DoutputFormat=json -DoutputName=bom-runtime -Dcyclonedx.skipAttach=true
+          mvn -B -ntp -P extensions org.cyclonedx:cyclonedx-maven-plugin:${CYCLONEDX_VERSION}:makeAggregateBom \
+            -DoutputFormat=json -DoutputName=bom-all -DincludeTestScope=true -Dcyclonedx.skipAttach=true
+
+      - name: 依赖协议检查（GPL、AGPL、LGPL 阻断）
+        run: python3 tools/ci/supply_chain.py licenses target/bom-all.json
+
+      - name: 漏洞忽略清单检查（每条必须写明原因）
+        if: ${{ !cancelled() }}
+        run: python3 tools/ci/supply_chain.py trivyignore .trivyignore.yaml
+
+      - name: 安装 Trivy
+        id: trivy
+        if: ${{ !cancelled() && steps.sbom.outcome == 'success' }}
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/trivy.tar.gz" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  $RUNNER_TEMP/trivy.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP" trivy
+          "$RUNNER_TEMP/trivy" --version
+          echo "date=$(date -u +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
+      - name: 缓存漏洞库
+        if: ${{ !cancelled() && steps.trivy.outcome == 'success' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ steps.trivy.outputs.date }}
+          restore-keys: trivy-db-
+
+      - name: 依赖漏洞扫描（高危、严重阻断）
+        if: ${{ !cancelled() && steps.trivy.outcome == 'success' }}
+        run: |
+          "$RUNNER_TEMP/trivy" sbom --cache-dir ~/.cache/trivy --scanners vuln \
+            --severity HIGH,CRITICAL --exit-code 1 --ignorefile .trivyignore.yaml \
+            target/bom-runtime.json
+
+      - name: 上传 SBOM
+        if: ${{ !cancelled() && steps.sbom.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            target/bom-runtime.json
+            target/bom-all.json
+          retention-days: 14
+
+  # 构建镜像：各服务与单体，只构建、不推送
+  images:
+    name: 构建镜像
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载可执行 jar
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jars
+          path: .
+
+      - name: 构建各服务与单体的镜像
+        run: |
+          set -euo pipefail
+          [ -f "$MONOLITH_DIR/Dockerfile" ] || { echo "::error::缺少单体的 Dockerfile：$MONOLITH_DIR/Dockerfile"; exit 1; }
+          # 各模块目录下的 Dockerfile（deploy 下是中间件，扩展模块不在默认构建中），构建上下文为模块目录；
+          # 单体例外：要把 deploy/config/nacos 放进镜像，构建上下文是仓库根目录
+          mapfile -t dockerfiles < <(git ls-files '*Dockerfile' | grep -vE '^(deploy|tuoyu-extensions)/' | sort)
+          tag="ci-${GITHUB_SHA::12}"
+          for dockerfile in "${dockerfiles[@]}"; do
+            dir=$(dirname "$dockerfile")
+            name=$(basename "$dir")
+            context="$dir"
+            [ "$dir" = "$MONOLITH_DIR" ] && context=.
+            echo "::group::构建 tuoyu/$name:$tag"
+            docker build --pull -t "tuoyu/$name:$tag" -f "$dockerfile" "$context"
+            echo "::endgroup::"
+          done
+          docker images --filter "reference=tuoyu/*"
+
+  # 端到端测试：同一套测试（tuoyu-e2e）分别跑微服务与单体两种部署方式
+  e2e-microservice:
+    name: 端到端测试（微服务）
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: 下载可执行 jar
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jars
+          path: .
+
+      - name: 准备环境（随机口令、关闭登录图形验证码）
+        run: bash tools/ci/e2e.sh prepare
+
+      - name: 启动 MySQL、Redis、Nacos
+        run: bash tools/ci/e2e.sh middleware nacos
+
+      - name: 初始化数据库
+        run: bash tools/ci/e2e.sh init-db
+
+      - name: 导入 Nacos 配置
+        run: bash tools/ci/e2e.sh import-nacos
+
+      - name: 启动 system、auth、resource、workflow
+        # Dubbo 端口固定，避免同时启动时自动选择到同一个端口。workflow 使用自己的库，用来验证跨库的数据访问（WorkflowIT）
+        run: |
+          bash tools/ci/e2e.sh start tuoyu-system tuoyu-modules/tuoyu-system -Ddubbo.protocol.port=20881
+          bash tools/ci/e2e.sh start tuoyu-auth tuoyu-modules/tuoyu-auth -Ddubbo.protocol.port=20882
+          bash tools/ci/e2e.sh start tuoyu-resource tuoyu-modules/tuoyu-resource -Ddubbo.protocol.port=20883
+          bash tools/ci/e2e.sh start tuoyu-workflow tuoyu-modules/tuoyu-workflow -Ddubbo.protocol.port=20885
+          bash tools/ci/e2e.sh wait-health tuoyu-system 9201 420
+          bash tools/ci/e2e.sh wait-health tuoyu-auth 9210 300
+          bash tools/ci/e2e.sh wait-health tuoyu-resource 9204 300
+          bash tools/ci/e2e.sh wait-health tuoyu-workflow 9205 300
+
+      - name: 启动网关
+        # 最后启动网关：此时各服务已注册，网关第一次查询服务实例就能拿到
+        run: |
+          bash tools/ci/e2e.sh start tuoyu-gateway tuoyu-gateway -Ddubbo.protocol.port=20884
+          bash tools/ci/e2e.sh wait-health tuoyu-gateway 8081 300
+          bash tools/ci/e2e.sh wait-ready tuoyu-gateway http://127.0.0.1:8081 180
+
+      - name: 运行端到端测试
+        run: mvn -B -ntp -P e2e -pl tuoyu-e2e verify -Dtuoyu.e2e.base-url=http://127.0.0.1:8081
+
+      - name: 收集日志
+        if: failure()
+        run: bash tools/ci/e2e.sh collect-logs
+
+      - name: 上传日志与测试报告
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-microservice-logs
+          path: |
+            e2e-logs/
+            tuoyu-e2e/target/failsafe-reports/
+            tuoyu-e2e/target/surefire-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-monolith:
+    name: 端到端测试（单体）
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: 下载可执行 jar
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jars
+          path: .
+
+      - name: 准备环境（随机口令、关闭登录图形验证码）
+        run: bash tools/ci/e2e.sh prepare
+
+      - name: 启动 MySQL、Redis
+        # 单体默认不需要 Nacos，配置从 TUOYU_CONFIG_DIR（prepare 已指向 deploy/config/nacos）读取
+        run: bash tools/ci/e2e.sh middleware
+
+      - name: 初始化数据库
+        run: bash tools/ci/e2e.sh init-db
+
+      - name: 启动单体
+        run: |
+          bash tools/ci/e2e.sh start tuoyu-boot-all "$MONOLITH_DIR"
+          bash tools/ci/e2e.sh wait-ready tuoyu-boot-all http://127.0.0.1:8081 480
+
+      - name: 运行端到端测试
+        run: mvn -B -ntp -P e2e -pl tuoyu-e2e verify -Dtuoyu.e2e.base-url=http://127.0.0.1:8081
+
+      - name: 收集日志
+        if: failure()
+        run: bash tools/ci/e2e.sh collect-logs
+
+      - name: 上传日志与测试报告
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-monolith-logs
+          path: |
+            e2e-logs/
+            tuoyu-e2e/target/failsafe-reports/
+            tuoyu-e2e/target/surefire-reports/
+          if-no-files-found: ignore
+          retention-days: 7

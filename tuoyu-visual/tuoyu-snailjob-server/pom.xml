@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-visual</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <packaging>jar</packaging>
+    <artifactId>tuoyu-snailjob-server</artifactId>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.aizuda</groupId>
+            <artifactId>snail-job-server-starter</artifactId>
+            <version>${snailjob.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.scala-lang</groupId>
+                    <artifactId>scala-library</artifactId>
+                </exclusion>
+                <!--
+                    MariaDB 方言（模块中只有 MariaDB 的 Mapper XML）与驱动（LGPL-2.1+，CONTRIBUTING.md 基本规则第 7 条）：
+                    1.0 只支持 MySQL 与 PostgreSQL，用不到。SnailJob 按字符串识别数据库类型，不引用驱动类，排除不影响启动
+                -->
+                <exclusion>
+                    <groupId>com.aizuda</groupId>
+                    <artifactId>snail-job-mariadb-datasource</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.mariadb.jdbc</groupId>
+                    <artifactId>mariadb-java-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>2.13.18</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-nacos</artifactId>
+        </dependency>
+
+        <!-- 启动自检 -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-selfcheck</artifactId>
+        </dependency>
+
+        <!-- 日志追踪（日志带 traceId，logback-pattern.xml）与优雅停机 -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-observability</artifactId>
+        </dependency>
+
+        <!-- 数据库迁移：本服务负责 tuoyu-job 库（见 docs/adr/0004-数据库迁移.md） -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-flyway</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>de.codecentric</groupId>
+            <artifactId>spring-boot-admin-starter-client</artifactId>
+            <version>${spring-boot-admin.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

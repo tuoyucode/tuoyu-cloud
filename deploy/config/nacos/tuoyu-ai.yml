@@ -1,0 +1,58 @@
+snail-ai:
+  # 启用客户端模式
+  enabled: true
+  # ==================== Server 连接 ====================
+  # Server 端 gRPC 地址（即 tuoyu-snailai-server 的 snail-ai.server.grpc-port）
+  server-host: 127.0.0.1
+  server-port: 18888
+  # ==================== 客户端配置 ====================
+  # 应用 ID（在 Server「应用管理」页面创建后获取）
+  app-id: 1
+  # 认证令牌（在 Server「应用管理」页面创建时自动生成）
+  token: ${TUOYU_SNAILAI_TOKEN}
+  # 本客户端 gRPC 端口（Server 通过此端口分发 Chat 请求）
+  port: 2${server.port}
+  # 客户端 IP 指定，留空默认自动获取本地 IP
+  host:
+  # 最大并发对话数
+  max-concurrent-chats: 10
+  # Skill 文件临时目录
+  skill-temp-dir: /tmp/snail-ai-agent/skills
+  # ==================== Chat 嵌入模式配置 ====================
+  chat.ui.embed:
+    # 启用嵌入模式
+    enabled: true
+    # 嵌入模式下隐藏顶部栏
+    show-header: false
+    # 嵌入模式下隐藏侧边栏用户信息
+    show-sidebar-user: false
+    # 嵌入模式下隐藏智能体市场入口
+    show-agent-market: true
+    # 嵌入模式下使用紧凑输入框
+    compact-input: true
+    # 是否锁定当前智能体
+    lock-agent: false
+  # Server 回调配置
+  server-callback:
+    # Server 回调超时时间（毫秒）
+    timeout: 5000
+    # Server 回调重试次数
+    retry-times: 3
+    # Server 回调重试间隔（毫秒）
+    retry-interval: 1000
+  # ==================== OpenAPI Client 配置 ====================
+  openapi:
+    # 启用 OpenAPI Client
+    enabled: true
+    # OpenAPI 服务端地址，不配置则取 snail-ai.server-host
+    server-host:
+    # Server HTTP 端口
+    web-port: 8900
+    # 是否使用 HTTPS
+    https: false
+    # API 路径前缀
+    prefix: snail-ai
+    # 超时配置（毫秒）
+    connect-timeout-ms: 5000
+    read-timeout-ms: 60000
+    chat-timeout-ms: 300000

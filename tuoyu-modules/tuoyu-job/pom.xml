@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-modules</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>tuoyu-job</artifactId>
+
+    <description>
+        tuoyu-job 任务调度模块
+    </description>
+
+    <dependencies>
+        <!-- 多租户（ADR 0006，默认关闭） -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-tenant</artifactId>
+        </dependency>
+
+
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-nacos</artifactId>
+        </dependency>
+
+        <!-- 启动自检 -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-selfcheck</artifactId>
+        </dependency>
+
+        <!-- TuoYu Common Log -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-log</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-dubbo</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-mybatis</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-job</artifactId>
+        </dependency>
+
+
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-security</artifactId>
+        </dependency>
+
+        <!-- TuoYu Api System -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-api-system</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <configuration>
+                    <!-- 可执行 jar 带 exec 后缀（target/<模块>-exec.jar），普通 jar 留给单体启动器 tuoyu-boot-all 依赖 -->
+                    <classifier>exec</classifier>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

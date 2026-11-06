@@ -1,39 +1,157 @@
-# tuoyu-cloud
+# TuoYu-Cloud
 
-#### 介绍
-{**以下是 Gitee 平台说明，您可以替换此简介**
-Gitee 是 OSCHINA 推出的基于 Git 的代码托管平台（同时支持 SVN）。专为开发者提供稳定、高效、安全的云端软件开发协作平台
-无论是个人、团队、或是企业，都能够用 Gitee 实现代码托管、项目管理、协作开发。企业项目请看 [https://gitee.com/enterprises](https://gitee.com/enterprises)}
+> 生产就绪的开源 Java 微服务框架：默认安全、质量可验证，单体与微服务一体，云原生，完全开源。
 
-#### 软件架构
-软件架构说明
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+![JDK](https://img.shields.io/badge/JDK-21-green.svg)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-blue.svg)
+![Status](https://img.shields.io/badge/status-开发中-orange.svg)
 
+TuoYu-Cloud 是一个通用的企业级后台开发框架，提供权限、组织、工作流、代码生成、文件存储、消息推送等开箱即用的基础能力。**同一套代码可以按单体架构部署，也可以按微服务架构部署**，团队可以随业务规模平滑演进。
 
-#### 安装教程
+> ⚠️ **项目处于早期开发阶段**，接口和目录结构仍会调整，暂不建议用于生产环境。首个公开预览版 `1.0.0-alpha.1` 正在开发中。
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+---
 
-#### 使用说明
+## 设计目标
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+| 目标 | 说明 |
+|---|---|
+| **默认安全** | 仓库内不放明文密钥；生产环境启动时自检弱口令、默认密钥、敏感端点暴露等问题，发现即拒绝启动 |
+| **单体与微服务一体** | 单体模式下服务间直接在进程内调用；微服务模式下使用 Dubbo。业务代码不需要改动 |
+| **可插拔多租户** | 默认关闭、零侵入；开启后覆盖数据库、缓存、会话、消息、异步与定时任务 |
+| **质量可验证** | 持续集成必跑测试，不允许跳过；架构规则自动检查；数据库变更用 Flyway 管理 |
+| **云原生** | 容器化部署、健康检查、链路追踪、优雅停机 |
+| **完全开源** | MIT 协议，没有商业版，也没有付费功能 |
 
-#### 参与贡献
+## 功能
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+**已有能力**
 
+- 权限：用户、角色、菜单、部门、岗位，按钮级权限，部门数据权限
+- 认证：账号密码、短信、邮箱、社交登录、小程序；支持多客户端，每个客户端可独立配置 Token 时效
+- 工作流：流程设计、审批、驳回、转办、委派、加签、减签、抄送、催办
+- 代码生成：根据表结构一键生成后端代码和前端页面，支持多数据源
+- 资源：对象存储（兼容 S3）、短信、邮件、SSE / WebSocket 消息推送
+- 数据处理：注解式脱敏、字段加解密、字典翻译、Excel 导入导出
+- 运维：服务监控、分布式任务调度、接口文档
 
-#### 特技
+**1.0 规划中**
 
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+- 安全默认值加固与启动自检
+- 单体 / 微服务两种部署形态
+- 多租户插件
+- Flyway 数据库迁移、持续集成与测试体系
+- 日志链路追踪（traceId）
+
+## 技术栈
+
+| 类别 | 选型 |
+|---|---|
+| 基础 | JDK 21、Spring Boot 4.1、Spring Cloud 2025.1 |
+| 注册与配置 | Nacos |
+| 服务调用 | Apache Dubbo 3 |
+| 网关 | Spring Cloud Gateway（Servlet） |
+| 认证鉴权 | Sa-Token |
+| 数据访问 | MyBatis-Plus、dynamic-datasource |
+| 缓存与锁 | Redis、Redisson |
+| 工作流 | Warm-Flow |
+| 任务调度 | SnailJob |
+
+## 目录结构
+
+```
+tuoyu-cloud
+├── tuoyu-framework   框架公共组件（tuoyu-common-*）
+├── tuoyu-api         服务间接口契约
+├── tuoyu-gateway     网关
+├── tuoyu-modules     业务模块（auth / system / resource / workflow / gen / job）
+├── tuoyu-visual      监控与调度控制台
+├── tuoyu-extensions  可选扩展（AI 等），默认不参与构建
+├── deploy            SQL、Nacos 配置、部署脚本
+├── tools             开发工具脚本
+└── docs              设计与规划文档
+```
+
+## 快速开始
+
+**环境要求**：JDK 21、Maven 3.9、MySQL 8 或 PostgreSQL（设置 `TUOYU_DB_TYPE=postgresql`）、Redis 6 及以上、Nacos 3
+
+```bash
+# 构建并运行测试
+mvn clean verify
+
+# 连同可选扩展一起构建
+mvn clean verify -P extensions
+```
+
+数据库表结构由服务启动时自动迁移（Flyway，只需先建好空库）；也可以用 `deploy/sql` 下的全新安装脚本手工初始化。Nacos 配置位于 `deploy/config/nacos`。完整的部署文档正在编写中。
+
+### 配置密钥
+
+仓库中**不包含任何口令和密钥**，全部通过环境变量注入；缺少必填项时，服务会拒绝启动。
+
+本地开发时，用下面的命令生成 `.env`：
+
+```bash
+java tools/secrets/GenerateEnv.java
+```
+
+- 生成的 `.env` 包含随机强口令、JWT 密钥和接口加密私钥。后端服务启动时会自动读取它；如果同时设置了真实环境变量，以环境变量为准。
+- 使用已有的数据库、Redis、Nacos 时，请把 `.env` 中对应的地址和口令改成实际值。如果 Nacos 与其他项目共用，建议新建独立的命名空间，并设置 `TUOYU_NACOS_NAMESPACE`。
+- 初始化数据库后，按工具输出的提示执行一条 `UPDATE` 语句，同步任务调度的令牌。
+- 管理员账号为 `admin`，首次启动时口令设置为 `.env` 中的 `TUOYU_ADMIN_INITIAL_PASSWORD`（种子数据中的口令不能使用）。登录后可在个人中心修改。
+- 接口加密只需要后端私钥（`TUOYU_API_CRYPTO_PRIVATE_KEY`）。前端运行时从 `/auth/crypto/public-key` 获取公钥，不需要配置任何密钥。协议见 [docs/adr/0001-接口加密.md](docs/adr/0001-接口加密.md)。
+- 文件存储（OSS）的访问密钥需要在管理界面的“文件配置”中填写。
+
+全部变量及说明见 [.env.example](.env.example)。生产环境请改用真实的环境变量或密钥管理服务注入，不要使用 `.env` 文件。
+
+### 导入 Nacos 配置
+
+`deploy/config/nacos` 下的配置需要先导入 Nacos（支持 Nacos 2.x）。脚本读取 `.env` 中的 Nacos 地址、命名空间和账号：
+
+```bash
+java tools/nacos/ImportNacosConfig.java                      # 预览，不写入
+java tools/nacos/ImportNacosConfig.java --apply              # 导入：新建不存在的配置，已存在的不覆盖
+java tools/nacos/ImportNacosConfig.java --apply --overwrite  # 导入，并覆盖内容不同的已有配置
+```
+
+如果 Nacos 与其他项目共用，请先新建独立的命名空间，再设置 `TUOYU_NACOS_NAMESPACE`，避免覆盖其他项目的配置。
+
+**仓库中的配置更新后**（例如拉取代码后 `deploy/config/nacos` 有变化），需要把改动同步到 Nacos：
+
+1. 预览：执行 `java tools/nacos/ImportNacosConfig.java`，确认显示为“已存在且内容不同”的只有本次改动涉及的文件；
+2. 确认后覆盖导入：执行 `java tools/nacos/ImportNacosConfig.java --apply --overwrite`；
+3. 重启相关服务。
+
+如果没有同步，启动自检可能会报 `[C2] 未能从 Nacos 加载公共配置`，原因是 Nacos 中的 `application-common.yml` 仍是旧版本，缺少加载标记。
+
+注意：`--overwrite` 会用仓库中的版本覆盖 Nacos 中的配置。如果在 Nacos 控制台手工修改过配置，请先把修改同步回仓库，否则会被覆盖。
+
+### 启动自检
+
+每个服务启动时会先做自检，未通过就拒绝启动，并一次列出全部问题和修复方式：
+
+| 检查项 | 内容 | 开发环境 | 生产环境（`TUOYU_PROFILES_ACTIVE=prod`） |
+|---|---|---|---|
+| C1 | 必填的环境变量都已提供 | 拒绝启动 | 拒绝启动 |
+| C2 | 已从 Nacos 加载公共配置 | 拒绝启动 | 拒绝启动 |
+| P1 | 没有弱口令或已公开的默认密钥 | 警告 | 拒绝启动 |
+| P2 ~ P5 | Actuator 未全量暴露、健康检查不展示细节、接口文档已关闭、网关未开启自动路由 | 警告 | 拒绝启动 |
+
+仓库中的配置默认就是生产安全的。生成工具会在本地 `.env` 中打开接口文档等开发便利项，生产环境不要设置这些变量。确需跳过某项检查时，只能按编号跳过，例如 `tuoyu.selfcheck.skip=P4`。
+
+## 相关仓库
+
+- 前端：[tuoyu-cloud-frontend](https://gitee.com/tuoyucode/tuoyu-cloud-frontend)
+
+## 参与贡献
+
+开发约定（基本规则、构建与检查、数据库脚本、各子系统的注意事项）见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+
+- 提交信息格式：`类型: 中文描述`，类型可取 `feat`、`fix`、`docs`、`refactor`、`test`、`chore`、`build`、`ci`
+- 提交 Pull Request 前，请确保 `mvn clean verify` 通过。CI 会在每次提交和每个 Pull Request 上自动运行全部测试，测试不允许跳过
+
+## 许可证
+
+本项目基于 [MIT License](LICENSE) 开源。项目中包含的第三方代码和文件，其协议说明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。

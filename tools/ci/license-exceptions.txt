@@ -1,0 +1,9 @@
+# 依赖协议例外（tools/ci/supply_chain.py licenses 读取）
+#
+# GPL、AGPL 协议的依赖一律阻断；LGPL 依赖默认阻断（CONTRIBUTING.md 基本规则第 7 条）。这里只登记基本规则明确允许的例外，
+# 每行一条，格式：groupId:artifactId | 原因（原因必填）。新增例外前须先修改 CONTRIBUTING.md 的基本规则并经维护者确认。
+# LGPL 例外只允许未修改、作为 Maven 依赖使用的库，并在 THIRD-PARTY-NOTICES.md 中列出。
+
+com.mysql:mysql-connector-j | GPL-2.0 附带 Universal FOSS Exception 的数据库驱动，CONTRIBUTING.md 基本规则第 7 条允许作为 Maven 依赖使用（不放进仓库）
+com.googlecode.aviator:aviator | LGPL：SnailJob 服务端（tuoyu-snailjob-server，独立的调度控制台进程）的工作流条件表达式引擎，SnailJob 在静态初始化中直接创建它，无法排除；未修改，只作为 Maven 依赖使用（2026-10-30 维护者确认继续使用 SnailJob）
+com.xkcoding.http:simple-http | LGPL-3.0：JustAuth（MIT）的 HTTP 请求层，第三方登录（tuoyu-common-social）的全部请求经过它，JustAuth 最新版本仍依赖它；未修改，只作为 Maven 依赖使用（2026-10-30 维护者确认）

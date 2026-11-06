@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="tuoyu-core-services" type="CompoundRunConfigurationType">
+    <toRun name="tuoyu-system" type="SpringBootApplicationConfigurationType" />
+    <toRun name="tuoyu-auth" type="SpringBootApplicationConfigurationType" />
+    <toRun name="tuoyu-resource" type="SpringBootApplicationConfigurationType" />
+    <toRun name="tuoyu-gateway" type="SpringBootApplicationConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>

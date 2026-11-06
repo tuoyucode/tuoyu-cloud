@@ -1,0 +1,4 @@
+# 单体镜像的构建上下文是仓库根目录：只放行镜像需要的配置与可执行 jar，其余（源码、.env、构建产物等）一律不发送给 Docker
+*
+!deploy/config/nacos
+!tuoyu-boot/tuoyu-boot-all/target/tuoyu-boot-all.jar

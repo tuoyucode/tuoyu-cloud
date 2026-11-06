@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>tuoyu-e2e</artifactId>
+
+    <description>
+        tuoyu-e2e 端到端测试：通过 HTTP 访问一个已经运行的系统，微服务（经网关）与单体两种部署方式共用同一套测试。
+        只有测试，不依赖本仓库的其他模块，不发布。由 profile e2e 启用，不参与默认构建：
+        mvn -P e2e -pl tuoyu-e2e verify -Dtuoyu.e2e.base-url=http://localhost:8081（管理员口令用环境变量 TUOYU_E2E_PASSWORD 传入）
+        - 单元测试（*Test，surefire）：用测试向量校验客户端的接口加密实现，不需要被测系统；
+        - 端到端测试（*IT，failsafe）：需要被测系统，地址不可达时失败，不会跳过。
+    </description>
+
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <!-- 被测系统的地址：单体与网关的默认端口都是 8081。可以用 -Dtuoyu.e2e.base-url=... 覆盖 -->
+        <tuoyu.e2e.base-url>http://localhost:8081</tuoyu.e2e.base-url>
+        <!-- 登录账号与客户端（种子数据中的 pc 客户端）。口令不写在这里，用环境变量 TUOYU_E2E_PASSWORD 传入 -->
+        <tuoyu.e2e.username>admin</tuoyu.e2e.username>
+        <tuoyu.e2e.client-id>e5cd7e4891bf95d1d19206ce24a7b32e</tuoyu.e2e.client-id>
+        <!-- 开启多租户时填写登录的租户（例如 default），未开启时留空 -->
+        <tuoyu.e2e.tenant-id></tuoyu.e2e.tenant-id>
+    </properties>
+
+    <dependencies>
+        <!-- JSON 解析（Jackson 3，Apache-2.0，版本由 Spring Boot 管理）。HTTP 用 JDK 自带的 HttpClient -->
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- JUnit 5、AssertJ 由父 pom 的 spring-boot-starter-test 提供 -->
+    </dependencies>
+
+    <build>
+        <testResources>
+            <!-- 接口加密测试向量与后端共用同一份文件（docs/adr/0001-接口加密.md），不复制 -->
+            <testResource>
+                <directory>${project.basedir}/../tuoyu-framework/tuoyu-common-encrypt/src/test/resources/api-crypto</directory>
+                <targetPath>api-crypto</targetPath>
+                <includes>
+                    <include>test-vectors.json</include>
+                </includes>
+            </testResource>
+        </testResources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+                <configuration>
+                    <argLine>-Dfile.encoding=UTF-8</argLine>
+                    <systemPropertyVariables>
+                        <tuoyu.e2e.base-url>${tuoyu.e2e.base-url}</tuoyu.e2e.base-url>
+                        <tuoyu.e2e.username>${tuoyu.e2e.username}</tuoyu.e2e.username>
+                        <tuoyu.e2e.client-id>${tuoyu.e2e.client-id}</tuoyu.e2e.client-id>
+                        <tuoyu.e2e.tenant-id>${tuoyu.e2e.tenant-id}</tuoyu.e2e.tenant-id>
+                    </systemPropertyVariables>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

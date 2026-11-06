@@ -1,0 +1,80 @@
+# 单体（tuoyu-boot-all，ADR 0005 第 5 节）特有的配置
+# 单体从本地目录依次加载 application-common.yml、datasource.yml 与各模块的配置，最后加载本文件，覆盖其中与部署方式有关的部分
+# 微服务方式不使用本文件（导入 Nacos 也无妨）
+tuoyu:
+  deployment:
+    # 部署方式：单体中缺少跨模块接口的实现时拒绝启动（tuoyu-common-rpc）
+    mode: monolith
+  web:
+    # 单体是对外入口，可信代理与网关相同：默认只信任本机的反向代理
+    # 反向代理、负载均衡在其他主机时，用 TUOYU_GATEWAY_TRUSTED_PROXIES 配置它们的地址；不允许 /0，none 表示不信任任何代理
+    trusted-proxies: "${TUOYU_GATEWAY_TRUSTED_PROXIES:127.0.0.0/8,::1/128}"
+  # 数据库迁移：主库 tuoyu-cloud 由 spring.flyway.*（tuoyu-system.yml）连接，工作流库在其后迁移
+  # tuoyu-job 库由 SnailJob 服务端负责迁移
+  flyway:
+    database: cloud
+    additional:
+      workflow:
+        url: ${datasource.workflow.url}
+        user: ${datasource.workflow.username}
+        password: ${datasource.workflow.password}
+  monolith:
+    # 跨域：默认关闭（前端经同源的反向代理访问）。前端与接口不同源时列出允许的来源，逗号分隔，不支持 *
+    cors:
+      allowed-origins: ${TUOYU_CORS_ALLOWED_ORIGINS:}
+    # URL 前缀：Controller 所在的包 → 前缀，与 tuoyu-gateway.yml 中去掉前缀的路由一一对应（ModulePathPrefixConsistencyTest 校验）
+    # 按顺序匹配，更具体的包写在前面
+    path-prefixes:
+      - prefix: /auth
+        packages: [ org.tuoyu.auth ]
+      - prefix: /monitor
+        packages: [ org.tuoyu.system.controller.monitor ]
+      - prefix: /system
+        packages: [ org.tuoyu.system ]
+      - prefix: /resource
+        # 消息推送（SSE）的接口在框架模块 tuoyu-common-push 中，由 resource 提供
+        packages: [ org.tuoyu.resource, org.tuoyu.common.push ]
+      - prefix: /tool
+        packages: [ org.tuoyu.gen ]
+      - prefix: /workflow
+        packages: [ org.tuoyu.workflow ]
+    # 数据源：调用某个模块的组件时切换到它的库（与微服务方式的库划分相同）
+    # 访问数据库的模块都要登记：跨模块调用进入提供方时据此切换，未登记的组件沿用调用方的数据源
+    datasource-routes:
+      - datasource: master
+        packages: [ org.tuoyu.auth, org.tuoyu.system, org.tuoyu.resource, org.tuoyu.gen, org.tuoyu.job ]
+      - datasource: workflow
+        packages: [ org.tuoyu.workflow, org.dromara.warm ]
+
+spring:
+  datasource:
+    dynamic:
+      primary: master
+      aop:
+        # @DS 切面排在按模块切换数据源的切面之后（单体的切面为最高优先级），显式标注的 @DS 仍然生效
+        order: -2147483647
+      datasource:
+        # tuoyu-cloud 库：system、resource、gen、auth
+        master:
+          type: ${spring.datasource.type}
+          driver-class-name: ${datasource.driver-class-name}
+          url: ${datasource.system-master.url}
+          username: ${datasource.system-master.username}
+          password: ${datasource.system-master.password}
+        # tuoyu-workflow 库：workflow 与 Warm-Flow
+        workflow:
+          type: ${spring.datasource.type}
+          driver-class-name: ${datasource.driver-class-name}
+          url: ${datasource.workflow.url}
+          username: ${datasource.workflow.username}
+          password: ${datasource.workflow.password}
+
+sa-token:
+  # 没有网关，不校验 same-token；登录与白名单照常按完整路径校验，客户端传来的前缀头一律忽略
+  check-same-token: false
+
+snail-job:
+  server:
+    # 没有注册中心，按地址直连 SnailJob 服务端
+    server-name:
+    host: ${TUOYU_SNAILJOB_SERVER_HOST:127.0.0.1}

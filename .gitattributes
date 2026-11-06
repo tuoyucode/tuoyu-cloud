@@ -1,0 +1,6 @@
+/mvnw text eol=lf
+*.cmd text eol=crlf
+# 一键开发环境脚本：bash 脚本必须是 LF（Windows 上检出为 CRLF 会无法执行）；PowerShell 脚本保持 CRLF
+/dev text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf

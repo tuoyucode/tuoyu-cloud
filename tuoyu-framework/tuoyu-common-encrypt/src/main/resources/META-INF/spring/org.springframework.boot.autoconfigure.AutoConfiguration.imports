@@ -1,0 +1,3 @@
+org.tuoyu.common.encrypt.config.EncryptorAutoConfiguration
+org.tuoyu.common.encrypt.config.ApiCryptoAutoConfiguration
+org.tuoyu.common.encrypt.config.PasswordHasherAutoConfiguration

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-api</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>tuoyu-api-system</artifactId>
+
+    <description>
+        tuoyu-api-system系统接口模块
+    </description>
+
+    <dependencies>
+        <!-- @RemoteApi：跨模块调用契约（ADR 0005） -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-rpc</artifactId>
+        </dependency>
+
+        <!-- TuoYu Common Core-->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-core</artifactId>
+        </dependency>
+
+<!--        <dependency>-->
+<!--            <groupId>org.tuoyu</groupId>-->
+<!--            <artifactId>tuoyu-common-excel</artifactId>-->
+<!--        </dependency>-->
+
+    </dependencies>
+
+</project>

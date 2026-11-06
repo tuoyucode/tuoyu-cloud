@@ -1,0 +1,30 @@
+{
+  "description": "接口加密协议 v1 测试向量，见 docs/adr/0001-接口加密.md。其中的私钥仅用于测试，已列入启动自检的已公开密钥名单，不得用于任何环境",
+  "algorithm": "RSA-OAEP-256+A256GCM",
+  "privateKey": "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",
+  "publicKey": "MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEA3Qy5tbW63E4yw2RBjEfw9bhNg52auYfZlmIoQX7kUQeR/DPyRWdOOTUKp9PY5iTSaIqYpc7EY0QPSG3v6hyLp29h1iTwKV6DQfxQTdyeNoDYSw1LJD/BrmyM9eN0dKdkB960npVYIWY2VDRibjjdHRiKZRieJAdm4WW1UVxPLrUYVQ1K6/kHxz1zUMmphYMPQhkklSlg6J6IK9Mj5NkVD8sr0EkTdsf6mUl9oimq05KLqx8jH5Ipv/KYZNSwObboi5s2dpuUKnCCICBq4wOVdcX084q4jf1ax0Wy/ZKKO1lHJQBEIAwg7FKbJZsXM3EleGU1/ca0uLpQsbR4pNre/vvd57v7DKCQJgnocNRJP5tvLY2lH7rKQDe5e5a/IL1JWzfR2tLHv+UOCIGkL4fdtCVMbJ4mU14CyR+h/DS70ZqBWQOwEQ4lkSYf6NerrRKaNivuSWcoEZAsw1iwrPPDTnxL7P7N7jjF/2wAjEAyXrCtm784RXraSVcS72a5BBaHAgMBAAE=",
+  "kid": "FDFQCeCbUIY1hbKf",
+  "request": {
+    "plaintext": "{\"username\":\"admin\",\"password\":\"Tuoyu@2026 测试\"}",
+    "aesKey": "EBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8=",
+    "aad": "tuoyu-api-crypto/v1/request|FDFQCeCbUIY1hbKf|1792738328000|cHFyc3R1dnd4eXp7fH1+fw==",
+    "envelope": {
+      "v": 1,
+      "kid": "FDFQCeCbUIY1hbKf",
+      "key": "L85wIqHacB+xJqkH1tZZGciytRRaQulERY0KlBbvH0yJUVJLm4ch8LlV8iVLSqhs/yGnZMGvg81MlkWVnO/szCuawrocpNpiytLujAwpYLieLjXjaNAuaycSk7R+q8Ww5PGs07nZPIrzZTIpipYjDPUl5IZWJ3txUyTPE31aqRz/TEvySyvNHNxlH9rLhL9fgya9PiVqv3tjQNgLPHrkdYT4bnpODmL7RdVeNY9sbdr0PDbyFKiH5jPvQS6ownVm16W8LYannBHtFQe1swwa91zvENu0J9gNaRySQJfHFxz0WdXKPpGWvMjBQr2Y7zDF3etcMUXO8BKcZmfrvKrS259dlSadqbJ51KmndN7K0m9dUaQHmfiZGbuo30hIq+y3jqSCZDVArfmy7hyZRR6rmXfAldygXo9902tr+WYsDsovjbucYZ0ZCY6+LVcNLYdthBpjIv7n5GiZmwk78RafFER8OTCD/GVeE62tW8u1U33J0OdO0Fnb3xIsrnkwhXgI",
+      "iv": "UFFSU1RVVldYWVpb",
+      "ts": 1792738328000,
+      "nonce": "cHFyc3R1dnd4eXp7fH1+fw==",
+      "data": "CkxAfrLFKfkJkMnVU2dvTn7sluIVa0eR+zN/Zqnuh7HvZ5nbjhRvkhLGr68Kizj0PHuS0qwsIsdsOQm+R779D6eyXA=="
+    }
+  },
+  "response": {
+    "plaintext": "{\"code\":200,\"msg\":\"操作成功\",\"data\":{\"token\":\"示例\"}}",
+    "aad": "tuoyu-api-crypto/v1/response|cHFyc3R1dnd4eXp7fH1+fw==",
+    "envelope": {
+      "v": 1,
+      "iv": "kJGSk5SVlpeYmZqb",
+      "data": "aQ38D/TXwEMCkk+jNsGGXn3glg6DSkaA5TyTxdUco9MxDwa6fBh/OquAbSLL78lXlzT5rHgNyGhgpCtNJsLf2z6yIslvTQ1GO++f"
+    }
+  }
+}

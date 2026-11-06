@@ -1,0 +1,1 @@
+org.springframework.boot.EnvironmentPostProcessor=\norg.tuoyu.common.dubbo.config.DubboShutdownHookEnvironmentPostProcessor

@@ -1,0 +1,2 @@
+org.tuoyu.common.bus.config.BusCustomConfiguration
+org.tuoyu.common.bus.config.RedisBusBinderConfiguration

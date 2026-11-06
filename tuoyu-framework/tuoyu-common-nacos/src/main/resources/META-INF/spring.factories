@@ -1,0 +1,2 @@
+org.springframework.boot.EnvironmentPostProcessor=\
+org.tuoyu.common.nacos.env.DotEnvEnvironmentPostProcessor

@@ -1,0 +1,222 @@
+# TuoYu-Cloud 微服务完整部署（full）：core 的全部内容 + 工作流、代码生成、任务调度（SnailJob 服务端与执行器）、
+# 监控中心、MinIO
+#
+# 在仓库根目录执行（详见同目录 README.md）：
+#   docker compose --env-file .env -f deploy/docker/compose-full.yml up -d --build
+#
+# ELK、SkyWalking、Prometheus / Grafana、消息队列、Seata、Nginx、AI 扩展等附加组件在 compose-extras.yml 中，按 profile 叠加：
+#   docker compose --env-file .env -f deploy/docker/compose-full.yml -f deploy/docker/compose-extras.yml --profile metrics up -d
+
+name: tuoyu
+
+include:
+  # 中间件与四个核心服务，以及网络、数据卷的定义
+  - compose-core.yml
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+# 与 compose-core.yml 中的 x-tuoyu-env 保持一致（YAML 锚点不能跨文件引用）
+x-tuoyu-env: &tuoyu-env
+  TZ: Asia/Shanghai
+  JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
+  TUOYU_NACOS_SERVER: nacos:8848
+  TUOYU_NACOS_NAMESPACE: public
+  TUOYU_NACOS_USERNAME: nacos
+  TUOYU_DB_TYPE: mysql
+  TUOYU_DB_HOST: mysql
+  TUOYU_DB_PORT: "3306"
+  TUOYU_DB_USERNAME: root
+  TUOYU_REDIS_HOST: redis
+  TUOYU_REDIS_PORT: "6379"
+
+# 与 compose-core.yml 中的 x-java-healthcheck 保持一致
+x-java-healthcheck: &java-healthcheck
+  test:
+    - CMD
+    - bash
+    - -c
+    - |
+      exec 3<>/dev/tcp/127.0.0.1/$${SERVER_PORT} || exit 1
+      auth=$$(printf '%s:%s' "$${TUOYU_MONITOR_USERNAME:-tuoyu}" "$${TUOYU_MONITOR_PASSWORD}" | base64 -w0)
+      printf 'GET %s HTTP/1.0\r\nHost: localhost\r\nAuthorization: Basic %s\r\n\r\n' "$${HEALTHCHECK_PATH:-/actuator/health}" "$$auth" >&3
+      response=$$(timeout 5 cat <&3)
+      [[ $$response == HTTP/*' 200'* && $$response == *'"status":"UP"'* ]]
+  interval: 10s
+  timeout: 10s
+  retries: 6
+  start_period: 180s
+
+x-java-service: &java-service
+  env_file: ../../.env
+  restart: unless-stopped
+  stop_grace_period: 60s
+  logging: *logging
+  healthcheck: *java-healthcheck
+
+services:
+
+  tuoyu-workflow:
+    <<: *java-service
+    image: tuoyu/tuoyu-workflow:1.0.0-SNAPSHOT
+    build: ../../tuoyu-modules/tuoyu-workflow
+    environment: *tuoyu-env
+    volumes:
+      - logs:/tuoyu/workflow/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  tuoyu-gen:
+    <<: *java-service
+    image: tuoyu/tuoyu-gen:1.0.0-SNAPSHOT
+    build: ../../tuoyu-modules/tuoyu-gen
+    environment: *tuoyu-env
+    volumes:
+      - logs:/tuoyu/gen/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      nacos-init:
+        condition: service_completed_successfully
+      # 代码生成的表在 tuoyu-cloud 库，由系统服务迁移
+      tuoyu-system:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  # SnailJob 调度服务端（管理界面 http://127.0.0.1:8800/snail-job），负责 tuoyu-job 库的迁移
+  tuoyu-snailjob-server:
+    <<: *java-service
+    image: tuoyu/tuoyu-snailjob-server:1.0.0-SNAPSHOT
+    build: ../../tuoyu-visual/tuoyu-snailjob-server
+    environment:
+      <<: *tuoyu-env
+      HEALTHCHECK_PATH: /snail-job/actuator/health
+    ports:
+      - "127.0.0.1:8800:8800"
+    volumes:
+      - logs:/tuoyu/snailjob/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  # 一次性任务：把 tuoyu-job 库中的执行器令牌占位值替换为 .env 中的 TUOYU_SNAILJOB_TOKEN（只替换占位值，已改过的不动）
+  snailjob-token-init:
+    image: mysql:8.4.9
+    user: mysql
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        if [[ ! $$TUOYU_SNAILJOB_TOKEN =~ ^[A-Za-z0-9_-]+$$ ]]; then
+          echo "TUOYU_SNAILJOB_TOKEN 只能包含字母、数字、下划线与连字符"; exit 1
+        fi
+        export MYSQL_PWD="$$TUOYU_DB_PASSWORD"
+        mysql -h mysql -u root tuoyu-job -e "UPDATE sj_group_config SET token = '$$TUOYU_SNAILJOB_TOKEN' WHERE token = 'SJ_REPLACE_WITH_TUOYU_SNAILJOB_TOKEN'"
+    environment:
+      TUOYU_DB_PASSWORD: ${TUOYU_DB_PASSWORD:?请在 .env 中设置 TUOYU_DB_PASSWORD}
+      TUOYU_SNAILJOB_TOKEN: ${TUOYU_SNAILJOB_TOKEN:?请在 .env 中设置 TUOYU_SNAILJOB_TOKEN}
+    depends_on:
+      # 服务端健康说明 Flyway 已经建好 sj_group_config 表
+      tuoyu-snailjob-server:
+        condition: service_healthy
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging: *logging
+
+  # 任务执行器
+  tuoyu-job:
+    <<: *java-service
+    image: tuoyu/tuoyu-job:1.0.0-SNAPSHOT
+    build: ../../tuoyu-modules/tuoyu-job
+    environment: *tuoyu-env
+    volumes:
+      - logs:/tuoyu/job/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+      nacos-init:
+        condition: service_completed_successfully
+      snailjob-token-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+
+  # 监控中心（Spring Boot Admin，http://127.0.0.1:9100，账号为 TUOYU_MONITOR_USERNAME / TUOYU_MONITOR_PASSWORD）
+  tuoyu-monitor:
+    <<: *java-service
+    image: tuoyu/tuoyu-monitor:1.0.0-SNAPSHOT
+    build: ../../tuoyu-visual/tuoyu-monitor
+    environment: *tuoyu-env
+    ports:
+      - "127.0.0.1:9100:9100"
+    volumes:
+      - logs:/tuoyu/monitor/logs
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # 对象存储。业务文件存储的地址与密钥在管理界面“文件配置”中填写（服务端地址填 http://minio:9000）
+  minio:
+    # pgsty 开源社区 fork 重新维护的最新版 minio
+    image: pgsty/minio:RELEASE.2026-04-17T00-00-00Z
+    restart: unless-stopped
+    command: server --address ':9000' --console-address ':9001' /data
+    environment:
+      TZ: Asia/Shanghai
+      MINIO_ROOT_USER: ${TUOYU_MINIO_ACCESS_KEY:?请在 .env 中设置 TUOYU_MINIO_ACCESS_KEY}
+      # 至少 8 个字符
+      MINIO_ROOT_PASSWORD: ${TUOYU_MINIO_SECRET_KEY:?请在 .env 中设置 TUOYU_MINIO_SECRET_KEY}
+      MINIO_COMPRESS: "off"
+      # https 需要指定域名
+      #MINIO_SERVER_URL: "https://xxx.com:9000"
+      #MINIO_BROWSER_REDIRECT_URL: "https://xxx.com:9001"
+    ports:
+      # 接口端口：浏览器需要直接访问文件地址时，改为对外开放
+      - "127.0.0.1:9000:9000"
+      # 控制台端口
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging: *logging
+
+volumes:
+  minio-data:

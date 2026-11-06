@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="tuoyu-snailai-server" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="tuoyu-snailai-server" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="org.tuoyu.snailai.SnailAiServerApplication" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

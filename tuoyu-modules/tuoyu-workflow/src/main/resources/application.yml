@@ -1,0 +1,39 @@
+# Tomcat
+server:
+  port: 9205
+
+# Spring
+spring:
+  application:
+    # 应用名称
+    name: tuoyu-workflow
+  profiles:
+    # 环境配置
+    active: ${TUOYU_PROFILES_ACTIVE:dev}
+
+# 数据库迁移（见 docs/adr/0004-数据库迁移.md）：本服务负责 tuoyu-workflow 库，迁移脚本在 db/migration/workflow/{vendor}
+tuoyu:
+  flyway:
+    database: workflow
+
+--- # nacos 配置
+spring:
+  cloud:
+    nacos:
+      # nacos 服务地址
+      server-addr: ${TUOYU_NACOS_SERVER:127.0.0.1:8848}
+      username: ${TUOYU_NACOS_USERNAME:nacos}
+      password: ${TUOYU_NACOS_PASSWORD}
+      discovery:
+        # 注册组
+        group: DEFAULT_GROUP
+        namespace: ${TUOYU_NACOS_NAMESPACE:public}
+      config:
+        # 配置组
+        group: DEFAULT_GROUP
+        namespace: ${TUOYU_NACOS_NAMESPACE:public}
+  config:
+    import:
+      - optional:nacos:application-common.yml
+      - optional:nacos:datasource.yml
+      - optional:nacos:${spring.application.name}.yml

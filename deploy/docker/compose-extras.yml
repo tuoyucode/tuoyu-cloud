@@ -1,0 +1,503 @@
+# TuoYu-Cloud 附加组件：按需叠加在 compose-full.yml（或 compose-core.yml）之上，每组组件用一个 profile 开启。
+# 本文件不能单独使用（网络与 Nacos 等中间件来自 core / full）。
+#
+# 在仓库根目录执行，例如开启指标监控与 ELK：
+#   docker compose --env-file .env -f deploy/docker/compose-full.yml -f deploy/docker/compose-extras.yml \
+#     --profile metrics --profile elk up -d
+#
+# profile 一览（详见同目录 README.md）：
+#   postgres    PostgreSQL 14（只提供数据库，服务切换到 PostgreSQL 的方法见 README）
+#   elk         Elasticsearch、Kibana、Logstash（日志收集，需启用 tuoyu-common-logstash）
+#   skywalking  SkyWalking OAP 与 UI（存储使用 Elasticsearch）
+#   metrics     Prometheus、Grafana（抓取监控中心发现的各服务指标）
+#   rocketmq    RocketMQ 名称服务、Broker、控制台
+#   rabbitmq    RabbitMQ（含延迟消息插件）
+#   kafka       Kafka（KRaft 单节点）
+#   seata       Seata 事务协调器
+#   sharding    ShardingSphere-Proxy
+#   nginx       Nginx（托管前端静态文件，反向代理到网关或单体）
+#   ai          AI 扩展：tuoyu-ai、tuoyu-snailai-server（需要 compose-full.yml，并先用 -P extensions 构建）
+#
+# 端口只绑定本机回环地址（nginx 除外）；口令全部来自 .env。
+
+name: tuoyu
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+# 与 compose-core.yml 中的 x-tuoyu-env 保持一致，另加 AI 扩展使用的 MinIO 地址
+x-tuoyu-env: &tuoyu-env
+  TZ: Asia/Shanghai
+  JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
+  TUOYU_NACOS_SERVER: nacos:8848
+  TUOYU_NACOS_NAMESPACE: public
+  TUOYU_NACOS_USERNAME: nacos
+  TUOYU_DB_TYPE: mysql
+  TUOYU_DB_HOST: mysql
+  TUOYU_DB_PORT: "3306"
+  TUOYU_DB_USERNAME: root
+  TUOYU_REDIS_HOST: redis
+  TUOYU_REDIS_PORT: "6379"
+  TUOYU_MINIO_ENDPOINT: http://minio:9000
+
+# 与 compose-core.yml 中的 x-java-healthcheck 保持一致
+x-java-healthcheck: &java-healthcheck
+  test:
+    - CMD
+    - bash
+    - -c
+    - |
+      exec 3<>/dev/tcp/127.0.0.1/$${SERVER_PORT} || exit 1
+      auth=$$(printf '%s:%s' "$${TUOYU_MONITOR_USERNAME:-tuoyu}" "$${TUOYU_MONITOR_PASSWORD}" | base64 -w0)
+      printf 'GET %s HTTP/1.0\r\nHost: localhost\r\nAuthorization: Basic %s\r\n\r\n' "$${HEALTHCHECK_PATH:-/actuator/health}" "$$auth" >&3
+      response=$$(timeout 5 cat <&3)
+      [[ $$response == HTTP/*' 200'* && $$response == *'"status":"UP"'* ]]
+  interval: 10s
+  timeout: 10s
+  retries: 6
+  start_period: 180s
+
+services:
+
+  # ---------- postgres ----------
+  postgres:
+    profiles: [postgres]
+    image: postgres:14.2
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      POSTGRES_USER: ${TUOYU_DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${TUOYU_DB_PASSWORD:?请在 .env 中设置 TUOYU_DB_PASSWORD}
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # 数据卷为空时执行一次：创建三个库，表由各服务的 Flyway 迁移创建
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  # ---------- elk ----------
+  elasticsearch:
+    profiles: [elk, skywalking]
+    image: elasticsearch:8.19.16
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      cluster.name: elasticsearch
+      discovery.type: single-node
+      # 未开启认证，只在 compose 网络内与本机回环地址可访问；开启 xpack.security.enabled 后需手动初始化 Kibana、Logstash、SkyWalking 的账号
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - elasticsearch-plugins:/usr/share/elasticsearch/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:9200/_cluster/health > /dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    logging: *logging
+
+  kibana:
+    profiles: [elk]
+    image: kibana:8.19.16
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      I18N_LOCALE: zh-CN
+      # 访问域名
+      # SERVER_PUBLICBASEURL: https://kibana.cloud.com
+    ports:
+      - "127.0.0.1:5601:5601"
+    volumes:
+      - ./elk/kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  logstash:
+    profiles: [elk]
+    image: logstash:8.19.16
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:4560:4560"
+    volumes:
+      - ./elk/logstash/pipeline/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+      - ./elk/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  # ---------- skywalking ----------
+  sky-oap:
+    profiles: [skywalking]
+    image: apache/skywalking-oap-server:10.4.0
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      JAVA_OPTS: -Xms1G -Xmx1536m
+      # 记录数据、指标数据的有效期，单位天
+      SW_CORE_RECORD_DATA_TTL: 7
+      SW_CORE_METRICS_DATA_TTL: 7
+      SW_STORAGE: elasticsearch
+      SW_STORAGE_ES_CLUSTER_NODES: elasticsearch:9200
+    ports:
+      # 探针上报端口（compose 网络内的服务使用 sky-oap:11800）
+      - "127.0.0.1:11800:11800"
+      - "127.0.0.1:12800:12800"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    logging: *logging
+
+  sky-ui:
+    profiles: [skywalking]
+    image: apache/skywalking-ui:10.4.0
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      SW_SERVER_PORT: 18080
+      SW_OAP_ADDRESS: http://sky-oap:12800
+    ports:
+      - "127.0.0.1:18080:18080"
+    depends_on:
+      - sky-oap
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging: *logging
+
+  # ---------- metrics ----------
+  prometheus:
+    profiles: [metrics]
+    image: prom/prometheus:v3.12.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # 监控账号口令文件，由 tools/secrets/GenerateEnv.java 生成
+      - ./prometheus/monitor.password:/etc/prometheus/monitor.password:ro
+      - prometheus-data:/prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  grafana:
+    profiles: [metrics]
+    image: grafana/grafana:13.0.2
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      # 服务地址 用于指定外网ip或域名
+      GF_SERVER_ROOT_URL: ""
+      GF_SECURITY_ADMIN_PASSWORD: ${TUOYU_GRAFANA_ADMIN_PASSWORD:?请在 .env 中设置 TUOYU_GRAFANA_ADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - grafana-data:/var/lib/grafana
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging: *logging
+
+  # ---------- rocketmq ----------
+  rmqnamesrv:
+    profiles: [rocketmq]
+    image: apache/rocketmq:5.5.0
+    restart: unless-stopped
+    command: sh mqnamesrv
+    environment:
+      JAVA_OPT: -server -Xms512m -Xmx512m
+    ports:
+      - "127.0.0.1:9876:9876"
+    volumes:
+      - rocketmq-namesrv-logs:/home/rocketmq/logs/rocketmqlogs
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  rmqbroker1:
+    profiles: [rocketmq]
+    image: apache/rocketmq:5.5.0
+    restart: unless-stopped
+    # --enable-proxy 开启 broker 与 proxy 共用模式，生产部署建议将 proxy 单独部署
+    command: sh mqbroker --enable-proxy -c /home/rocketmq/rocketmq-5.5.0/conf/broker.conf
+    environment:
+      JAVA_OPT: -server -Xms512M -Xmx512M
+      NAMESRV_ADDR: rmqnamesrv:9876
+    ports:
+      - "127.0.0.1:10911:10911"
+      - "127.0.0.1:10909:10909"
+      - "127.0.0.1:10912:10912"
+    volumes:
+      - ./rocketmq/broker1/conf/broker.conf:/home/rocketmq/rocketmq-5.5.0/conf/broker.conf:ro
+      - rocketmq-broker-logs:/home/rocketmq/logs/rocketmqlogs
+      - rocketmq-broker-store:/home/rocketmq/store
+    depends_on:
+      - rmqnamesrv
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    logging: *logging
+
+  rmqconsole:
+    profiles: [rocketmq]
+    image: apacherocketmq/rocketmq-dashboard:latest
+    restart: unless-stopped
+    environment:
+      JAVA_OPTS: -Dserver.port=19876 -Drocketmq.namesrv.addr=rmqnamesrv:9876 -Dcom.rocketmq.sendMessageWithVIPChannel=false
+    ports:
+      - "127.0.0.1:19876:19876"
+    depends_on:
+      - rmqnamesrv
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging: *logging
+
+  # ---------- rabbitmq ----------
+  rabbitmq:
+    profiles: [rabbitmq]
+    image: tuoyu/rabbitmq:3.13.3-delayed
+    build:
+      context: ./rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${TUOYU_RABBITMQ_USERNAME:-tuoyu}
+      RABBITMQ_DEFAULT_PASS: ${TUOYU_RABBITMQ_PASSWORD:?请在 .env 中设置 TUOYU_RABBITMQ_PASSWORD}
+    ports:
+      # 管理界面端口
+      - "127.0.0.1:15672:15672"
+      # 接口端口
+      - "127.0.0.1:5672:5672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  # ---------- kafka ----------
+  kafka:
+    profiles: [kafka]
+    image: apache/kafka:4.3.0
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      # 客户端看到的地址：compose 网络内为 kafka:9092；容器外的客户端访问时改为宿主机地址
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # 使用 kafka-storage.sh random-uuid 生成
+      CLUSTER_ID: "Mk3OEYBSD34fcwNTJENDM2Qk"
+    ports:
+      - "127.0.0.1:9092:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  # ---------- seata ----------
+  seata-server:
+    profiles: [seata]
+    image: apache/seata-server:2.6.0
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      SEATA_PORT: 8091
+      # 注意 此处 ip 如果是外网使用 要改为外网 ip
+      # SEATA_IP: 127.0.0.1
+      # 供 seata/conf/application.yml 中的占位符使用
+      TUOYU_NACOS_PASSWORD: ${TUOYU_NACOS_PASSWORD:?请在 .env 中设置 TUOYU_NACOS_PASSWORD}
+      TUOYU_DB_PASSWORD: ${TUOYU_DB_PASSWORD:?请在 .env 中设置 TUOYU_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:7091:7091"
+      - "127.0.0.1:8091:8091"
+    volumes:
+      - ./seata/conf/application.yml:/seata-server/resources/application.yml:ro
+      - seata-logs:/root/logs/seata
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  # ---------- sharding ----------
+  shardingproxy:
+    profiles: [sharding]
+    image: apache/shardingsphere-proxy:5.4.0
+    restart: unless-stopped
+    command: server /data
+    environment:
+      JVM_OPTS: "-Djava.awt.headless=true"
+    ports:
+      - "127.0.0.1:3307:3307"
+    volumes:
+      - ./shardingproxy/conf:/opt/shardingsphere-proxy/conf:ro
+      # 数据库驱动等扩展依赖，部署时自行下载放入（见该目录的 README.md）
+      - ./shardingproxy/ext-lib:/opt/shardingsphere-proxy/ext-lib:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  # ---------- nginx ----------
+  # 前端构建产物放在 deploy/docker/nginx/html。网关只信任回环地址的转发头，nginx 在另一个容器中，
+  # 需要在 .env 中设置 TUOYU_GATEWAY_TRUSTED_PROXIES，否则网关记录的客户端 IP 都是 nginx 的地址（见 README）
+  nginx-web:
+    profiles: [nginx]
+    image: nginx:1.31.1
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/cert:/etc/nginx/cert:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+      - nginx-logs:/var/log/nginx
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging: *logging
+
+  # ---------- ai ----------
+  tuoyu-ai:
+    profiles: [ai]
+    image: tuoyu/tuoyu-ai:1.0.0-SNAPSHOT
+    build: ../../tuoyu-extensions/tuoyu-ai
+    env_file: ../../.env
+    environment: *tuoyu-env
+    volumes:
+      - logs:/tuoyu/ai/logs
+      # Snail AI Skill 临时目录
+      - snailai-skills:/tmp/snail-ai-agent/skills
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck: *java-healthcheck
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  tuoyu-snailai-server:
+    profiles: [ai]
+    image: tuoyu/tuoyu-snailai-server:1.0.0-SNAPSHOT
+    build: ../../tuoyu-extensions/tuoyu-snailai-server
+    env_file: ../../.env
+    environment:
+      <<: *tuoyu-env
+      HEALTHCHECK_PATH: /snail-ai/actuator/health
+      # Docling 与 PaddleOCR 服务需单独部署，默认通过宿主机端口访问
+      SNAIL_AI_RAG_DOCLING_ENABLED: ${SNAIL_AI_RAG_DOCLING_ENABLED:-true}
+      SNAIL_AI_RAG_DOCLING_URL: ${SNAIL_AI_RAG_DOCLING_URL:-http://host.docker.internal:5100}
+      SNAIL_AI_RAG_DOCLING_PADDLE_OCR_ENABLED: ${SNAIL_AI_RAG_DOCLING_PADDLE_OCR_ENABLED:-true}
+      SNAIL_AI_RAG_DOCLING_PADDLE_OCR_URL: ${SNAIL_AI_RAG_DOCLING_PADDLE_OCR_URL:-http://host.docker.internal:8866/ocr}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8900:8900"
+    volumes:
+      - logs:/tuoyu/snailai/logs
+      - snailai-upload:/tuoyu/snailai/upload
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck: *java-healthcheck
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+volumes:
+  postgres-data:
+  elasticsearch-data:
+  elasticsearch-plugins:
+  prometheus-data:
+  grafana-data:
+  rocketmq-namesrv-logs:
+  rocketmq-broker-logs:
+  rocketmq-broker-store:
+  rabbitmq-data:
+  kafka-data:
+  seata-logs:
+  nginx-logs:
+  snailai-skills:
+  snailai-upload:

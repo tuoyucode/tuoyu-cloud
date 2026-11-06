@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <modules>
+        <module>tuoyu-boot-all</module>
+    </modules>
+
+    <artifactId>tuoyu-boot</artifactId>
+    <packaging>pom</packaging>
+
+    <description>
+        tuoyu-boot 启动器：tuoyu-boot-all 把全部业务模块装进一个进程（单体，见 docs/adr/0005-RPC抽象与两种部署方式.md 第 5 节）。
+        微服务方式仍由各业务模块自己启动
+    </description>
+
+</project>

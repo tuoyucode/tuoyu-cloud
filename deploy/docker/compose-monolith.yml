@@ -1,0 +1,207 @@
+# TuoYu-Cloud 单体部署（monolith）：MySQL、Redis、单体（tuoyu-boot-all），以及 SnailJob 调度服务端
+#
+# 在仓库根目录执行（详见同目录 README.md）：
+#   mvn -pl tuoyu-boot/tuoyu-boot-all,tuoyu-visual/tuoyu-snailjob-server -am package
+#   docker compose --env-file .env -f deploy/docker/compose-monolith.yml up -d --build
+#
+# - 不需要 Nacos：单体从 TUOYU_CONFIG_DIR（/app/config，挂载自 deploy/config/nacos）读取与 Nacos 相同的配置；
+# - 对外端口与微服务的网关相同（8081），前端访问的地址在两种部署方式下一致；
+# - 定时任务：目前按“SnailJob 服务端作为第二个进程随单体一起部署”编写（ADR 0005 第 5 节第 10 条的方案二，默认启用）。
+#   不需要定时任务时只启动前三个服务：... up -d mysql redis tuoyu-boot-all
+# - 项目名与 core、full 相同（tuoyu），共用 MySQL、Redis 数据卷：在两种部署方式之间切换时数据不用迁移，
+#   切换前先停掉另一套（docker compose ... down），启动时加 --remove-orphans 清理另一套留下的容器。
+
+name: tuoyu
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
+# 与 compose-core.yml 中的 x-java-healthcheck 保持一致
+x-java-healthcheck: &java-healthcheck
+  test:
+    - CMD
+    - bash
+    - -c
+    - |
+      exec 3<>/dev/tcp/127.0.0.1/$${SERVER_PORT} || exit 1
+      auth=$$(printf '%s:%s' "$${TUOYU_MONITOR_USERNAME:-tuoyu}" "$${TUOYU_MONITOR_PASSWORD}" | base64 -w0)
+      printf 'GET %s HTTP/1.0\r\nHost: localhost\r\nAuthorization: Basic %s\r\n\r\n' "$${HEALTHCHECK_PATH:-/actuator/health}" "$$auth" >&3
+      response=$$(timeout 5 cat <&3)
+      [[ $$response == HTTP/*' 200'* && $$response == *'"status":"UP"'* ]]
+  interval: 10s
+  timeout: 10s
+  retries: 6
+  start_period: 180s
+
+services:
+
+  # 与 compose-core.yml 中的 mysql 保持一致
+  mysql:
+    image: mysql:8.4.9
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: ${TUOYU_DB_PASSWORD:?请在 .env 中设置 TUOYU_DB_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --explicit_defaults_for_timestamp=true
+      - --lower_case_table_names=1
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h 127.0.0.1 -u root --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    logging: *logging
+
+  # 与 compose-core.yml 中的 redis 保持一致
+  redis:
+    image: redis:8.6.3
+    restart: unless-stopped
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf", "--requirepass", "${TUOYU_REDIS_PASSWORD:?请在 .env 中设置 TUOYU_REDIS_PASSWORD}"]
+    environment:
+      TZ: Asia/Shanghai
+      REDISCLI_AUTH: ${TUOYU_REDIS_PASSWORD:?请在 .env 中设置 TUOYU_REDIS_PASSWORD}
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+      - ./redis/conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    logging: *logging
+
+  # 单体：一个 JVM 包含全部业务模块（含任务执行器），负责 tuoyu-cloud、tuoyu-workflow 两个库的迁移
+  tuoyu-boot-all:
+    image: tuoyu/tuoyu-boot-all:1.0.0-SNAPSHOT
+    build:
+      # 构建上下文是仓库根目录，镜像中包含 deploy/config/nacos 的副本
+      context: ../..
+      dockerfile: tuoyu-boot/tuoyu-boot-all/Dockerfile
+    env_file: ../../.env
+    environment:
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
+      TUOYU_CONFIG_DIR: /app/config
+      TUOYU_DB_TYPE: mysql
+      TUOYU_DB_HOST: mysql
+      TUOYU_DB_PORT: "3306"
+      TUOYU_DB_USERNAME: root
+      TUOYU_REDIS_HOST: redis
+      TUOYU_REDIS_PORT: "6379"
+      # 单体中没有注册中心，任务执行器直接连接 SnailJob 服务端（服务端未启动时执行器会持续重连，不影响其他功能）
+      TUOYU_SNAILJOB_SERVER_HOST: tuoyu-snailjob-server
+    ports:
+      - "8081:8081"
+    volumes:
+      # 挂载仓库中的配置，覆盖镜像中的副本：修改 deploy/config/nacos 后重启即可生效，不用重新构建镜像
+      - ../config/nacos:/app/config:ro
+      - logs:/app/logs
+    networks:
+      default:
+        # 与微服务的网关同名：反向代理（compose-extras.yml 中的 nginx）在两种部署方式下使用同一个上游地址
+        aliases:
+          - tuoyu-gateway
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck: *java-healthcheck
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    logging: *logging
+
+  # SnailJob 调度服务端（第二个进程，管理界面 http://127.0.0.1:8800/snail-job），负责 tuoyu-job 库的迁移。
+  # 不连接 Nacos：关闭 Nacos 配置与注册，改为直接读取挂载的 datasource.yml 与 tuoyu-snailjob-server.yml
+  tuoyu-snailjob-server:
+    image: tuoyu/tuoyu-snailjob-server:1.0.0-SNAPSHOT
+    build: ../../tuoyu-visual/tuoyu-snailjob-server
+    env_file: ../../.env
+    environment:
+      TZ: Asia/Shanghai
+      JAVA_OPTS: "-XX:MaxRAMPercentage=70.0"
+      TUOYU_DB_TYPE: mysql
+      TUOYU_DB_HOST: mysql
+      TUOYU_DB_PORT: "3306"
+      TUOYU_DB_USERNAME: root
+      SPRING_CLOUD_NACOS_CONFIG_ENABLED: "false"
+      SPRING_CLOUD_NACOS_CONFIG_IMPORT_CHECK_ENABLED: "false"
+      SPRING_CLOUD_NACOS_DISCOVERY_ENABLED: "false"
+      SPRING_CONFIG_IMPORT: "file:/app/config/datasource.yml,file:/app/config/tuoyu-snailjob-server.yml"
+      HEALTHCHECK_PATH: /snail-job/actuator/health
+    ports:
+      - "127.0.0.1:8800:8800"
+    volumes:
+      - ../config/nacos:/app/config:ro
+      - logs:/tuoyu/snailjob/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck: *java-healthcheck
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+    logging: *logging
+
+  # 一次性任务：把 tuoyu-job 库中的执行器令牌占位值替换为 .env 中的 TUOYU_SNAILJOB_TOKEN（与 compose-full.yml 中的相同）
+  snailjob-token-init:
+    image: mysql:8.4.9
+    user: mysql
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        if [[ ! $$TUOYU_SNAILJOB_TOKEN =~ ^[A-Za-z0-9_-]+$$ ]]; then
+          echo "TUOYU_SNAILJOB_TOKEN 只能包含字母、数字、下划线与连字符"; exit 1
+        fi
+        export MYSQL_PWD="$$TUOYU_DB_PASSWORD"
+        mysql -h mysql -u root tuoyu-job -e "UPDATE sj_group_config SET token = '$$TUOYU_SNAILJOB_TOKEN' WHERE token = 'SJ_REPLACE_WITH_TUOYU_SNAILJOB_TOKEN'"
+    environment:
+      TUOYU_DB_PASSWORD: ${TUOYU_DB_PASSWORD:?请在 .env 中设置 TUOYU_DB_PASSWORD}
+      TUOYU_SNAILJOB_TOKEN: ${TUOYU_SNAILJOB_TOKEN:?请在 .env 中设置 TUOYU_SNAILJOB_TOKEN}
+    depends_on:
+      tuoyu-snailjob-server:
+        condition: service_healthy
+    restart: "no"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    logging: *logging
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  redis-data:
+  logs:

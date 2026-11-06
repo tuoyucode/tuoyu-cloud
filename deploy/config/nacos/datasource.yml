@@ -1,0 +1,74 @@
+datasource:
+  # 数据库类型（TUOYU_DB_TYPE）：mysql（默认）或 postgresql，决定下面各库的连接地址格式、默认端口与驱动
+  # 数据库地址与账号密码通过环境变量注入：
+  # TUOYU_DB_HOST（默认 localhost）、TUOYU_DB_PORT（默认 MySQL 3306、PostgreSQL 5432）、TUOYU_DB_USERNAME（默认 root）、TUOYU_DB_PASSWORD（必填）
+  # Oracle 不在 1.0 的支持范围内：需要时自行修改下面的连接地址与驱动，并按 deploy/sql/oracle 手工维护表结构
+  db-type: ${TUOYU_DB_TYPE:mysql}
+  driver-class-name: ${datasource.dialect.${datasource.db-type}.driver-class-name}
+  dialect:
+    mysql:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url-prefix: jdbc:mysql://${TUOYU_DB_HOST:localhost}:${TUOYU_DB_PORT:3306}/
+      # rewriteBatchedStatements=true 批处理优化，大幅提升批量插入、更新、删除的性能
+      url-params: "?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true"
+      # 工作流库另加 nullCatalogMeansCurrent=true：读取表结构时只看当前库
+      workflow-url-params: "?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&rewriteBatchedStatements=true&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true"
+    postgresql:
+      driver-class-name: org.postgresql.Driver
+      url-prefix: jdbc:postgresql://${TUOYU_DB_HOST:localhost}:${TUOYU_DB_PORT:5432}/
+      # reWriteBatchedInserts=true 批量插入优化
+      url-params: "?reWriteBatchedInserts=true"
+      workflow-url-params: "?reWriteBatchedInserts=true"
+  system-master:
+    url: ${datasource.dialect.${datasource.db-type}.url-prefix}tuoyu-cloud${datasource.dialect.${datasource.db-type}.url-params}
+    username: ${TUOYU_DB_USERNAME:root}
+    password: ${TUOYU_DB_PASSWORD}
+  gen:
+    url: ${datasource.dialect.${datasource.db-type}.url-prefix}tuoyu-cloud${datasource.dialect.${datasource.db-type}.url-params}
+    username: ${TUOYU_DB_USERNAME:root}
+    password: ${TUOYU_DB_PASSWORD}
+  job:
+    url: ${datasource.dialect.${datasource.db-type}.url-prefix}tuoyu-job${datasource.dialect.${datasource.db-type}.url-params}
+    username: ${TUOYU_DB_USERNAME:root}
+    password: ${TUOYU_DB_PASSWORD}
+  ai:
+    url: ${datasource.dialect.${datasource.db-type}.url-prefix}tuoyu-ai${datasource.dialect.${datasource.db-type}.url-params}
+    username: ${TUOYU_DB_USERNAME:root}
+    password: ${TUOYU_DB_PASSWORD}
+  workflow:
+    url: ${datasource.dialect.${datasource.db-type}.url-prefix}tuoyu-workflow${datasource.dialect.${datasource.db-type}.workflow-url-params}
+    username: ${TUOYU_DB_USERNAME:root}
+    password: ${TUOYU_DB_PASSWORD}
+
+mybatis-plus:
+  sql-log:
+    # 完整 SQL 输出开关：会输出每条 SQL 的参数值（含密码哈希、手机号等），默认关闭；
+    # 本地调试可在 .env 中设置 TUOYU_SQL_LOG_ENABLED=true，生产环境开启时启动自检 P9 拒绝启动
+    enabled: ${TUOYU_SQL_LOG_ENABLED:false}
+    # 输出方式，可选 console、log
+    output: console
+
+spring:
+  datasource:
+    type: com.zaxxer.hikari.HikariDataSource
+    # 动态数据源文档 https://www.kancloud.cn/tracy5546/dynamic-datasource/content
+    dynamic:
+      # 开启seata代理，开启后默认每个数据源都代理，如果某个不需要代理可单独关闭
+      seata: ${seata.enabled}
+      # 严格模式 匹配不到数据源则报错
+      strict: true
+      hikari:
+        # 最大连接池数量
+        maxPoolSize: 20
+        # 最小空闲线程数量
+        minIdle: 10
+        # 配置获取连接等待超时的时间
+        connectionTimeout: 30000
+        # 校验超时时间
+        validationTimeout: 5000
+        # 空闲连接存活最大时间，默认10分钟
+        idleTimeout: 600000
+        # 此属性控制池中连接的最长生命周期，值0表示无限生命周期，默认30分钟
+        maxLifetime: 1800000
+        # 多久检查一次连接的活性
+        keepaliveTime: 30000

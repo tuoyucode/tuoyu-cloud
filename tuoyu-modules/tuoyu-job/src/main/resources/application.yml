@@ -1,0 +1,34 @@
+# Tomcat
+server:
+  port: 9203
+
+# Spring
+spring:
+  application:
+    # 应用名称
+    name: tuoyu-job
+  profiles:
+    # 环境配置
+    active: ${TUOYU_PROFILES_ACTIVE:dev}
+
+--- # nacos 配置
+spring:
+  cloud:
+    nacos:
+      # nacos 服务地址
+      server-addr: ${TUOYU_NACOS_SERVER:127.0.0.1:8848}
+      username: ${TUOYU_NACOS_USERNAME:nacos}
+      password: ${TUOYU_NACOS_PASSWORD}
+      discovery:
+        # 注册组
+        group: DEFAULT_GROUP
+        namespace: ${TUOYU_NACOS_NAMESPACE:public}
+      config:
+        # 配置组
+        group: DEFAULT_GROUP
+        namespace: ${TUOYU_NACOS_NAMESPACE:public}
+  config:
+    import:
+      - optional:nacos:application-common.yml
+      - optional:nacos:datasource.yml
+      - optional:nacos:${spring.application.name}.yml

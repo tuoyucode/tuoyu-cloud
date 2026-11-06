@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <modules>
+        <module>tuoyu-common-bom</module>
+        <module>tuoyu-common-alibaba-bom</module>
+        <module>tuoyu-common-log</module>
+        <module>tuoyu-common-service-impl</module>
+        <module>tuoyu-common-excel</module>
+        <module>tuoyu-common-core</module>
+        <module>tuoyu-common-redis</module>
+        <module>tuoyu-common-doc</module>
+        <module>tuoyu-common-security</module>
+        <module>tuoyu-common-satoken</module>
+        <module>tuoyu-common-web</module>
+        <module>tuoyu-common-mybatis</module>
+        <module>tuoyu-common-job</module>
+        <module>tuoyu-common-dubbo</module>
+        <module>tuoyu-common-seata</module>
+        <module>tuoyu-common-loadbalancer</module>
+        <module>tuoyu-common-oss</module>
+        <module>tuoyu-common-mail</module>
+        <module>tuoyu-common-sms</module>
+        <module>tuoyu-common-logstash</module>
+        <module>tuoyu-common-elasticsearch</module>
+        <module>tuoyu-common-skylog</module>
+        <module>tuoyu-common-prometheus</module>
+        <module>tuoyu-common-translation</module>
+        <module>tuoyu-common-sensitive</module>
+        <module>tuoyu-common-json</module>
+        <module>tuoyu-common-encrypt</module>
+        <module>tuoyu-common-push</module>
+        <module>tuoyu-common-liteflow</module>
+        <module>tuoyu-common-social</module>
+        <module>tuoyu-common-nacos</module>
+        <module>tuoyu-common-bus</module>
+        <module>tuoyu-common-ai</module>
+        <module>tuoyu-common-mqtt</module>
+        <module>tuoyu-common-mcp</module>
+        <module>tuoyu-common-selfcheck</module>
+        <module>tuoyu-common-flyway</module>
+        <module>tuoyu-common-rpc</module>
+        <module>tuoyu-common-tenant</module>
+        <module>tuoyu-common-observability</module>
+    </modules>
+
+    <artifactId>tuoyu-framework</artifactId>
+    <packaging>pom</packaging>
+
+    <description>
+        tuoyu-framework 框架公共组件
+    </description>
+
+</project>

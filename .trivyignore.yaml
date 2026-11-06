@@ -1,0 +1,15 @@
+# Trivy 漏洞忽略清单（CI “依赖漏洞与协议扫描”使用，格式见 https://trivy.dev 的 “Filtering” 一节）
+#
+# 规则：高危（HIGH）与严重（CRITICAL）漏洞阻断构建。确实无法修复或不受影响时才在这里忽略，
+# 每一条都必须写 statement（忽略原因：为什么不受影响 / 何时能修复），并尽量设置 expired_at 到期复查；
+# tools/ci/supply_chain.py trivyignore 会检查每一条都写明了原因。
+#
+# 示例：
+# vulnerabilities:
+#   - id: CVE-0000-00000
+#     purls:
+#       - pkg:maven/com.example/example-lib@1.2.3
+#     statement: 只在代码生成预览中使用受影响的方法，输入来自管理员；上游 1.2.4 发布后升级
+#     expired_at: 2027-01-31
+
+vulnerabilities: []

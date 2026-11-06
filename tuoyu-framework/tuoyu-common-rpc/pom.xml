@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-framework</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>tuoyu-common-rpc</artifactId>
+
+    <description>
+        tuoyu-common-rpc 跨模块调用抽象：有本地实现时注入本地调用代理，否则在微服务中注入远程引用（见 docs/adr/0005-RPC抽象与两种部署方式.md）。
+        不依赖 Dubbo
+    </description>
+
+    <properties>
+        <!-- 核心模块：行覆盖率不低于 50%，未达到时 verify 失败 -->
+        <tuoyu.coverage.line-minimum>0.50</tuoyu.coverage.line-minimum>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- 本地调用代理挂起调用方事务 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+
+        <!-- 降级计数记入指标（RemoteFallback），有 Micrometer 时才使用 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
+</project>

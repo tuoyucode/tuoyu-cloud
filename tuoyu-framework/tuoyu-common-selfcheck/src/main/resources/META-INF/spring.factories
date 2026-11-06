@@ -1,0 +1,4 @@
+org.springframework.boot.EnvironmentPostProcessor=\
+org.tuoyu.common.selfcheck.SelfCheckEnvironmentPostProcessor
+org.springframework.boot.diagnostics.FailureAnalyzer=\
+org.tuoyu.common.selfcheck.SelfCheckFailureAnalyzer

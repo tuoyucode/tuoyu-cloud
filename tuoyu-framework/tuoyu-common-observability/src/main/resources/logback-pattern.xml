@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+    统一的日志格式（见 docs/adr/0007-日志追踪与优雅停机.md）：每行带 traceId（MDC 键 traceId，没有时为空）。
+    所有服务（包括单体启动器）都在自己的 logback 配置最前面引用本文件，再使用下面两个变量：
+        <include resource="logback-pattern.xml"/>
+        console.log.pattern：控制台（彩色）
+        log.pattern：文件
+    修改格式只改这里。
+-->
+<included>
+    <property name="console.log.pattern"
+              value="%cyan(%d{yyyy-MM-dd HH:mm:ss}) %green([%thread]) %yellow([%X{traceId:-}]) %highlight(%-5level) %boldMagenta(%logger{36}%n) - %msg%n"/>
+    <property name="log.pattern"
+              value="%d{yyyy-MM-dd HH:mm:ss} [%thread] [%X{traceId:-}] %-5level %logger{36} - %msg%n"/>
+</included>

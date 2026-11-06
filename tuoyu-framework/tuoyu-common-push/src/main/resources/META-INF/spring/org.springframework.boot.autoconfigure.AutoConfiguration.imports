@@ -1,0 +1,3 @@
+org.tuoyu.common.push.config.MessageAutoConfiguration
+org.tuoyu.common.push.config.MessageSseConfiguration
+org.tuoyu.common.push.config.MessageWebSocketConfiguration

@@ -1,0 +1,2 @@
+org.tuoyu.common.observability.config.TraceAutoConfiguration
+org.tuoyu.common.observability.config.GracefulShutdownAutoConfiguration

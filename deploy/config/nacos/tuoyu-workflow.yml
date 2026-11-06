@@ -1,0 +1,47 @@
+spring:
+  # 数据库迁移（Flyway，见 docs/adr/0004-数据库迁移.md）：tuoyu-workflow 库由本服务负责迁移，脚本在 tuoyu-modules/tuoyu-workflow 的 db/migration/workflow/mysql 与 db/migration/workflow/postgresql（按 TUOYU_DB_TYPE）
+  # 支持 MySQL 与 PostgreSQL，连接其他数据库时自动跳过；关闭：TUOYU_FLYWAY_ENABLED=false（关闭后新增的迁移脚本需手工执行）
+  # 已有数据库首次启用前，必须先执行完 deploy/sql/upgrade 下的全部升级脚本，再按基线版本 1 接入
+  flyway:
+    enabled: ${TUOYU_FLYWAY_ENABLED:true}
+    url: ${datasource.workflow.url}
+    user: ${datasource.workflow.username}
+    password: ${datasource.workflow.password}
+  datasource:
+    dynamic:
+      # 设置默认的数据源或者数据源组,默认值即为 master
+      primary: master
+      datasource:
+        # 主库数据源
+        master:
+          type: ${spring.datasource.type}
+          driver-class-name: ${datasource.driver-class-name}
+          url: ${datasource.workflow.url}
+          username: ${datasource.workflow.username}
+          password: ${datasource.workflow.password}
+
+# warm-flow工作流配置
+warm-flow:
+  # 是否开启工作流，默认true
+  enabled: true
+  # 是否开启设计器ui
+  ui: true
+  # 是否显示流程图顶部文字
+  top-text-show: true
+  # 是否渲染节点悬浮提示，默认true
+  node-tooltip: true
+  # 默认Authorization，如果有多个token，用逗号分隔
+  token-name: ${sa-token.token-name},clientid
+
+# LiteFlow 业务规则编排
+liteflow:
+  # 跟随工作流模块开关，避免禁用工作流时仍加载任务办理链
+  enable: ${warm-flow.enabled:true}
+  metrics:
+    # 临时修复：LiteFlow 2.16.2.1 的 Actuator 端点与 Spring Boot 4.1 参数名校验不兼容
+    # 待 LiteFlow 修复该问题后恢复为 ${liteflow.enable:true}
+    enabled: false
+  # 工作流模块用于编排任务办理链路
+  rule-source: classpath:liteflow/*.el.xml
+  # 开启虚拟线程
+  enable-virtual-thread: true

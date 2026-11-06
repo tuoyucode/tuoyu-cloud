@@ -1,0 +1,783 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.tuoyu</groupId>
+    <artifactId>tuoyu-cloud</artifactId>
+    <version>${revision}</version>
+
+    <name>TuoYu-Cloud</name>
+    <url>https://gitee.com/tuoyucode/tuoyu-cloud</url>
+    <description>TuoYu-Cloud 通用微服务框架</description>
+
+    <properties>
+        <!-- 项目基础配置 -->
+        <revision>1.0.0-SNAPSHOT</revision>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <java.version>21</java.version>
+
+        <!-- Spring 生态依赖版本（4.1.2 修复 Tomcat、Jackson、Freemarker 的高危漏洞） -->
+        <spring-boot.version>4.1.2</spring-boot.version>
+        <spring-cloud.version>2025.1.2</spring-cloud.version>
+        <spring-boot-admin.version>4.1.1</spring-boot-admin.version>
+        <spring-ai.version>2.0.1</spring-ai.version>
+        <springdoc.version>3.1.1</springdoc.version>
+        <swagger.core.version>2.2.55</swagger.core.version>
+
+        <!-- 数据访问与持久化相关依赖版本 -->
+        <mybatis.version>3.5.19</mybatis.version>
+        <mybatis-plus.version>3.5.17</mybatis-plus.version>
+        <mybatis-plus-join.version>1.5.9</mybatis-plus-join.version>
+        <dynamic-ds.version>4.5.0</dynamic-ds.version>
+        <anyline.version>8.7.3-20260306</anyline.version>
+        <easy-es.version>3.0.2</easy-es.version>
+        <elasticsearch-client.version>7.17.28</elasticsearch-client.version>
+
+        <!-- 安全认证与加密相关依赖版本 -->
+        <satoken.version>1.46.0</satoken.version>
+        <justauth.version>3.0.1</justauth.version>
+        <bouncycastle.version>1.86</bouncycastle.version>
+        <!-- 富文本白名单清洗（MIT 协议） -->
+        <jsoup.version>1.23.2</jsoup.version>
+        <!--
+            传递依赖的安全版本（CI 漏洞扫描）：只统一版本，不新增依赖。
+            guava 由 SnailJob 客户端、Seata 等带入；commons-beanutils 由 LiteFlow 带入；bcprov 由 Spring Cloud 带入（与上面的 bouncycastle 统一）
+        -->
+        <guava.version>33.7.2-jre</guava.version>
+        <commons-beanutils.version>1.11.0</commons-beanutils.version>
+
+        <!-- 缓存、锁与任务调度相关依赖版本 -->
+        <redisson.version>4.7.0</redisson.version>
+        <lock4j.version>2.2.7</lock4j.version>
+        <snailjob.version>2.0.2</snailjob.version>
+        <snailai.version>1.1.1</snailai.version>
+
+        <!-- 通用工具、编译增强与代码生成相关依赖版本 -->
+        <hutool.version>5.8.47</hutool.version>
+        <lombok.version>1.18.48</lombok.version>
+        <mapstruct-plus.version>1.5.3</mapstruct-plus.version>
+        <mapstruct-plus.lombok.version>0.2.0</mapstruct-plus.lombok.version>
+        <therapi-javadoc.version>0.15.0</therapi-javadoc.version>
+        <fesod.version>2.0.2-incubating</fesod.version>
+        <fory.version>1.7.4</fory.version>
+
+        <!-- 三方集成与业务扩展相关依赖版本 -->
+        <!-- 离线IP地址定位库 -->
+        <ip2region.version>3.3.7</ip2region.version>
+        <!-- 日志采集 -->
+        <logstash.version>9.0</logstash.version>
+        <!-- 链路追踪 -->
+        <skywalking-toolkit.version>9.6.0</skywalking-toolkit.version>
+        <!-- 修复 alibaba 自带的 fastjson 相关漏洞(框架本身并未使用) -->
+        <fastjson.version>1.2.84</fastjson.version>
+        <fastjson2.version>2.0.64</fastjson2.version>
+        <!-- OSS 配置 -->
+        <aws.sdk.version>2.55.4</aws.sdk.version>
+        <!-- SMS 配置 -->
+        <sms4j.version>3.3.5</sms4j.version>
+        <!-- 面向运行时的D-ORM依赖 -->
+        <anyline.version>8.7.3-20260306</anyline.version>
+        <!-- 工作流配置 -->
+        <warm-flow.version>1.8.9</warm-flow.version>
+        <liteflow.version>2.16.2.1</liteflow.version>
+        <!-- mqtt客户端 -->
+        <mica-mqtt.version>2.6.12</mica-mqtt.version>
+        <!-- mq配置 -->
+        <rocketmq.version>2.3.6</rocketmq.version>
+
+        <!-- Maven 构建插件版本 -->
+        <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
+        <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
+        <flatten-maven-plugin.version>1.8.0</flatten-maven-plugin.version>
+        <!-- 覆盖率：JaCoCo 0.8.14，EPL-2.0，仅构建期使用，支持 JDK 25 的类文件 -->
+        <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
+        <!--
+            行覆盖率门槛（0 ~ 1）。默认 0，即不检查；核心模块在自己的 pom 中设为 0.50。
+            JaCoCo 在 verify 阶段检查，未达到门槛时构建失败。
+        -->
+        <tuoyu.coverage.line-minimum>0</tuoyu.coverage.line-minimum>
+        <!--
+            代码检查：spotless（格式，Apache-2.0）与 PMD（缺陷与安全规则，maven-pmd-plugin 为 Apache-2.0，
+            PMD 为 BSD 风格协议）。不使用 checkstyle（LGPL，见 CONTRIBUTING.md 基本规则第 7 条）
+        -->
+        <spotless-maven-plugin.version>2.44.4</spotless-maven-plugin.version>
+        <maven-pmd-plugin.version>3.26.0</maven-pmd-plugin.version>
+        <!--
+            PMD 7.7.0 自带的 ASM 9.7 读不了 Java 25 的类文件（major version 69），在 JDK 25 上解析 JDK 自身的类时失败；
+            ASM 9.8 起支持 Java 25（BSD-3-Clause，只在构建期使用）。升级 PMD 本身后可删除
+        -->
+        <pmd-asm.version>9.9.1</pmd-asm.version>
+        <!-- 由 jacoco:prepare-agent 写入 JaCoCo 代理参数；默认为空，保证没有执行 prepare-agent 时 surefire 也能启动 -->
+        <argLine></argLine>
+        <!-- 测试不允许跳过（见 CONTRIBUTING.md 基本规则，CI 会检查） -->
+        <maven.test.skip>false</maven.test.skip>
+    </properties>
+
+    <profiles>
+        <!--
+            运行环境不在构建时决定：同一份构建产物通过环境变量 TUOYU_PROFILES_ACTIVE 选择环境（默认 dev）。
+            可选扩展模块默认不参与构建，需要时使用：mvn clean verify -P extensions
+        -->
+        <profile>
+            <id>extensions</id>
+            <modules>
+                <module>tuoyu-extensions</module>
+            </modules>
+        </profile>
+        <!--
+            端到端测试：访问一个已经运行的系统（微服务经网关，或单体），默认不参与构建。
+            mvn -P e2e -pl tuoyu-e2e verify -Dtuoyu.e2e.base-url=http://localhost:8081（管理员口令用环境变量 TUOYU_E2E_PASSWORD 传入）
+        -->
+        <!--
+            修正格式：mvn -P format compile。只在继承本 pom 的模块执行
+            （直接执行 mvn spotless:apply 会在不继承本 pom 的 BOM 模块上报错）
+        -->
+        <profile>
+            <id>format</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.diffplug.spotless</groupId>
+                        <artifactId>spotless-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>spotless-apply</id>
+                                <phase>process-sources</phase>
+                                <goals>
+                                    <goal>apply</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>e2e</id>
+            <modules>
+                <module>tuoyu-e2e</module>
+            </modules>
+        </profile>
+    </profiles>
+
+    <!-- 依赖声明 -->
+    <dependencyManagement>
+        <dependencies>
+
+            <!-- SpringCloud 微服务 -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- SpringCloud Alibaba 微服务 -->
+            <dependency>
+                <groupId>org.tuoyu</groupId>
+                <artifactId>tuoyu-common-alibaba-bom</artifactId>
+                <version>${revision}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- SpringBoot 依赖配置 -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Spring AI MCP 依赖配置 -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- hutool 的依赖配置-->
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-bom</artifactId>
+                <version>${hutool.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- sa-token 的依赖配置-->
+            <dependency>
+                <groupId>cn.dev33</groupId>
+                <artifactId>sa-token-bom</artifactId>
+                <version>${satoken.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- common 的依赖配置-->
+            <dependency>
+                <groupId>org.tuoyu</groupId>
+                <artifactId>tuoyu-common-bom</artifactId>
+                <version>${revision}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- api 的依赖配置-->
+            <dependency>
+                <groupId>org.tuoyu</groupId>
+                <artifactId>tuoyu-api-bom</artifactId>
+                <version>${revision}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.mybatis</groupId>
+                <artifactId>mybatis</artifactId>
+                <version>${mybatis.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-jsqlparser</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-annotation</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.github.yulichang</groupId>
+                <artifactId>mybatis-plus-join-boot-starter</artifactId>
+                <version>${mybatis-plus-join.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.swagger.core.v3</groupId>
+                <artifactId>swagger-annotations</artifactId>
+                <version>${swagger.core.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+                <version>${springdoc.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.github.therapi</groupId>
+                <artifactId>therapi-runtime-javadoc</artifactId>
+                <version>${therapi-javadoc.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.fesod</groupId>
+                <artifactId>fesod-sheet</artifactId>
+                <version>${fesod.version}</version>
+            </dependency>
+
+            <!--redisson-->
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>lock4j-redisson-spring-boot-starter</artifactId>
+                <version>${lock4j.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.fory</groupId>
+                <artifactId>fory-core</artifactId>
+                <version>${fory.version}</version>
+            </dependency>
+
+            <!--  SnailJob Client -->
+            <dependency>
+                <groupId>com.aizuda</groupId>
+                <artifactId>snail-job-client-starter</artifactId>
+                <version>${snailjob.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.aizuda</groupId>
+                <artifactId>snail-job-client-retry-core</artifactId>
+                <version>${snailjob.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.aizuda</groupId>
+                <artifactId>snail-job-client-job-core</artifactId>
+                <version>${snailjob.version}</version>
+            </dependency>
+
+            <!-- Snail AI Agent 聊天室 -->
+            <dependency>
+                <groupId>com.aizuda</groupId>
+                <artifactId>snail-ai-agent-chat-starter</artifactId>
+                <version>${snailai.version}</version>
+            </dependency>
+
+            <!-- Snail AI Agent 执行器 -->
+            <dependency>
+                <groupId>com.aizuda</groupId>
+                <artifactId>snail-ai-agent-executor-starter</artifactId>
+                <version>${snailai.version}</version>
+            </dependency>
+            <!-- Snail AI OpenAPI 启动器 -->
+            <dependency>
+                <groupId>com.aizuda</groupId>
+                <artifactId>snail-ai-openapi-starter</artifactId>
+                <version>${snailai.version}</version>
+            </dependency>
+
+            <!-- 加密包引入 -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <!-- Spring Cloud 带入的 bcprov 统一到同一版本（原为有漏洞的 1.81.1） -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <!-- 传递依赖的安全版本（见上方属性说明） -->
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-beanutils</groupId>
+                <artifactId>commons-beanutils</artifactId>
+                <version>${commons-beanutils.version}</version>
+            </dependency>
+
+            <!-- 富文本白名单清洗（MIT 协议） -->
+            <dependency>
+                <groupId>org.jsoup</groupId>
+                <artifactId>jsoup</artifactId>
+                <version>${jsoup.version}</version>
+            </dependency>
+
+            <!-- logstash -->
+            <dependency>
+                <groupId>net.logstash.logback</groupId>
+                <artifactId>logstash-logback-encoder</artifactId>
+                <version>${logstash.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.dromara.easy-es</groupId>
+                <artifactId>easy-es-boot-starter</artifactId>
+                <version>${easy-es.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>co.elastic.clients</groupId>
+                <artifactId>elasticsearch-java</artifactId>
+                <version>${elasticsearch-client.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.elasticsearch.client</groupId>
+                <artifactId>elasticsearch-rest-client</artifactId>
+                <version>${elasticsearch-client.version}</version>
+            </dependency>
+
+            <!-- skywalking 整合 logback -->
+            <dependency>
+                <groupId>org.apache.skywalking</groupId>
+                <artifactId>apm-toolkit-logback-1.x</artifactId>
+                <version>${skywalking-toolkit.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.skywalking</groupId>
+                <artifactId>apm-toolkit-trace</artifactId>
+                <version>${skywalking-toolkit.version}</version>
+            </dependency>
+
+            <!--  AWS SDK for Java 2.x  -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>s3</artifactId>
+                <version>${aws.sdk.version}</version>
+            </dependency>
+            <!-- 客户端的性能增强传输管理器 -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>s3-transfer-manager</artifactId>
+                <version>${aws.sdk.version}</version>
+            </dependency>
+            <!-- 适用于 Netty 的客户端 -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>netty-nio-client</artifactId>
+                <version>${aws.sdk.version}</version>
+            </dependency>
+
+            <!--短信sms4j-->
+            <dependency>
+                <groupId>org.dromara.sms4j</groupId>
+                <artifactId>sms4j-spring-boot-starter</artifactId>
+                <version>${sms4j.version}</version>
+            </dependency>
+
+            <!-- JustAuth 的依赖配置-->
+            <dependency>
+                <groupId>io.github.windtool</groupId>
+                <artifactId>JustAuth</artifactId>
+                <version>${justauth.version}</version>
+            </dependency>
+
+            <!-- 离线IP地址定位库 ip2region -->
+            <dependency>
+                <groupId>org.lionsoul</groupId>
+                <artifactId>ip2region</artifactId>
+                <version>${ip2region.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>fastjson</artifactId>
+                <version>${fastjson.version}</version>
+            </dependency>
+
+            <!-- 限制 alibaba 组件内自带的 fastjson2 版本 -->
+            <dependency>
+                <groupId>com.alibaba.fastjson2</groupId>
+                <artifactId>fastjson2</artifactId>
+                <version>${fastjson2.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.linpeilie</groupId>
+                <artifactId>mapstruct-plus-spring-boot-starter</artifactId>
+                <version>${mapstruct-plus.version}</version>
+            </dependency>
+
+            <!--消息队列-->
+            <dependency>
+                <groupId>org.apache.rocketmq</groupId>
+                <artifactId>rocketmq-spring-boot-starter</artifactId>
+                <version>${rocketmq.version}</version>
+            </dependency>
+
+            <!-- Warm-Flow国产工作流引擎, 在线文档：http://warm-flow.cn/ -->
+            <dependency>
+                <groupId>org.dromara.warm</groupId>
+                <artifactId>warm-flow-mybatis-plus-sb4-starter</artifactId>
+                <version>${warm-flow.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.dromara.warm</groupId>
+                <artifactId>warm-flow-plugin-ui-sb-web</artifactId>
+                <version>${warm-flow.version}</version>
+            </dependency>
+
+            <!-- LiteFlow 规则编排引擎 -->
+            <dependency>
+                <groupId>com.yomahub</groupId>
+                <artifactId>liteflow-spring-boot-starter</artifactId>
+                <version>${liteflow.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.dromara.mica-mqtt</groupId>
+                <artifactId>mica-mqtt-client-spring-boot-starter</artifactId>
+                <version>${mica-mqtt.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <modules>
+        <module>tuoyu-framework</module>
+        <module>tuoyu-api</module>
+        <module>tuoyu-gateway</module>
+        <module>tuoyu-modules</module>
+        <module>tuoyu-visual</module>
+        <!-- 启动器：单体 tuoyu-boot-all 依赖上面的业务模块 -->
+        <module>tuoyu-boot</module>
+        <!-- 依赖规则检查（ArchUnit）：读取上面各模块编译后的类，必须放在最后 -->
+        <module>tuoyu-architecture</module>
+    </modules>
+    <packaging>pom</packaging>
+
+    <dependencies>
+        <!-- 各子模块统一使用 JUnit 5、Mockito 与 Spring Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven-compiler-plugin.version}</version>
+                <configuration>
+                    <release>${java.version}</release>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>com.github.therapi</groupId>
+                            <artifactId>therapi-runtime-javadoc-scribe</artifactId>
+                            <version>0.15.0</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-configuration-processor</artifactId>
+                            <version>${spring-boot.version}</version>
+                        </path>
+                        <path>
+                            <groupId>io.github.linpeilie</groupId>
+                            <artifactId>mapstruct-plus-processor</artifactId>
+                            <version>${mapstruct-plus.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>${mapstruct-plus.lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <compilerArgs>
+                        <arg>-parameters</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <!-- 单元测试使用 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+                <configuration>
+                    <!-- @{argLine} 在运行时展开为 JaCoCo 代理参数，不能写成 ${argLine} -->
+                    <argLine>@{argLine} -Dfile.encoding=UTF-8</argLine>
+                    <!--
+                    暂不启用 groups 标签筛选，确保各模块新增的无标签单元测试默认执行。
+                    需要按环境筛选 @Tag 时，可恢复下方配置并通过 -Dgroups=dev 等参数指定标签。
+                    <groups>${groups}</groups>
+                    -->
+                    <!-- 排除标签 -->
+                    <excludedGroups>exclude</excludedGroups>
+                </configuration>
+            </plugin>
+            <!--
+                覆盖率：每个模块在测试前挂上 JaCoCo 代理，verify 阶段生成报告（target/site/jacoco）
+                并按行覆盖率检查门槛 tuoyu.coverage.line-minimum。
+                只排除机器生成的代码：Lombok 生成的方法由根目录 lombok.config 标注 @Generated 后被 JaCoCo 自动忽略；
+                MapStruct（mapstruct-plus）生成的转换器实现类在下方排除。业务类一律不排除。
+                没有主代码（如 tuoyu-architecture）或没有测试的模块，report 与 check 会自动跳过。
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco-maven-plugin.version}</version>
+                <configuration>
+                    <excludes>
+                        <exclude>**/*MapperImpl.class</exclude>
+                        <exclude>**/*__*.class</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>jacoco-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <haltOnFailure>true</haltOnFailure>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${tuoyu.coverage.line-minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--
+                格式：只做不改变代码含义的统一——删除未使用的 import、去掉行尾空白、文件以换行结尾；
+                不引入整体重排的格式化器（会改动几乎所有文件，也让与上游代码的对照失去意义）。
+                verify 阶段检查；不符合时在仓库根目录执行 mvn -P format compile 修正（profile format 见下方）。
+                换行符沿用文件原样（由 .gitattributes 与 git 统一）
+            -->
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless-maven-plugin.version}</version>
+                <configuration>
+                    <lineEndings>PRESERVE</lineEndings>
+                    <java>
+                        <includes>
+                            <include>src/main/java/**/*.java</include>
+                            <include>src/test/java/**/*.java</include>
+                        </includes>
+                        <removeUnusedImports>
+                            <engine>cleanthat-javaparser-unnecessaryimport</engine>
+                        </removeUnusedImports>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotless-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--
+                缺陷与安全检查：规则集在 tools/pmd/ruleset.xml，只检查主代码。
+                从第三方复制、保留原包名与协议头的代码（com.* 下）不检查；编译期生成的代码不检查
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <version>${maven-pmd-plugin.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.ow2.asm</groupId>
+                        <artifactId>asm</artifactId>
+                        <version>${pmd-asm.version}</version>
+                    </dependency>
+                </dependencies>
+                <configuration>
+                    <rulesets>
+                        <ruleset>${maven.multiModuleProjectDirectory}/tools/pmd/ruleset.xml</ruleset>
+                    </rulesets>
+                    <targetJdk>21</targetJdk>
+                    <includeTests>false</includeTests>
+                    <linkXRef>false</linkXRef>
+                    <printFailingErrors>true</printFailingErrors>
+                    <excludeRoots>
+                        <excludeRoot>${project.build.directory}/generated-sources</excludeRoot>
+                    </excludeRoots>
+                    <excludes>
+                        <exclude>com/**</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>pmd-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 统一版本号管理 -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>${flatten-maven-plugin.version}</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <repositories>
+        <repository>
+            <id>public</id>
+            <name>huawei nexus</name>
+            <url>https://mirrors.huaweicloud.com/repository/maven/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>public</id>
+            <name>huawei nexus</name>
+            <url>https://mirrors.huaweicloud.com/repository/maven/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </pluginRepository>
+    </pluginRepositories>
+
+</project>
+

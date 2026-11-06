@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration debug="false">
+    <!-- 日志存放路径 -->
+    <springProperty scope="context" name="log.appName" source="spring.application.name"/>
+    <property name="log.path" value="logs/${log.appName}"/>
+    <!-- 日志格式（带 traceId）统一定义在 tuoyu-common-observability 的 logback-pattern.xml 中 -->
+    <include resource="logback-pattern.xml"/>
+
+    <!-- 控制台输出 -->
+    <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${console.log.pattern}</pattern>
+            <charset>utf-8</charset>
+        </encoder>
+    </appender>
+
+    <include resource="logback-common.xml" />
+
+    <include resource="logback-logstash.xml" optional="true"/>
+
+    <!-- 开启 skywalking 日志收集 -->
+    <include resource="logback-skylog.xml" optional="true"/>
+
+    <!--系统操作日志-->
+    <root level="info">
+        <appender-ref ref="console"/>
+    </root>
+</configuration>

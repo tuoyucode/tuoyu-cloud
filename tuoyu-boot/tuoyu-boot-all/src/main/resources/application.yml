@@ -1,0 +1,24 @@
+# 单体启动器（ADR 0005 第 5 节）：一个进程包含全部业务模块
+server:
+  # 单体是对外入口，端口与网关相同，前端在两种部署方式下的地址不变
+  port: 8081
+
+spring:
+  application:
+    name: tuoyu-boot-all
+  profiles:
+    active: ${TUOYU_PROFILES_ACTIVE:dev}
+  config:
+    # 与微服务方式使用同一套配置文件（deploy/config/nacos 下），直接从本地目录读取，不需要 Nacos
+    # 目录由 TUOYU_CONFIG_DIR 指定（默认相对工作目录，即仓库根目录；镜像中为 /app/config）
+    # 后导入的优先：先导入各模块的配置，最后由 tuoyu-boot-all.yml 处理单体特有的部分（数据源、迁移、入口）
+    import:
+      - file:${TUOYU_CONFIG_DIR:deploy/config/nacos}/application-common.yml
+      - file:${TUOYU_CONFIG_DIR:deploy/config/nacos}/datasource.yml
+      - file:${TUOYU_CONFIG_DIR:deploy/config/nacos}/tuoyu-job.yml
+      - file:${TUOYU_CONFIG_DIR:deploy/config/nacos}/tuoyu-gen.yml
+      - file:${TUOYU_CONFIG_DIR:deploy/config/nacos}/tuoyu-auth.yml
+      - file:${TUOYU_CONFIG_DIR:deploy/config/nacos}/tuoyu-resource.yml
+      - file:${TUOYU_CONFIG_DIR:deploy/config/nacos}/tuoyu-workflow.yml
+      - file:${TUOYU_CONFIG_DIR:deploy/config/nacos}/tuoyu-system.yml
+      - file:${TUOYU_CONFIG_DIR:deploy/config/nacos}/tuoyu-boot-all.yml

@@ -1,0 +1,362 @@
+# 启动自检（C2）通过此标记确认本配置已从 Nacos 成功加载，请勿删除
+tuoyu:
+  config:
+    common-loaded: true
+  # 非文件请求（JSON 等）的请求体上限，超过直接返回 413（TUOYU_REQUEST_MAX_BODY_SIZE）
+  request:
+    max-body-size: ${TUOYU_REQUEST_MAX_BODY_SIZE:10MB}
+  # 可信代理网段（见 docs/adr/0002-认证加固与可信代理.md）：CIDR，逗号分隔，支持 IPv4 / IPv6
+  # 只有直连地址属于这些网段时，才采信 X-Forwarded-For / X-Real-IP（从右向左取第一个不可信的地址）
+  # 这里是各服务的取值，默认信任回环与私有网段：服务的直连地址是网关，网关到各服务走内网（客户端也在内网时，可收窄为网关的实际地址）
+  # 网关是入口，在 tuoyu-gateway.yml 中单独收窄为回环地址（TUOYU_GATEWAY_TRUSTED_PROXIES）；不允许 /0，设为 none 表示不信任任何代理
+  web:
+    trusted-proxies: "${TUOYU_TRUSTED_PROXIES:127.0.0.0/8,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7}"
+  # 分页：每页记录数上限，超过时按上限处理；未传 pageSize 时默认 10
+  page:
+    max-size: 500
+  # Excel 导出 / 导入行数上限：超过时拒绝并提示（导出先统计行数，不执行查询；导入先预读统计，一行都不处理）
+  # 取值 1 ~ 1000000，不合理时拒绝启动
+  excel:
+    max-export-rows: 50000
+    max-import-rows: 5000
+  # 用户密码哈希（BCrypt）强度：取值 4 ~ 31，超出时拒绝启动；生产环境低于 10 时启动自检 P8 拒绝启动
+  # 每加 1 计算耗时翻倍（10 约 60ms，12 约 250ms）；调整后旧密码仍可登录，修改密码后按新强度保存
+  # 放在公共配置中，tuoyu-auth（注册）与 tuoyu-system（新增用户、重置密码、导入）使用同一个值
+  auth:
+    password:
+      bcrypt-cost: 10
+  # 多租户（ADR 0006），默认关闭：关闭时不加载 SQL 拦截器，行为与单租户系统相同
+  # 开启后：表中有 tenant_id 的数据按租户隔离；登录必须指定租户；后台代码缺少租户时拒绝执行
+  tenant:
+    enabled: ${TUOYU_TENANT_ENABLED:false}
+    # 默认租户（平台所在的租户）
+    default-tenant-id: default
+    # 跨服务透传租户的签名密钥，开启时必填（TUOYU_TENANT_CONTEXT_SECRET），否则拒绝启动
+    context-secret: ${TUOYU_TENANT_CONTEXT_SECRET:}
+  # 接口加密（RSA-OAEP-256 + AES-256-GCM），协议见 docs/adr/0001-接口加密.md
+  api-crypto:
+    enabled: true
+    # RSA 私钥（PKCS#8 DER 的 Base64），公钥由它推导，前端运行时通过 /auth/crypto/public-key 获取
+    private-key: ${TUOYU_API_CRYPTO_PRIVATE_KEY}
+    # 密钥轮换期间填写上一把私钥，轮换完成后清空
+    previous-private-key: ${TUOYU_API_CRYPTO_PREVIOUS_PRIVATE_KEY:}
+    # 是否要求浏览器使用 HTTPS
+    require-https: ${TUOYU_API_CRYPTO_REQUIRE_HTTPS:true}
+    # 防重放的时间窗口
+    replay-window: 5m
+  # 优雅停机（见 docs/adr/0007-日志追踪与优雅停机.md）：停机时先下线（健康检查返回 503、从注册中心注销），
+  # 等待 offline-delay 让网关与反向代理发现本实例已下线，再停止接收新请求并等待处理中的请求完成；
+  # 之后依次停止 Dubbo（等待 dubbo.application.shutwait）、消息消费与线程池。
+  # 部署时容器的停止宽限期（docker stop -t、compose 的 stop_grace_period、K8s 的 terminationGracePeriodSeconds）
+  # 应不少于 offline-delay + timeout + Dubbo 等待时间 + 10 秒，否则会被强制结束
+  shutdown:
+    # 下线后等待多久再停止接收新请求，默认 5 秒（TUOYU_SHUTDOWN_OFFLINE_DELAY）。不得小于网关负载均衡缓存的有效期（tuoyu-gateway.yml，3 秒）
+    offline-delay: ${TUOYU_SHUTDOWN_OFFLINE_DELAY:5s}
+    # 等待处理中的请求、异步任务完成的最长时间，默认 30 秒（TUOYU_SHUTDOWN_TIMEOUT）
+    timeout: ${TUOYU_SHUTDOWN_TIMEOUT:30s}
+  # Redis 反序列化类型白名单的扩展：业务代码自己缓存到 Redis 的类型需要在此登记（默认已放行 org.tuoyu. 下的全部类型）
+  # 至少两级包名，且不能是 JDK 或常见框架的包，否则启动报错
+  # redis:
+  #   allowed-type-prefixes:
+  #     - com.acme.order.
+
+# 免登录白名单：网关与各服务共用（各服务也校验登录，ADR 0005 第 5 节）。写完整路径，即前端访问的路径
+security:
+  ignore:
+    whites:
+      - /auth/code
+      - /auth/logout
+      - /auth/login
+      - /auth/crypto/public-key
+      - /auth/binding/*
+      - /auth/register
+      - /auth/tenant/list
+      - /resource/sms/code
+      - /resource/email/code
+      - /resource/message/close
+      - /*/v3/api-docs
+      - /*/error
+      - /csrf
+      - /warm-flow-ui/**
+      - /snail-chat/**
+      - /api/snail/chat/**
+
+server:
+  # 优雅停机：停止时等待处理中的请求完成（等待时长见 tuoyu.shutdown.timeout）
+  shutdown: graceful
+  # 不让 Web 容器自行采信 X-Forwarded-* 等转发头（在 Kubernetes 等云平台上 Spring Boot 默认会开启，且不校验来源）
+  # 客户端 IP 统一按 tuoyu.web.trusted-proxies 判定
+  forward-headers-strategy: none
+  # jetty 配置
+  jetty:
+    # 表单提交（application/x-www-form-urlencoded）的最大大小
+    max-http-form-post-size: 2MB
+    threads:
+      # 开启虚拟线程后，该值表示最大并发任务数，而非平台线程池大小
+      # SSE 等长连接会持续占用任务槽位，请根据在线用户量和请求峰值调整（TUOYU_SERVER_MAX_THREADS）
+      max: ${TUOYU_SERVER_MAX_THREADS:2000}
+
+dubbo:
+  application:
+    # 关闭qos端口避免单机多生产者端口冲突 如需使用自行开启
+    qos-enable: false
+    # 停机时注销后等待处理中的 Dubbo 调用完成的最长时间（毫秒），默认 10000（TUOYU_DUBBO_SHUTDOWN_WAIT）
+    shutwait: ${TUOYU_DUBBO_SHUTDOWN_WAIT:10000}
+  protocol:
+    # 如需使用 Triple 3.0 新协议 可查看官方文档
+    # 使用 dubbo 协议通信
+    name: dubbo
+    # dubbo 协议端口(-1表示自增端口,从20880开始)
+    port: -1
+    # 指定dubbo协议注册ip
+    # host: 192.168.0.100
+    # 开启虚拟线程
+    threadpool: virtual
+  # 调用超时、重试的默认值在 tuoyu-common-dubbo 的 common-dubbo.yml 中统一维护（超时 3 秒，TUOYU_DUBBO_TIMEOUT；不重试）
+  # 自定义配置
+  custom:
+    # 全局请求log
+    request-log: true
+    # info 基础信息 param 参数信息 full 全部
+    log-level: info
+
+spring:
+  lifecycle:
+    # Spring 停止每一组组件（Web 容器、消息消费等）时最多等待的时间
+    timeout-per-shutdown-phase: ${tuoyu.shutdown.timeout}
+  threads:
+    # 开启虚拟线程 仅jdk21可用
+    virtual:
+      enabled: true
+  task:
+    execution:
+      # 从 springboot 3.5 开始 spring自带线程池
+      # 不再需要 AsyncConfig与ThreadPoolConfig 可直接注入线程池使用
+      thread-name-prefix: async-
+      # 由spring自己初始化线程池
+      mode: force
+      # 停机时等待已提交的异步任务完成
+      shutdown:
+        await-termination: true
+        await-termination-period: ${tuoyu.shutdown.timeout}
+    scheduling:
+      shutdown:
+        await-termination: true
+        await-termination-period: ${tuoyu.shutdown.timeout}
+  # 资源信息
+  messages:
+    # 国际化资源文件路径
+    basename: i18n/messages
+  servlet:
+    multipart:
+      # 整个上传请求的大小限制。网关与各服务按它与单个文件上限中较小的拦截超大上传（上传接口每次一个文件）
+      max-request-size: ${TUOYU_UPLOAD_MAX_REQUEST_SIZE:100MB}
+      # 上传单个文件大小限制
+      max-file-size: ${TUOYU_UPLOAD_MAX_FILE_SIZE:50MB}
+  mvc:
+    # 设置静态资源路径 防止所有请求都去查静态资源
+    static-path-pattern: /static/**
+    format:
+      date-time: yyyy-MM-dd HH:mm:ss
+  #jackson配置
+  jackson:
+    serialization:
+      # 格式化输出
+      INDENT_OUTPUT: false
+      # 忽略无法转换的对象
+      fail_on_empty_beans: false
+    deserialization:
+      # 允许对象忽略json中不存在的属性
+      fail_on_unknown_properties: false
+  cloud:
+    inetutils:
+      # 指定全局使用ip网段
+      preferred-networks:
+#        - 192.168
+#        - 10.0
+    nacos:
+      discovery:
+        metadata:
+          # admin 监控账号密码（与监控中心 tuoyu-monitor 的账号一致）
+          username: ${TUOYU_MONITOR_USERNAME:tuoyu}
+          userpassword: ${TUOYU_MONITOR_PASSWORD}
+    bus:
+      id: ${spring.application.name}
+      base-packages: org.tuoyu.**.event
+  # 消息总线 也可以使用 kafka 参考 spring-cloud-bus 用法
+  rabbitmq:
+    host: ${TUOYU_RABBITMQ_HOST:localhost}
+    port: ${TUOYU_RABBITMQ_PORT:5672}
+    username: ${TUOYU_RABBITMQ_USERNAME:tuoyu}
+    # 可选组件，未使用 RabbitMQ 时可不配置
+    password: ${TUOYU_RABBITMQ_PASSWORD:}
+
+  # redis通用配置 子服务可以自行配置进行覆盖
+  data:
+    redis:
+      host: ${TUOYU_REDIS_HOST:localhost}
+      port: ${TUOYU_REDIS_PORT:6379}
+      # redis 密码必须配置
+      password: ${TUOYU_REDIS_PASSWORD}
+      database: ${TUOYU_REDIS_DATABASE:0}
+      # 需要使用数字
+      timeout: 10000
+      ssl.enabled: false
+
+# redisson 配置
+redisson:
+  # redis key前缀
+  keyPrefix:
+  # 线程池数量
+  threads: 4
+  # Netty线程池数量
+  nettyThreads: 8
+  # 单节点配置
+  singleServerConfig:
+    # 客户端名称
+    clientName: ${spring.application.name}
+    # 最小空闲连接数
+    connectionMinimumIdleSize: 8
+    # 连接池大小
+    connectionPoolSize: 32
+    # 连接空闲超时，单位：毫秒
+    idleConnectionTimeout: 10000
+    # 命令等待超时，单位：毫秒
+    timeout: 3000
+    # 发布和订阅连接池大小
+    subscriptionConnectionPoolSize: 50
+
+# 分布式锁 lock4j 全局配置
+lock4j:
+  # 获取分布式锁超时时间，默认为 3000 毫秒
+  acquire-timeout: 3000
+  # 分布式锁的超时时间，默认为 30 秒
+  expire: 30000
+
+# 暴露监控端点
+management:
+  endpoints:
+    web:
+      exposure:
+        # 默认只暴露必要端点（生产安全）；本地开发可在 .env 中设置 TUOYU_ACTUATOR_EXPOSURE=*
+        include: ${TUOYU_ACTUATOR_EXPOSURE:health,info,prometheus}
+  endpoint:
+    health:
+      # 默认不展示细节（生产安全）；本地开发可在 .env 中设置 TUOYU_HEALTH_SHOW_DETAILS=always
+      show-details: ${TUOYU_HEALTH_SHOW_DETAILS:never}
+      # 存活与就绪探针（/actuator/health/liveness、/actuator/health/readiness）。
+      # 停机开始时就绪状态改为不接收流量，/actuator/health 随之返回 503（OUT_OF_SERVICE），负载均衡据此先摘除本实例
+      probes:
+        enabled: true
+    logfile:
+      external-file: ./logs/${spring.application.name}/console.log
+
+# 日志配置
+logging:
+  level:
+    org.springframework: warn
+    org.apache.dubbo: error
+    com.alibaba.nacos: error
+    org.mybatis.spring.mapper: error
+    org.apache.fury: warn
+    io.micrometer: error
+    # 临时处理 spring 调整日志级别导致启动警告问题 不影响使用等待 alibaba 适配
+    org.springframework.context.support.PostProcessorRegistrationDelegate: error
+  config: classpath:logback-spring.xml
+
+# Sa-Token配置
+sa-token:
+  # token名称 (同时也是cookie名称)
+  token-name: Authorization
+  # 开启内网服务调用鉴权(不允许越过gateway访问内网服务 保障服务安全)
+  check-same-token: true
+  # 是否允许同一账号并发登录 (为true时允许一起登录, 为false时新登录挤掉旧登录)
+  is-concurrent: true
+  # 在多人登录同一账号时，是否共用一个token (为true时所有登录共用一个token, 为false时每次登录新建一个token)
+  is-share: false
+  # jwt秘钥（使用 tools/secrets/GenerateEnv.java 生成）
+  jwt-secret-key: ${TUOYU_JWT_SECRET}
+
+# MyBatisPlus配置
+# https://baomidou.com/config/
+mybatis-plus:
+  # 自定义配置 是否全局开启逻辑删除 关闭后 所有逻辑删除功能将失效
+  enableLogicDelete: true
+  # 多包名使用 例如 org.tuoyu.**.mapper,org.xxx.**.mapper
+  mapperPackage: org.tuoyu.**.mapper
+  # 对应的 XML 文件位置
+  mapperLocations: classpath*:mapper/**/*Mapper.xml
+  # 实体扫描，多个package用逗号或者分号分隔
+  typeAliasesPackage: org.tuoyu.**.domain
+  global-config:
+    dbConfig:
+      # 主键类型
+      # AUTO 自增 NONE 空 INPUT 用户输入 ASSIGN_ID 雪花 ASSIGN_UUID 唯一 UUID
+      # 如需改为自增 需要将数据库表全部设置为自增
+      idType: ASSIGN_ID
+
+# 数据字段加密（@EncryptField，见 docs/adr/0003-上传-XSS-脱敏与字段加密.md）
+mybatis-encryptor:
+  # 是否开启加密
+  enable: false
+  # 默认加密算法：AES（AES-GCM）或 SM4（SM4-GCM）。BASE64 只是编码，不是加密
+  algorithm: AES
+  # 密文编码方式 BASE64/HEX。默认BASE64
+  encode: BASE64
+  # 字段加密密钥（Base64）：AES 为 32 字节（也可 16、24），SM4 为 16 字节。开启加密时必填，缺失或长度不对时拒绝启动
+  # 生成：java tools/secrets/GenerateEnv.java --field-key（SM4 加 sm4）。密钥丢失后已加密的数据无法恢复，请妥善备份
+  key: ${TUOYU_FIELD_ENCRYPT_KEY:}
+  # 旧版口令（ECB 模式），只用于解密升级前写入的数据，这些数据在下次保存时改为新格式；没有旧数据时留空
+  password: ${TUOYU_FIELD_ENCRYPT_LEGACY_PASSWORD:}
+  # 公私钥 非对称算法的公私钥 如：SM2，RSA
+  publicKey:
+  privateKey:
+
+# XSS 防护：没有全局过滤器修改请求参数。
+# 普通字段原样保存，由前端输出时转义；富文本字段在实体上标注 @RichText，按白名单清洗（入参与响应各一次）
+
+# 接口文档配置
+springdoc:
+  api-docs:
+    # 是否开启接口文档。默认关闭（生产安全）；本地开发可在 .env 中设置 TUOYU_API_DOCS_ENABLED=true
+    enabled: ${TUOYU_API_DOCS_ENABLED:false}
+  info:
+    # 标题
+    title: '标题：TuoYu-Cloud微服务权限管理系统_接口文档'
+    # 描述
+    description: '描述：微服务权限管理系统, 具体包括XXX,XXX模块...'
+    # 版本
+    version: '版本号：系统版本...'
+    # 作者信息
+    contact:
+      name: TuoYu-Cloud
+      url: https://gitee.com/tuoyucode/tuoyu-cloud
+
+# seata配置
+seata:
+  # 是否启用
+  enabled: false
+  # Seata 应用编号，默认为应用名
+  application-id: ${spring.application.name}
+  # Seata 事务组编号，用于 TC 集群名
+  tx-service-group: ${spring.application.name}-group
+  config:
+    type: nacos
+    nacos:
+      server-addr: ${spring.cloud.nacos.server-addr}
+      group: ${spring.cloud.nacos.config.group}
+      namespace: public
+      username: ${spring.cloud.nacos.username}
+      password: ${spring.cloud.nacos.password}
+      data-id: seata-server.properties
+  registry:
+    type: nacos
+    nacos:
+      application: tuoyu-seata-server
+      server-addr: ${spring.cloud.nacos.server-addr}
+      group: ${spring.cloud.nacos.discovery.group}
+      username: ${spring.cloud.nacos.username}
+      password: ${spring.cloud.nacos.password}
+      namespace: public
+  # 关闭自动代理
+  enable-auto-data-source-proxy: false

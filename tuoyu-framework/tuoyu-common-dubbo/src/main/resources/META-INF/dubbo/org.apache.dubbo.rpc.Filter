@@ -1,0 +1,4 @@
+dubboRequestFilter=org.tuoyu.common.dubbo.filter.DubboRequestFilter
+tuoyuContextConsumer=org.tuoyu.common.dubbo.rpc.ContextConsumerFilter
+tuoyuContextProvider=org.tuoyu.common.dubbo.rpc.ContextProviderFilter
+tuoyuException=org.tuoyu.common.dubbo.rpc.RemoteExceptionFilter

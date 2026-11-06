@@ -1,0 +1,16 @@
+# 监控中心配置
+spring:
+  security:
+    user:
+      name: ${TUOYU_MONITOR_USERNAME:tuoyu}
+      password: ${TUOYU_MONITOR_PASSWORD}
+  boot:
+    admin:
+      ui:
+        title: TuoYu-Cloud服务监控中心
+      discovery:
+        # seata 不具有健康检查的能力 防止报错排除掉
+        ignored-services: tuoyu-seata-server
+  # 忽略无用警告
+  thymeleaf:
+    check-template-location: false

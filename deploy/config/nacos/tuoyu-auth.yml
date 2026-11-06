@@ -1,0 +1,116 @@
+# 安全配置
+security:
+  # 验证码
+  captcha:
+    # 是否开启验证码（生产环境关闭时启动自检 P7 拒绝启动）
+    enabled: true
+    # 验证码类型 math 数组计算 char 字符验证
+    type: math
+    # 数字验证码位数
+    numberLength: 1
+    # 字符验证码长度
+    charLength: 4
+
+# 认证加固（见 docs/adr/0002-认证加固与可信代理.md）
+tuoyu:
+  auth:
+    # 登录失败锁定：按账号与来源 IP 两个维度在 Redis 中原子计数，窗口从第一次失败开始，达到次数即锁定
+    # 账号维度对密码、短信、邮箱登录都生效；IP 维度的 IPv6 按 /64 统计。max-failures 为 0 表示不按该维度限制（不推荐）
+    login-limit:
+      account:
+        max-failures: 5
+        window: 10m
+        lock-duration: 10m
+      ip:
+        max-failures: 20
+        window: 10m
+        lock-duration: 10m
+    # 短信、邮箱验证码：校验成功后立即作废；同一个验证码最多尝试的次数，超过后作废
+    verify-code:
+      max-attempts: 3
+    client:
+      # 登录时是否校验 client_secret。默认关闭：浏览器端客户端无法保管密钥，校验只是形式；
+      # 仅由服务端发起登录的客户端（密钥不会下发到浏览器）可以开启
+      require-secret: false
+
+# 三方授权
+justauth:
+  # 前端外网访问地址
+  address: http://localhost:80
+  type:
+    maxkey:
+      # maxkey 服务器地址
+      # 注意 如下均配置均不需要修改 maxkey 已经内置好了数据
+      server-url: http://sso.maxkey.top
+      client-id: ${TUOYU_SOCIAL_MAXKEY_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_MAXKEY_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=maxkey
+    topiam:
+      # topiam 服务器地址
+      server-url: http://127.0.0.1:1989/api/v1/authorize/y0q************spq***********8ol
+      client-id: ${TUOYU_SOCIAL_TOPIAM_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_TOPIAM_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=topiam
+      scopes: [ openid, email, phone, profile ]
+    qq:
+      client-id: ${TUOYU_SOCIAL_QQ_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_QQ_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=qq
+      union-id: false
+    weibo:
+      client-id: ${TUOYU_SOCIAL_WEIBO_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_WEIBO_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=weibo
+    gitee:
+      client-id: ${TUOYU_SOCIAL_GITEE_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_GITEE_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=gitee
+    dingtalk:
+      client-id: ${TUOYU_SOCIAL_DINGTALK_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_DINGTALK_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=dingtalk
+    baidu:
+      client-id: ${TUOYU_SOCIAL_BAIDU_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_BAIDU_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=baidu
+    csdn:
+      client-id: ${TUOYU_SOCIAL_CSDN_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_CSDN_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=csdn
+    coding:
+      client-id: ${TUOYU_SOCIAL_CODING_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_CODING_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=coding
+      coding-group-name: xx
+    oschina:
+      client-id: ${TUOYU_SOCIAL_OSCHINA_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_OSCHINA_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=oschina
+    alipay_wallet:
+      client-id: ${TUOYU_SOCIAL_ALIPAY_WALLET_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_ALIPAY_WALLET_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=alipay_wallet
+      alipay-public-key: ${TUOYU_SOCIAL_ALIPAY_WALLET_PUBLIC_KEY:}
+    wechat_open:
+      client-id: ${TUOYU_SOCIAL_WECHAT_OPEN_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_WECHAT_OPEN_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=wechat_open
+    wechat_mp:
+      client-id: ${TUOYU_SOCIAL_WECHAT_MP_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_WECHAT_MP_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=wechat_mp
+    wechat_enterprise:
+      client-id: ${TUOYU_SOCIAL_WECHAT_ENTERPRISE_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_WECHAT_ENTERPRISE_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=wechat_enterprise
+      agent-id: 1000002
+    gitlab:
+      client-id: ${TUOYU_SOCIAL_GITLAB_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_GITLAB_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=gitlab
+    gitea:
+      # gitea 服务器地址
+      server-url: https://demo.gitea.com
+      client-id: ${TUOYU_SOCIAL_GITEA_CLIENT_ID:}
+      client-secret: ${TUOYU_SOCIAL_GITEA_CLIENT_SECRET:}
+      redirect-uri: ${justauth.address}/social-callback?source=gitea

@@ -1,0 +1,66 @@
+server:
+  port: 8800
+  servlet:
+    context-path: /snail-job
+
+spring:
+  application:
+    name: tuoyu-snailjob-server
+  profiles:
+    active: ${TUOYU_PROFILES_ACTIVE:dev}
+  web:
+    resources:
+      static-locations: classpath:admin/
+
+mybatis-plus:
+  typeAliasesPackage: com.aizuda.snailjob.template.datasource.persistence.po
+  global-config:
+    db-config:
+      where-strategy: NOT_EMPTY
+      capital-mode: false
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: true
+
+logging:
+  config: classpath:logback-spring.xml
+
+# 与 application-common.yml 相同的生产安全默认值（本服务不导入公共配置）；本地开发可在 .env 中放开
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${TUOYU_ACTUATOR_EXPOSURE:health,info,prometheus}
+  endpoint:
+    health:
+      show-details: ${TUOYU_HEALTH_SHOW_DETAILS:never}
+    logfile:
+      external-file: ./logs/${spring.application.name}/console.log
+
+# 数据库迁移（见 docs/adr/0004-数据库迁移.md）：本服务负责 tuoyu-job 库，迁移脚本在 db/migration/job/{vendor}
+tuoyu:
+  flyway:
+    database: job
+
+--- # nacos 配置
+spring:
+  cloud:
+    nacos:
+      # nacos 服务地址
+      server-addr: ${TUOYU_NACOS_SERVER:127.0.0.1:8848}
+      username: ${TUOYU_NACOS_USERNAME:nacos}
+      password: ${TUOYU_NACOS_PASSWORD}
+      discovery:
+        # 注册组
+        group: DEFAULT_GROUP
+        namespace: ${TUOYU_NACOS_NAMESPACE:public}
+      config:
+        # 配置组
+        group: DEFAULT_GROUP
+        namespace: ${TUOYU_NACOS_NAMESPACE:public}
+  config:
+    import:
+      - optional:nacos:datasource.yml
+      - optional:nacos:${spring.application.name}.yml

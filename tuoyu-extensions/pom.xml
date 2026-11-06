@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <modules>
+        <module>tuoyu-ai</module>
+        <module>tuoyu-snailai-server</module>
+    </modules>
+
+    <artifactId>tuoyu-extensions</artifactId>
+    <packaging>pom</packaging>
+
+    <description>
+        tuoyu-extensions 可选扩展模块（依赖较重的外部服务，默认不参与构建，使用 -P extensions 开启）
+    </description>
+
+</project>

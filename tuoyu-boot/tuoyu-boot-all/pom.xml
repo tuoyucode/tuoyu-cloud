@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-boot</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>tuoyu-boot-all</artifactId>
+
+    <description>
+        tuoyu-boot-all 单体启动器：一个进程包含 auth、system、resource、workflow、gen、job 全部业务模块，
+        跨模块调用都是进程内调用；不依赖 Dubbo、Nacos、Seata（ADR 0005 第 3.7、5 节）
+    </description>
+
+    <!--
+        各业务模块的依赖中排除远程调用与注册中心：
+        - tuoyu-common-dubbo 与 Dubbo：跨模块调用由 tuoyu-common-rpc 的本地调用代理完成；
+        - Spring Cloud Alibaba（Nacos 注册与配置、Seata）：配置从本地目录读取（TUOYU_CONFIG_DIR），没有注册中心；
+        - tuoyu-common-seata 与 Seata：各模块的事务互相独立（与微服务方式的语义相同）。
+        新增业务模块时照此排除，MonolithAssemblyTest 会检查
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-auth</artifactId>
+            <version>${revision}</version>
+            <exclusions>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-dubbo</artifactId></exclusion>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-seata</artifactId></exclusion>
+                <exclusion><groupId>org.apache.dubbo</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>com.alibaba.cloud</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>org.apache.seata</groupId><artifactId>*</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-system</artifactId>
+            <version>${revision}</version>
+            <exclusions>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-dubbo</artifactId></exclusion>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-seata</artifactId></exclusion>
+                <exclusion><groupId>org.apache.dubbo</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>com.alibaba.cloud</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>org.apache.seata</groupId><artifactId>*</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-resource</artifactId>
+            <version>${revision}</version>
+            <exclusions>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-dubbo</artifactId></exclusion>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-seata</artifactId></exclusion>
+                <exclusion><groupId>org.apache.dubbo</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>com.alibaba.cloud</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>org.apache.seata</groupId><artifactId>*</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-workflow</artifactId>
+            <version>${revision}</version>
+            <exclusions>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-dubbo</artifactId></exclusion>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-seata</artifactId></exclusion>
+                <exclusion><groupId>org.apache.dubbo</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>com.alibaba.cloud</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>org.apache.seata</groupId><artifactId>*</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-gen</artifactId>
+            <version>${revision}</version>
+            <exclusions>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-dubbo</artifactId></exclusion>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-seata</artifactId></exclusion>
+                <exclusion><groupId>org.apache.dubbo</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>com.alibaba.cloud</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>org.apache.seata</groupId><artifactId>*</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-job</artifactId>
+            <version>${revision}</version>
+            <exclusions>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-dubbo</artifactId></exclusion>
+                <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-seata</artifactId></exclusion>
+                <exclusion><groupId>org.apache.dubbo</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>com.alibaba.cloud</groupId><artifactId>*</artifactId></exclusion>
+                <exclusion><groupId>org.apache.seata</groupId><artifactId>*</artifactId></exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <!-- 生成 META-INF/build-info.properties，首页据此显示版本号 -->
+                            <goal>build-info</goal>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

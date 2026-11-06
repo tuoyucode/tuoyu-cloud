@@ -1,0 +1,163 @@
+package org.tuoyu.system.api.model;
+
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * 用户信息
+ *
+ * @author tuoyu
+ */
+@Data
+@NoArgsConstructor
+public class LoginUser implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * 登录标识分隔符，用于拼接 userType 与 userId
+     * <p>不使用冒号：Sa-Token 1.46.0 起默认禁止 loginId 包含冒号；历史冒号格式仅为兼容旧 token 保留解析
+     */
+    public static final String LOGIN_ID_SEPARATOR = "-";
+
+    /**
+     * 用户ID
+     */
+    private Long userId;
+
+    /**
+     * 所属租户（未开启多租户时为默认租户）
+     */
+    private String tenantId;
+
+    /**
+     * 部门ID
+     */
+    private Long deptId;
+
+    /**
+     * 部门类别编码
+     */
+    private String deptCategory;
+
+    /**
+     * 部门名
+     */
+    private String deptName;
+
+    /**
+     * 用户唯一标识
+     */
+    private String token;
+
+    /**
+     * 用户类型
+     */
+    private String userType;
+
+    /**
+     * 登录时间
+     */
+    private Long loginTime;
+
+    /**
+     * 过期时间
+     */
+    private Long expireTime;
+
+    /**
+     * 登录IP地址
+     */
+    private String ipaddr;
+
+    /**
+     * 登录地点
+     */
+    private String loginLocation;
+
+    /**
+     * 浏览器类型
+     */
+    private String browser;
+
+    /**
+     * 操作系统
+     */
+    private String os;
+
+    /**
+     * 菜单权限
+     */
+    private Set<String> menuPermission;
+
+    /**
+     * 角色权限
+     */
+    private Set<String> rolePermission;
+
+    /**
+     * 用户名
+     */
+    private String username;
+
+    /**
+     * 用户昵称
+     */
+    private String nickname;
+
+    /**
+     * 密码
+     */
+    private String password;
+
+    /**
+     * 角色对象
+     */
+    private List<RoleDTO> roles;
+
+    /**
+     * 数据权限角色映射 key 为权限码 value 为可参与数据权限计算的角色ID列表
+     */
+    private Map<String, List<Long>> dataScopeRoleMap;
+
+    /**
+     * 岗位对象
+     */
+    private List<PostDTO> posts;
+
+    /**
+     * 数据权限 当前角色ID
+     */
+    private Long roleId;
+
+    /**
+     * 客户端
+     */
+    private String clientKey;
+
+    /**
+     * 设备类型
+     */
+    private String deviceType;
+
+    /**
+     * 获取 Sa-Token 使用的登录标识（userType-userId）
+     */
+    public String getLoginId() {
+        if (userType == null) {
+            throw new IllegalArgumentException("用户类型不能为空");
+        }
+        if (userId == null) {
+            throw new IllegalArgumentException("用户ID不能为空");
+        }
+        return userType + LOGIN_ID_SEPARATOR + userId;
+    }
+
+}

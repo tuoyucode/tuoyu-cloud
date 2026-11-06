@@ -1,0 +1,92 @@
+tuoyu:
+  web:
+    # 网关是入口，可信代理单独收窄（覆盖 application-common.yml）：默认只信任本机的反向代理（nginx 与网关在同一台主机）。
+    # 客户端可能就在内网，若沿用公共配置中的私有网段，内网客户端直连网关即可伪造来源 IP。docker-compose 中 nginx 在另一个容器里，
+    # 地址不是回环，需要按 deploy/docker/README.md 配置。
+    # 反向代理、负载均衡在其他主机时，用 TUOYU_GATEWAY_TRUSTED_PROXIES 配置它们的地址；不允许 /0，none 表示不信任任何代理
+    # 各服务的直连地址是网关，仍按公共配置信任内网网段；绕过网关直连服务的请求会被 same-token 校验拒绝
+    trusted-proxies: "${TUOYU_GATEWAY_TRUSTED_PROXIES:127.0.0.0/8,::1/128}"
+
+# 免登录白名单（security.ignore.whites）已移到 application-common.yml：网关与各服务共用（各服务也校验登录）
+
+spring:
+  cloud:
+    loadbalancer:
+      cache:
+        # 服务实例列表的缓存有效期（Spring Cloud 默认 35 秒）。服务停机时先从注册中心注销，
+        # 网关最多在这段时间后不再转发给它；须小于各服务的 tuoyu.shutdown.offline-delay（默认 5 秒，ADR 0007）
+        ttl: 3s
+    gateway:
+      # 不要配置 spring.cloud.gateway.server.webmvc.trusted-proxies：网关向下游转发的客户端地址由
+      # ClientIpHeadersFilter 按 tuoyu.web.trusted-proxies 解析后统一写入
+      # 打印请求日志(自定义)
+      requestLog: true
+      # Gateway MVC 转发使用的 HttpClient5 连接池配置
+      httpclient:
+        # 总最大连接数，需小于 server.jetty.threads.max 并为普通请求预留容量
+        max-conn-total: 10000
+        # 单个下游路由最大连接数，需高于 SSE 长连接数并为同服务普通请求预留容量
+        max-conn-per-route: 8000
+        # 连接池满时等待可用连接的时间
+        connection-request-timeout: 3s
+        # SSE 场景通常不设置响应超时，避免长连接被网关主动断开
+        # response-timeout: 60s
+        # 连接最大存活时间，不配置则使用 HttpClient5 默认值
+        # connection-time-to-live: 10m
+        # 空闲连接可用性校验间隔
+        validate-after-inactivity: 30s
+      server:
+        webmvc:
+          discovery:
+            locator:
+              lowerCaseServiceId: true
+              # 服务发现自动路由。默认关闭（生产安全），对外服务均已显式配置路由；本地开发可在 .env 中设置 TUOYU_GATEWAY_DISCOVERY_LOCATOR=true
+              enabled: ${TUOYU_GATEWAY_DISCOVERY_LOCATOR:false}
+          routes:
+            # 认证中心
+            - id: tuoyu-auth
+              uri: lb://tuoyu-auth
+              predicates:
+                - Path=/auth/**
+              filters:
+                - StripPrefix=1
+            # 代码生成
+            - id: tuoyu-gen
+              uri: lb://tuoyu-gen
+              predicates:
+                - Path=/tool/**
+              filters:
+                - StripPrefix=1
+            # 系统模块
+            - id: tuoyu-system
+              uri: lb://tuoyu-system
+              predicates:
+                - Path=/system/**,/monitor/**
+              filters:
+                - StripPrefix=1
+            # 资源服务
+            - id: tuoyu-resource
+              uri: lb://tuoyu-resource
+              predicates:
+                - Path=/resource/**
+              filters:
+                - StripPrefix=1
+            # AI服务
+            - id: tuoyu-ai
+              uri: lb://tuoyu-ai
+              predicates:
+                - Path=/snail-ai/**
+              filters:
+                - StripPrefix=1
+            # workflow服务
+            - id: tuoyu-workflow
+              uri: lb://tuoyu-workflow
+              predicates:
+                - Path=/workflow/**
+              filters:
+                - StripPrefix=1
+            # warm-flow服务
+            - id: warm-flow
+              uri: lb://tuoyu-workflow
+              predicates:
+                - Path=/warm-flow-ui/**,/warm-flow/**
