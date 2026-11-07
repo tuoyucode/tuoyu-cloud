@@ -3,6 +3,7 @@ package org.tuoyu.common.push.handler;
 import cn.hutool.core.util.ObjectUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.tuoyu.common.core.context.CurrentUser;
 import org.tuoyu.common.core.enums.PushSourceEnum;
 import org.tuoyu.common.core.enums.PushTypeEnum;
 import org.tuoyu.common.core.utils.StringUtils;
@@ -11,7 +12,6 @@ import org.tuoyu.common.push.core.WebSocketSessionManager;
 import org.tuoyu.common.push.dto.PushDTO;
 import org.tuoyu.common.push.dto.PushPayloadDTO;
 import org.tuoyu.common.push.properties.MessageProperties;
-import org.tuoyu.system.api.model.LoginUser;
 import org.springframework.web.socket.*;
 import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
@@ -48,7 +48,7 @@ public class MessageWebSocketHandler extends AbstractWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws IOException {
         // 从会话属性中获取登录用户信息和Token
-        LoginUser loginUser = (LoginUser) session.getAttributes().get(MessageConstants.LOGIN_USER_KEY);
+        CurrentUser loginUser = currentUser(session);
         String token = (String) session.getAttributes().get(MessageConstants.LOGIN_TOKEN_KEY);
 
         // 校验用户信息是否为空，无效则直接关闭连接
@@ -80,7 +80,7 @@ public class MessageWebSocketHandler extends AbstractWebSocketHandler {
      */
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
-        LoginUser loginUser = (LoginUser) session.getAttributes().get(MessageConstants.LOGIN_USER_KEY);
+        CurrentUser loginUser = currentUser(session);
         if (ObjectUtil.isNull(loginUser)) {
             return;
         }
@@ -125,7 +125,7 @@ public class MessageWebSocketHandler extends AbstractWebSocketHandler {
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         log.error("[transport error] sessionId: {}, exception:{}", session.getId(), exception.getMessage(), exception);
-        LoginUser loginUser = (LoginUser) session.getAttributes().get(MessageConstants.LOGIN_USER_KEY);
+        CurrentUser loginUser = currentUser(session);
         String token = (String) session.getAttributes().get(MessageConstants.LOGIN_TOKEN_KEY);
         if (ObjectUtil.hasNull(loginUser, token)) {
             webSocketSessionManager.closeSession(session, CloseStatus.SERVER_ERROR);
@@ -140,7 +140,7 @@ public class MessageWebSocketHandler extends AbstractWebSocketHandler {
      */
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        LoginUser loginUser = (LoginUser) session.getAttributes().get(MessageConstants.LOGIN_USER_KEY);
+        CurrentUser loginUser = currentUser(session);
         String token = (String) session.getAttributes().get(MessageConstants.LOGIN_TOKEN_KEY);
 
         if (ObjectUtil.hasNull(loginUser, token)) {
@@ -151,6 +151,16 @@ public class MessageWebSocketHandler extends AbstractWebSocketHandler {
         // 从会话管理器中移除连接
         webSocketSessionManager.disconnect(loginUser.getUserId(), token);
         log.info("[disconnect] sessionId: {}, userId:{}, token:***{}", session.getId(), loginUser.getUserId(), StringUtils.right(token, 8));
+    }
+
+    /**
+     * 读取握手时放进会话属性的当前用户。
+     *
+     * @param session WebSocket会话
+     * @return 当前用户；握手时未登录则为 null
+     */
+    private static CurrentUser currentUser(WebSocketSession session) {
+        return session.getAttributes().get(MessageConstants.LOGIN_USER_KEY) instanceof CurrentUser user ? user : null;
     }
 
     /**

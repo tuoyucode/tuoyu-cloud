@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.system.domain.vo.SecurityOverviewVo;
 import org.tuoyu.system.service.SecurityOverviewService;
 
@@ -26,8 +26,8 @@ public class SysSecurityController {
      */
     @SaCheckPermission("monitor:security:list")
     @GetMapping("/overview")
-    public R<SecurityOverviewVo> overview() {
-        return R.ok(securityOverviewService.overview());
+    public ApiResult<SecurityOverviewVo> overview() {
+        return ApiResult.ok(securityOverviewService.overview());
     }
 
 }

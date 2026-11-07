@@ -1,13 +1,14 @@
 package org.tuoyu.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.utils.MapstructUtils;
-import org.tuoyu.common.core.utils.StringUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.core.utils.BeanMapper;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysLoginInfo;
 import org.tuoyu.system.domain.bo.SysLoginInfoBo;
@@ -37,17 +38,16 @@ public class SysLoginInfoServiceImpl implements ISysLoginInfoService {
      * 分页查询登录日志列表
      *
      * @param loginInfo 查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 登录日志分页列表
      */
     @Override
-    public PageResult<SysLoginInfoVo> selectPageLoginInfoList(SysLoginInfoBo loginInfo, PageQuery pageQuery) {
+    public PageResult<SysLoginInfoVo> selectPageLoginInfoList(SysLoginInfoBo loginInfo, PageParam pageParam) {
         LambdaQueryWrapper<SysLoginInfo> lqw = buildQueryWrapper(loginInfo);
-        if (StringUtils.isBlank(pageQuery.getOrderByColumn())) {
+        if (!pageParam.hasSort()) {
             lqw.orderByDesc(SysLoginInfo::getInfoId);
         }
-        Page<SysLoginInfoVo> page = loginInfoMapper.selectVoPage(pageQuery.build(), lqw);
-        return PageResult.build(page.getRecords(), page.getTotal());
+        return PageResults.of(loginInfoMapper.selectPage(pageParam.toPage(SysLoginInfo.class), lqw), SysLoginInfoVo.class);
     }
 
     /**
@@ -57,7 +57,7 @@ public class SysLoginInfoServiceImpl implements ISysLoginInfoService {
      */
     @Override
     public void insertLoginInfo(SysLoginInfoBo bo) {
-        SysLoginInfo loginInfo = MapstructUtils.convert(bo, SysLoginInfo.class);
+        SysLoginInfo loginInfo = BeanMapper.map(bo, SysLoginInfo.class);
         loginInfo.setLoginTime(LocalDateTime.now());
         loginInfoMapper.insert(loginInfo);
     }
@@ -70,8 +70,8 @@ public class SysLoginInfoServiceImpl implements ISysLoginInfoService {
      */
     @Override
     public List<SysLoginInfoVo> selectLoginInfoList(SysLoginInfoBo loginInfo) {
-        return loginInfoMapper.selectVoList(buildQueryWrapper(loginInfo)
-            .orderByDesc(SysLoginInfo::getInfoId));
+        return BeanMapper.mapList(loginInfoMapper.selectList(buildQueryWrapper(loginInfo)
+            .orderByDesc(SysLoginInfo::getInfoId)), SysLoginInfoVo.class);
     }
 
     /**
@@ -79,7 +79,7 @@ public class SysLoginInfoServiceImpl implements ISysLoginInfoService {
      */
     @Override
     public long countLoginInfoList(SysLoginInfoBo loginInfo) {
-        return loginInfoMapper.selectVoPage(PageQuery.countOnly(), buildQueryWrapper(loginInfo)).getTotal();
+        return loginInfoMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(loginInfo)).getTotal();
     }
 
     private LambdaQueryWrapper<SysLoginInfo> buildQueryWrapper(SysLoginInfoBo loginInfo) {
@@ -96,11 +96,12 @@ public class SysLoginInfoServiceImpl implements ISysLoginInfoService {
      * 批量删除系统登录日志
      *
      * @param infoIds 需要删除的登录日志ID
-     * @return 结果
      */
     @Override
-    public int deleteLoginInfoByIds(Long[] infoIds) {
-        return loginInfoMapper.deleteByIds(Arrays.asList(infoIds));
+    public void deleteLoginInfoByIds(Long[] infoIds) {
+        if (loginInfoMapper.deleteByIds(Arrays.asList(infoIds)) == 0) {
+            throw new ServiceException("删除登录日志失败，记录不存在");
+        }
     }
 
     /**
@@ -108,6 +109,6 @@ public class SysLoginInfoServiceImpl implements ISysLoginInfoService {
      */
     @Override
     public void cleanLoginInfo() {
-        loginInfoMapper.lambda().delete();
+        loginInfoMapper.delete(Wrappers.emptyWrapper());
     }
 }

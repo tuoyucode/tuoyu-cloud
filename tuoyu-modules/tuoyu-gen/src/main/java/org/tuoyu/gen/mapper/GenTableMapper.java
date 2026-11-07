@@ -2,7 +2,7 @@ package org.tuoyu.gen.mapper;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.gen.domain.GenTable;
 
 import java.util.List;
@@ -13,7 +13,7 @@ import java.util.List;
  * @author Lion Li
  */
 @InterceptorIgnore(dataPermission = "true", tenantLine = "true")
-public interface GenTableMapper extends BaseMapperPlus<GenTable, GenTable> {
+public interface GenTableMapper extends BaseMapper<GenTable> {
 
     /**
      * 查询指定数据源下的所有表名列表

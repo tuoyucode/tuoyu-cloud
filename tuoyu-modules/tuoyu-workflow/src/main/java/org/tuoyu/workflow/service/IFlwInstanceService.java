@@ -1,7 +1,7 @@
 package org.tuoyu.workflow.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.dromara.warm.flow.orm.entity.FlowInstance;
 import org.tuoyu.workflow.domain.bo.FlowCancelBo;
 import org.tuoyu.workflow.domain.bo.FlowInstanceBo;
@@ -23,19 +23,19 @@ public interface IFlwInstanceService {
      * 分页查询正在运行的流程实例
      *
      * @param flowInstanceBo 流程实例
-     * @param pageQuery      分页
+     * @param pageParam      分页
      * @return 结果
      */
-    PageResult<FlowInstanceVo> selectRunningInstanceList(FlowInstanceBo flowInstanceBo, PageQuery pageQuery);
+    PageResult<FlowInstanceVo> selectRunningInstanceList(FlowInstanceBo flowInstanceBo, PageParam pageParam);
 
     /**
      * 分页查询已结束的流程实例
      *
      * @param flowInstanceBo 流程实例
-     * @param pageQuery      分页
+     * @param pageParam      分页
      * @return 结果
      */
-    PageResult<FlowInstanceVo> selectFinishInstanceList(FlowInstanceBo flowInstanceBo, PageQuery pageQuery);
+    PageResult<FlowInstanceVo> selectFinishInstanceList(FlowInstanceBo flowInstanceBo, PageParam pageParam);
 
     /**
      * 根据业务id查询流程实例详细信息
@@ -73,42 +73,39 @@ public interface IFlwInstanceService {
      * 按照业务id删除流程实例
      *
      * @param businessIds 业务id
-     * @return 结果
+     * @return 是否删除了流程实例；业务没有对应的流程实例时为 false（业务模块删除业务数据时调用，没有实例不算失败）
      */
     boolean deleteByBusinessIds(List<String> businessIds);
 
     /**
-     * 按照实例id删除流程实例
+     * 按照实例id删除流程实例：实例不存在或删除失败时抛出业务异常
      *
      * @param instanceIds 实例id
-     * @return 结果
      */
-    boolean deleteByInstanceIds(List<Long> instanceIds);
+    void deleteByInstanceIds(List<Long> instanceIds);
 
     /**
-     * 按照实例id删除已完成得流程实例
+     * 按照实例id删除已完成的流程实例：实例不存在时抛出业务异常
      *
      * @param instanceIds 删除的实例id
-     * @return 删除结果
      */
-    boolean deleteHisByInstanceIds(List<Long> instanceIds);
+    void deleteHisByInstanceIds(List<Long> instanceIds);
 
     /**
-     * 撤销流程
+     * 撤销流程：只允许发起人与超级管理员撤销
      *
      * @param bo 参数
-     * @return 结果
      */
-    boolean cancelProcessApply(FlowCancelBo bo);
+    void cancelProcessApply(FlowCancelBo bo);
 
     /**
      * 获取当前登陆人发起的流程实例
      *
      * @param instanceBo 流程实例
-     * @param pageQuery  分页
+     * @param pageParam  分页
      * @return 结果
      */
-    PageResult<FlowInstanceVo> selectCurrentInstanceList(FlowInstanceBo instanceBo, PageQuery pageQuery);
+    PageResult<FlowInstanceVo> selectCurrentInstanceList(FlowInstanceBo instanceBo, PageParam pageParam);
 
     /**
      * 获取流程图,流程记录
@@ -143,12 +140,11 @@ public interface IFlwInstanceService {
     Map<String, Object> instanceVariable(Long instanceId);
 
     /**
-     * 更新流程变量
+     * 更新流程变量：只能修改已有的变量，变量不存在或新值无法按原类型转换时抛出业务异常
      *
      * @param bo 参数
-     * @return 结果
      */
-    boolean updateVariable(FlowVariableBo bo);
+    void updateVariable(FlowVariableBo bo);
 
     /**
      * 设置流程变量
@@ -170,7 +166,14 @@ public interface IFlwInstanceService {
      * 作废流程
      *
      * @param bo 流程实例
-     * @return 结果
      */
-    boolean processInvalid(FlowInvalidBo bo);
+    void processInvalid(FlowInvalidBo bo);
+
+    /**
+     * 激活或挂起流程实例：实例不存在、已是目标状态时由流程引擎拒绝
+     *
+     * @param instanceId 流程实例id
+     * @param active     true 激活，false 挂起
+     */
+    void active(Long instanceId, boolean active);
 }

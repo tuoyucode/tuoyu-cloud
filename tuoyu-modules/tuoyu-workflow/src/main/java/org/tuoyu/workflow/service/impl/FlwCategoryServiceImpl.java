@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.*;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.dromara.warm.flow.core.service.DefService;
 import org.dromara.warm.flow.orm.entity.FlowDefinition;
@@ -48,15 +48,15 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
      */
     @Override
     public FlowCategoryVo queryById(Long categoryId) {
-        FlowCategoryVo category = categoryMapper.selectVoById(categoryId);
+        FlowCategoryVo category = BeanMapper.map(categoryMapper.selectById(categoryId), FlowCategoryVo.class);
         if (ObjectUtil.isNull(category)) {
             return null;
         }
-        FlowCategoryVo parentCategory = categoryMapper.lambda()
+        FlowCategory parentCategory = categoryMapper.selectOne(QueryBuilder.lambda(FlowCategory.class)
             .select(FlowCategory::getCategoryName)
             .eq(FlowCategory::getCategoryId, category.getParentId())
-            .voOne();
-        category.setParentName(ObjectUtils.notNullGetter(parentCategory, FlowCategoryVo::getCategoryName));
+            .build());
+        category.setParentName(ObjectUtils.notNullGetter(parentCategory, FlowCategory::getCategoryName));
         return category;
     }
 
@@ -72,10 +72,10 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
         if (ObjectUtil.isNull(categoryId)) {
             return null;
         }
-        FlowCategory category = categoryMapper.lambda()
+        FlowCategory category = categoryMapper.selectOne(QueryBuilder.lambda(FlowCategory.class)
             .select(FlowCategory::getCategoryName)
             .eq(FlowCategory::getCategoryId, categoryId)
-            .one();
+            .build());
         return ObjectUtils.notNullGetter(category, FlowCategory::getCategoryName);
     }
 
@@ -90,10 +90,10 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
         if (CollUtil.isEmpty(categoryIds)) {
             return Collections.emptyMap();
         }
-        List<FlowCategory> list = categoryMapper.lambda()
+        List<FlowCategory> list = categoryMapper.selectList(QueryBuilder.lambda(FlowCategory.class)
             .select(FlowCategory::getCategoryId, FlowCategory::getCategoryName)
             .in(FlowCategory::getCategoryId, categoryIds)
-            .list();
+            .build());
         return StreamUtils.toMap(list, FlowCategory::getCategoryId, FlowCategory::getCategoryName);
     }
 
@@ -107,7 +107,7 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
     @Override
     public List<FlowCategoryVo> queryList(FlowCategoryBo bo) {
         LambdaQueryWrapper<FlowCategory> lqw = buildQueryWrapper(bo);
-        return categoryMapper.selectVoList(lqw);
+        return BeanMapper.mapList(categoryMapper.selectList(lqw), FlowCategoryVo.class);
     }
 
     /**
@@ -115,7 +115,7 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
      */
     @Override
     public long countList(FlowCategoryBo bo) {
-        return categoryMapper.selectVoPage(PageQuery.countOnly(), buildQueryWrapper(bo)).getTotal();
+        return categoryMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(bo)).getTotal();
     }
 
     /**
@@ -165,11 +165,11 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
      */
     @Override
     public boolean checkCategoryNameUnique(FlowCategoryBo category) {
-        boolean exist = categoryMapper.lambda()
+        boolean exist = categoryMapper.exists(QueryBuilder.lambda(FlowCategory.class)
             .eq(FlowCategory::getCategoryName, category.getCategoryName())
             .eq(FlowCategory::getParentId, category.getParentId())
             .neIfPresent(FlowCategory::getCategoryId, category.getCategoryId())
-            .exists();
+            .build());
         return !exist;
     }
 
@@ -194,7 +194,9 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
      */
     @Override
     public boolean hasChildByCategoryId(Long categoryId) {
-        return categoryMapper.lambda().eq(FlowCategory::getParentId, categoryId).exists();
+        return categoryMapper.exists(QueryBuilder.lambda(FlowCategory.class)
+            .eq(FlowCategory::getParentId, categoryId)
+            .build());
     }
 
     private LambdaQueryWrapper<FlowCategory> buildQueryWrapper(FlowCategoryBo bo) {
@@ -210,30 +212,33 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
      * 新增流程分类
      *
      * @param bo 流程分类
-     * @return 是否新增成功
      */
     @Override
-    public int insertByBo(FlowCategoryBo bo) {
+    public void insertByBo(FlowCategoryBo bo) {
+        checkNameUnique(bo, "新增");
         FlowCategory info = categoryMapper.selectById(bo.getParentId());
         if (ObjectUtil.isNull(info)) {
             throw new ServiceException("父级流程分类不存在!");
         }
-        FlowCategory category = MapstructUtils.convert(bo, FlowCategory.class);
+        FlowCategory category = BeanMapper.map(bo, FlowCategory.class);
         category.setAncestors(info.getAncestors() + StringUtils.SEPARATOR + category.getParentId());
-        return categoryMapper.insert(category);
+        categoryMapper.insert(category);
     }
 
     /**
      * 修改流程分类
      *
      * @param bo 流程分类
-     * @return 是否修改成功
      */
     @CacheEvict(cacheNames = FlowConstant.FLOW_CATEGORY_NAME, key = "#bo.categoryId")
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public int updateByBo(FlowCategoryBo bo) {
-        FlowCategory category = MapstructUtils.convert(bo, FlowCategory.class);
+    public void updateByBo(FlowCategoryBo bo) {
+        checkNameUnique(bo, "修改");
+        if (Objects.equals(bo.getParentId(), bo.getCategoryId())) {
+            throw new ServiceException("修改流程分类'" + bo.getCategoryName() + "'失败，上级流程分类不能是自己");
+        }
+        FlowCategory category = BeanMapper.map(bo, FlowCategory.class);
         FlowCategory oldCategory = categoryMapper.selectById(category.getCategoryId());
         if (ObjectUtil.isNull(oldCategory)) {
             throw new ServiceException("流程分类不存在，无法修改");
@@ -254,7 +259,13 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
         } else {
             category.setAncestors(oldCategory.getAncestors());
         }
-        return categoryMapper.updateById(category);
+        categoryMapper.updateById(category);
+    }
+
+    private void checkNameUnique(FlowCategoryBo bo, String action) {
+        if (!checkCategoryNameUnique(bo)) {
+            throw new ServiceException(action + "流程分类'" + bo.getCategoryName() + "'失败，流程分类名称已存在");
+        }
     }
 
     /**
@@ -265,9 +276,9 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
      * @param oldAncestors 旧的父ID集合
      */
     private void updateCategoryChildren(Long categoryId, String newAncestors, String oldAncestors) {
-        List<FlowCategory> children = categoryMapper.lambda()
-            .findInSet(categoryId, FlowCategory::getAncestors)
-            .list();
+        List<FlowCategory> children = categoryMapper.selectList(QueryBuilder.lambda(FlowCategory.class)
+            .findInSet(categoryId, "ancestors")
+            .build());
         List<FlowCategory> list = new ArrayList<>();
         for (FlowCategory child : children) {
             FlowCategory category = new FlowCategory();
@@ -276,7 +287,7 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
             list.add(category);
         }
         if (CollUtil.isNotEmpty(list)) {
-            categoryMapper.updateBatchById(list);
+            categoryMapper.updateById(list);
         }
     }
 
@@ -284,11 +295,19 @@ public class FlwCategoryServiceImpl implements IFlwCategoryService, CategoryServ
      * 删除流程分类信息
      *
      * @param categoryId 主键
-     * @return 是否删除成功
      */
     @CacheEvict(cacheNames = FlowConstant.FLOW_CATEGORY_NAME, key = "#categoryId")
     @Override
-    public int deleteWithValidById(Long categoryId) {
-        return categoryMapper.deleteById(categoryId);
+    public void deleteWithValidById(Long categoryId) {
+        if (FlowConstant.FLOW_CATEGORY_ID.equals(categoryId)) {
+            throw new ServiceException("默认流程分类,不允许删除");
+        }
+        if (hasChildByCategoryId(categoryId)) {
+            throw new ServiceException("存在下级流程分类,不允许删除");
+        }
+        if (checkCategoryExistDefinition(categoryId)) {
+            throw new ServiceException("流程分类存在流程定义,不允许删除");
+        }
+        categoryMapper.deleteById(categoryId);
     }
 }

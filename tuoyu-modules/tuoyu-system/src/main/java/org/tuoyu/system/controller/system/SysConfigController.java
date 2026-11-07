@@ -4,13 +4,13 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.excel.utils.ExcelBuilder;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.system.domain.bo.SysConfigBo;
 import org.tuoyu.system.domain.vo.SysConfigVo;
 import org.tuoyu.system.service.ISysConfigService;
@@ -27,7 +27,7 @@ import java.util.Arrays;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/config")
-public class SysConfigController extends BaseController {
+public class SysConfigController {
 
     private final ISysConfigService configService;
 
@@ -36,14 +36,14 @@ public class SysConfigController extends BaseController {
      */
     @SaCheckPermission("system:config:list")
     @GetMapping("/list")
-    public R<PageResult<SysConfigVo>> list(SysConfigBo config, PageQuery pageQuery) {
-        return R.ok(configService.selectPageConfigList(config, pageQuery));
+    public ApiResult<PageResult<SysConfigVo>> list(SysConfigBo config, PageParam pageParam) {
+        return ApiResult.ok(configService.selectPageConfigList(config, pageParam));
     }
 
     /**
      * 导出参数配置列表
      */
-    @Log(title = "参数管理", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "参数管理", action = AuditAction.EXPORT)
     @SaCheckPermission("system:config:export")
     @PostMapping("/export")
     public void export(SysConfigBo config, HttpServletResponse response) {
@@ -58,8 +58,8 @@ public class SysConfigController extends BaseController {
      */
     @SaCheckPermission("system:config:query")
     @GetMapping(value = "/{configId}")
-    public R<SysConfigVo> getInfo(@PathVariable Long configId) {
-        return R.ok(configService.selectConfigById(configId));
+    public ApiResult<SysConfigVo> getInfo(@PathVariable Long configId) {
+        return ApiResult.ok(configService.selectConfigById(configId));
     }
 
     /**
@@ -69,50 +69,50 @@ public class SysConfigController extends BaseController {
      */
     @SaCheckPermission("system:config:query")
     @GetMapping(value = "/configKey/{configKey}")
-    public R<String> getConfigKey(@PathVariable String configKey) {
-        return R.data(configService.selectConfigByKey(configKey));
+    public ApiResult<String> getConfigKey(@PathVariable String configKey) {
+        return ApiResult.ok(configService.selectConfigByKey(configKey));
     }
 
     /**
      * 新增参数配置
      */
     @SaCheckPermission("system:config:add")
-    @Log(title = "参数管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "参数管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping
-    public R<Void> add(@Validated @RequestBody SysConfigBo config) {
+    public ApiResult<Void> add(@Validated @RequestBody SysConfigBo config) {
         if (!configService.checkConfigKeyUnique(config)) {
-            return R.fail("新增参数'" + config.getConfigName() + "'失败，参数键名已存在");
+            throw new ServiceException("新增参数'" + config.getConfigName() + "'失败，参数键名已存在");
         }
         configService.insertConfig(config);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 修改参数配置
      */
     @SaCheckPermission("system:config:edit")
-    @Log(title = "参数管理", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "参数管理", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping
-    public R<Void> edit(@Validated @RequestBody SysConfigBo config) {
+    public ApiResult<Void> edit(@Validated @RequestBody SysConfigBo config) {
         if (!configService.checkConfigKeyUnique(config)) {
-            return R.fail("修改参数'" + config.getConfigName() + "'失败，参数键名已存在");
+            throw new ServiceException("修改参数'" + config.getConfigName() + "'失败，参数键名已存在");
         }
         configService.updateConfig(config);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 根据参数键名修改参数配置
      */
     @SaCheckPermission("system:config:edit")
-    @Log(title = "参数管理", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "参数管理", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping("/updateByKey")
-    public R<Void> updateByKey(@RequestBody SysConfigBo config) {
+    public ApiResult<Void> updateByKey(@RequestBody SysConfigBo config) {
         configService.updateConfig(config);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -121,21 +121,21 @@ public class SysConfigController extends BaseController {
      * @param configIds 参数ID串
      */
     @SaCheckPermission("system:config:remove")
-    @Log(title = "参数管理", businessType = BusinessType.DELETE)
+    @OperationLog(module = "参数管理", action = AuditAction.DELETE)
     @DeleteMapping("/{configIds}")
-    public R<Void> remove(@PathVariable Long[] configIds) {
+    public ApiResult<Void> remove(@PathVariable Long[] configIds) {
         configService.deleteConfigByIds(Arrays.asList(configIds));
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 刷新参数缓存
      */
     @SaCheckPermission("system:config:remove")
-    @Log(title = "参数管理", businessType = BusinessType.CLEAN)
+    @OperationLog(module = "参数管理", action = AuditAction.CLEAN)
     @DeleteMapping("/refreshCache")
-    public R<Void> refreshCache() {
+    public ApiResult<Void> refreshCache() {
         configService.resetConfigCache();
-        return R.ok();
+        return ApiResult.ok();
     }
 }

@@ -12,7 +12,6 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @DisplayName("办理任务接口")
 class FlwTaskControllerTest {
@@ -21,7 +20,6 @@ class FlwTaskControllerTest {
     @DisplayName("请求中的 ignore 等内部变量被去掉，不能借此跳过办理人、委派、会签校验；其他变量原样保留")
     void shouldDropInternalVariables() {
         IFlwTaskService service = mock(IFlwTaskService.class);
-        when(service.completeTask(org.mockito.ArgumentMatchers.any())).thenReturn(true);
         CompleteTaskBo bo = new CompleteTaskBo();
         Map<String, Object> variables = new HashMap<>();
         variables.put("ignore", true);

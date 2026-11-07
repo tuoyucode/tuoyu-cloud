@@ -1,7 +1,7 @@
 package org.tuoyu.system.dubbo;
 
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.system.api.RemoteSocialService;
 import org.tuoyu.system.api.domain.bo.RemoteSocialBo;
 import org.tuoyu.system.api.domain.vo.RemoteSocialVo;
@@ -32,7 +32,7 @@ public class RemoteSocialServiceImpl implements RemoteSocialService {
     @Override
     public List<RemoteSocialVo> selectByAuthId(String authId) {
         List<SysSocialVo> list = sysSocialService.selectByAuthId(authId);
-        return MapstructUtils.convert(list, RemoteSocialVo.class);
+        return BeanMapper.mapList(list, RemoteSocialVo.class);
     }
 
     /**
@@ -42,9 +42,9 @@ public class RemoteSocialServiceImpl implements RemoteSocialService {
      */
     @Override
     public List<RemoteSocialVo> queryList(RemoteSocialBo bo) {
-        SysSocialBo params = MapstructUtils.convert(bo, SysSocialBo.class);
+        SysSocialBo params = BeanMapper.map(bo, SysSocialBo.class);
         List<SysSocialVo> list = sysSocialService.queryList(params);
-        return MapstructUtils.convert(list, RemoteSocialVo.class);
+        return BeanMapper.mapList(list, RemoteSocialVo.class);
     }
 
     /**
@@ -54,7 +54,7 @@ public class RemoteSocialServiceImpl implements RemoteSocialService {
      */
     @Override
     public void insertByBo(RemoteSocialBo bo) {
-        sysSocialService.insertByBo(MapstructUtils.convert(bo, SysSocialBo.class));
+        sysSocialService.insertByBo(BeanMapper.map(bo, SysSocialBo.class));
     }
 
     /**
@@ -64,18 +64,17 @@ public class RemoteSocialServiceImpl implements RemoteSocialService {
      */
     @Override
     public void updateByBo(RemoteSocialBo bo) {
-        sysSocialService.updateByBo(MapstructUtils.convert(bo, SysSocialBo.class));
+        sysSocialService.updateByBo(BeanMapper.map(bo, SysSocialBo.class));
     }
 
     /**
      * 删除社会化关系
      *
      * @param socialId 社会化关系ID
-     * @return 结果
      */
     @Override
-    public Boolean deleteWithValidById(Long socialId) {
-        return sysSocialService.deleteWithValidById(socialId);
+    public void deleteWithValidById(Long socialId) {
+        sysSocialService.deleteWithValidById(socialId);
     }
 
 }

@@ -6,15 +6,15 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import org.tuoyu.common.excel.utils.ExcelBuilder;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.system.domain.bo.SysClientBo;
 import org.tuoyu.system.domain.vo.SysClientVo;
 import org.tuoyu.system.service.ISysClientService;
@@ -32,7 +32,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/client")
-public class SysClientController extends BaseController {
+public class SysClientController {
 
     private final ISysClientService sysClientService;
 
@@ -41,15 +41,15 @@ public class SysClientController extends BaseController {
      */
     @SaCheckPermission("system:client:list")
     @GetMapping("/list")
-    public R<PageResult<SysClientVo>> list(SysClientBo bo, PageQuery pageQuery) {
-        return R.ok(sysClientService.queryPageList(bo, pageQuery));
+    public ApiResult<PageResult<SysClientVo>> list(SysClientBo bo, PageParam pageParam) {
+        return ApiResult.ok(sysClientService.queryPageList(bo, pageParam));
     }
 
     /**
      * 导出客户端管理列表
      */
     @SaCheckPermission("system:client:export")
-    @Log(title = "客户端管理", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "客户端管理", action = AuditAction.EXPORT)
     @PostMapping("/export")
     public void export(SysClientBo bo, HttpServletResponse response) {
         ExcelBuilder.query(() -> sysClientService.countList(bo), () -> sysClientService.queryList(bo), SysClientVo.class)
@@ -63,47 +63,50 @@ public class SysClientController extends BaseController {
      */
     @SaCheckPermission("system:client:query")
     @GetMapping("/{id}")
-    public R<SysClientVo> getInfo(@NotNull(message = "主键不能为空")
+    public ApiResult<SysClientVo> getInfo(@NotNull(message = "主键不能为空")
                                   @PathVariable Long id) {
-        return R.ok(sysClientService.queryById(id));
+        return ApiResult.ok(sysClientService.queryById(id));
     }
 
     /**
      * 新增客户端管理
      */
     @SaCheckPermission("system:client:add")
-    @Log(title = "客户端管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "客户端管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping()
-    public R<Void> add(@Validated(AddGroup.class) @RequestBody SysClientBo bo) {
+    public ApiResult<Void> add(@Validated(OnCreate.class) @RequestBody SysClientBo bo) {
         if (!sysClientService.checkClickKeyUnique(bo)) {
-            return R.fail("新增客户端'" + bo.getClientKey() + "'失败，客户端key已存在");
+            throw new ServiceException("新增客户端'" + bo.getClientKey() + "'失败，客户端key已存在");
         }
-        return toAjax(sysClientService.insertByBo(bo));
+        sysClientService.insertByBo(bo);
+        return ApiResult.ok();
     }
 
     /**
      * 修改客户端管理
      */
     @SaCheckPermission("system:client:edit")
-    @Log(title = "客户端管理", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "客户端管理", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping()
-    public R<Void> edit(@Validated(EditGroup.class) @RequestBody SysClientBo bo) {
+    public ApiResult<Void> edit(@Validated(OnUpdate.class) @RequestBody SysClientBo bo) {
         if (!sysClientService.checkClickKeyUnique(bo)) {
-            return R.fail("修改客户端'" + bo.getClientKey() + "'失败，客户端key已存在");
+            throw new ServiceException("修改客户端'" + bo.getClientKey() + "'失败，客户端key已存在");
         }
-        return toAjax(sysClientService.updateByBo(bo));
+        sysClientService.updateByBo(bo);
+        return ApiResult.ok();
     }
 
     /**
      * 状态修改
      */
     @SaCheckPermission("system:client:edit")
-    @Log(title = "客户端管理", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "客户端管理", action = AuditAction.UPDATE)
     @PutMapping("/changeStatus")
-    public R<Void> changeStatus(@RequestBody SysClientBo bo) {
-        return toAjax(sysClientService.updateClientStatus(bo.getClientId(), bo.getStatus()));
+    public ApiResult<Void> changeStatus(@RequestBody SysClientBo bo) {
+        sysClientService.updateClientStatus(bo.getClientId(), bo.getStatus());
+        return ApiResult.ok();
     }
 
     /**
@@ -112,10 +115,11 @@ public class SysClientController extends BaseController {
      * @param ids 主键串
      */
     @SaCheckPermission("system:client:remove")
-    @Log(title = "客户端管理", businessType = BusinessType.DELETE)
+    @OperationLog(module = "客户端管理", action = AuditAction.DELETE)
     @DeleteMapping("/{ids}")
-    public R<Void> remove(@NotEmpty(message = "主键不能为空")
+    public ApiResult<Void> remove(@NotEmpty(message = "主键不能为空")
                           @PathVariable Long[] ids) {
-        return toAjax(sysClientService.deleteWithValidByIds(List.of(ids), true));
+        sysClientService.deleteWithValidByIds(List.of(ids), true);
+        return ApiResult.ok();
     }
 }

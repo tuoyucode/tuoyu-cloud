@@ -13,6 +13,7 @@ import org.tuoyu.auth.form.RegisterBody;
 import org.tuoyu.auth.properties.AuthSecurityProperties;
 import org.tuoyu.auth.properties.CaptchaProperties;
 import org.tuoyu.common.core.constant.Constants;
+import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.common.core.enums.LoginType;
 import org.tuoyu.common.core.enums.UserType;
 import org.tuoyu.common.core.exception.ServiceException;
@@ -80,7 +81,7 @@ public class SysLoginService {
         // 第三方用户信息
         RemoteSocialBo bo = BeanUtil.toBean(authUserData, RemoteSocialBo.class);
         BeanUtil.copyProperties(authUserData.getToken(), bo);
-        Long userId = LoginHelper.getUserId();
+        Long userId = UserContext.userId();
         bo.setUserId(userId);
         bo.setAuthId(authId);
         bo.setOpenId(authUserData.getUuid());
@@ -164,10 +165,7 @@ public class SysLoginService {
         remoteUserBo.setPassword(passwordHasher.hash(password));
         remoteUserBo.setUserType(userType);
 
-        boolean regFlag = remoteUserService.registerUserInfo(remoteUserBo);
-        if (!regFlag) {
-            throw new UserException("user.register.error");
-        }
+        remoteUserService.registerUserInfo(remoteUserBo);
         recordLoginInfo(username, Constants.REGISTER, MessageUtils.message("user.register.success"));
     }
 

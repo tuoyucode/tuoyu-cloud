@@ -1,13 +1,15 @@
 package org.tuoyu.common.log;
 
 import cn.hutool.extra.spring.SpringUtil;
-import org.tuoyu.common.log.annotation.Log;
+import org.tuoyu.common.log.annotation.OperationLog;
 import org.tuoyu.common.log.aspect.LogAspect;
+import org.tuoyu.common.log.enums.AuditAction;
 import org.tuoyu.common.log.enums.BusinessStatus;
-import org.tuoyu.common.log.enums.BusinessType;
 import org.tuoyu.common.log.enums.OperatorType;
 import org.tuoyu.common.log.event.OperLogEvent;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.context.CurrentUser;
+import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.Signature;
 import org.junit.jupiter.api.DisplayName;
@@ -26,10 +28,10 @@ import tools.jackson.databind.json.JsonMapper;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.mock;
 
@@ -37,6 +39,8 @@ import static org.mockito.Mockito.mock;
 class LogFunctionTest {
 
     private static final AtomicReference<OperLogEvent> LAST_EVENT = new AtomicReference<>();
+
+    private UserContextProvider previousProvider;
 
     /**
      * 初始化日志切面依赖的 JSON 映射器和事件容器，避免启动完整 Spring 应用。
@@ -60,8 +64,9 @@ class LogFunctionTest {
      */
     @BeforeEach
     void bindRequestContext() {
+        previousProvider = UserContext.setProvider(Optional::empty);
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/system/users");
-        request.addHeader(LoginHelper.CLIENT_KEY, "web-client");
+        request.addHeader("clientid", "web-client");
         request.addHeader("X-Forwarded-For", "10.0.0.8");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
         LAST_EVENT.set(null);
@@ -73,6 +78,7 @@ class LogFunctionTest {
     @AfterEach
     void resetRequestContext() {
         RequestContextHolder.resetRequestAttributes();
+        UserContext.setProvider(previousProvider);
     }
 
     /**
@@ -102,13 +108,13 @@ class LogFunctionTest {
     @DisplayName("读取操作日志注解配置")
     void shouldExposeLogAnnotationConfiguration() throws Exception {
         Method method = TestController.class.getDeclaredMethod("update");
-        Log log = method.getAnnotation(Log.class);
+        OperationLog log = method.getAnnotation(OperationLog.class);
 
-        assertEquals("用户管理", log.title());
-        assertEquals(BusinessType.UPDATE, log.businessType());
+        assertEquals("用户管理", log.module());
+        assertEquals(AuditAction.UPDATE, log.action());
         assertEquals(OperatorType.MOBILE, log.operatorType());
-        assertFalse(log.isSaveRequestData());
-        assertTrue(log.isSaveResponseData());
+        assertFalse(log.saveRequestData());
+        assertTrue(log.saveResponseData());
         assertArrayEquals(new String[]{"password"}, log.excludeParamNames());
     }
 
@@ -118,14 +124,10 @@ class LogFunctionTest {
     @Test
     @DisplayName("记录成功操作日志并排除敏感参数")
     void shouldPublishSuccessfulOperationLogWithFilteredParameters() throws Throwable {
-        Log annotation = TestController.class.getDeclaredMethod("create", CreateRequest.class).getAnnotation(Log.class);
+        OperationLog annotation = TestController.class.getDeclaredMethod("create", CreateRequest.class).getAnnotation(OperationLog.class);
         ProceedingJoinPoint joinPoint = joinPoint(new CreateRequest("alice", "secret"), Map.of("id", 1L));
 
-        Object result;
-        try (var login = mockStatic(LoginHelper.class)) {
-            login.when(LoginHelper::getLoginUser).thenReturn(null);
-            result = new LogAspect().doAround(joinPoint, annotation);
-        }
+        Object result = new LogAspect().doAround(joinPoint, annotation);
 
         OperLogEvent event = LAST_EVENT.get();
         assertEquals(Map.of("id", 1L), result);
@@ -139,6 +141,109 @@ class LogFunctionTest {
         assertTrue(event.getOperParam().contains("alice"));
         assertFalse(event.getOperParam().contains("secret"));
         assertTrue(event.getJsonResult().contains("\"id\":1"));
+    }
+
+    /**
+     * 验证 @OperationLog 记录操作日志，操作类型按 AuditAction 的存储值保存；失败时记录失败状态与原因。
+     */
+    @Test
+    @DisplayName("@OperationLog 记录操作日志，失败时记录原因")
+    void shouldPublishOperationLog() throws Throwable {
+        OperationLog annotation = TestController.class.getDeclaredMethod("audit", CreateRequest.class).getAnnotation(OperationLog.class);
+        ProceedingJoinPoint joinPoint = joinPoint(new CreateRequest("bob", "secret"), Map.of("id", 2L));
+
+        new LogAspect().doAround(joinPoint, annotation);
+
+        OperLogEvent event = LAST_EVENT.get();
+        assertNotNull(event);
+        assertEquals("用户管理", event.getTitle());
+        assertEquals(1, event.getBusinessType());
+        assertEquals(OperatorType.MANAGE.ordinal(), event.getOperatorType());
+        assertEquals(BusinessStatus.SUCCESS.ordinal(), event.getStatus());
+        assertFalse(event.getOperParam().contains("secret"));
+        assertNull(event.getJsonResult(), "saveResponseData = false 时不记录响应");
+
+        ProceedingJoinPoint failing = joinPoint(new CreateRequest("bob", "secret"), null);
+        when(failing.proceed()).thenThrow(new IllegalStateException("保存失败"));
+        assertThrows(IllegalStateException.class, () -> new LogAspect().doAround(failing, annotation));
+        assertEquals(BusinessStatus.FAIL.ordinal(), LAST_EVENT.get().getStatus());
+        assertEquals("保存失败", LAST_EVENT.get().getErrorMsg());
+    }
+
+    /**
+     * 有当前用户时记录操作人、部门与终端信息；请求头没有客户端标识时取登录时的客户端。
+     */
+    @Test
+    @DisplayName("记录当前用户为操作人")
+    void shouldRecordCurrentUserAsOperator() throws Throwable {
+        MockHttpServletRequest request = new MockHttpServletRequest("PUT", "/system/users");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+        CurrentUser user = new CurrentUser();
+        user.setUserId(7L);
+        user.setUserName("carol");
+        user.setDeptId(103L);
+        user.setDeptName("研发部");
+        user.setClientKey("pc");
+        user.setDeviceType("pc");
+        user.setBrowser("Chrome");
+        user.setOs("Windows");
+        UserContext.setProvider(() -> Optional.of(user));
+        OperationLog annotation = TestController.class.getDeclaredMethod("audit", CreateRequest.class).getAnnotation(OperationLog.class);
+
+        new LogAspect().doAround(joinPoint(new CreateRequest("dave", "secret"), null), annotation);
+
+        OperLogEvent event = LAST_EVENT.get();
+        assertNotNull(event);
+        assertEquals("carol", event.getOperName());
+        assertEquals(7L, event.getUserId());
+        assertEquals(103L, event.getDeptId());
+        assertEquals("研发部", event.getDeptName());
+        assertEquals("pc", event.getClientKey());
+        assertEquals("pc", event.getDeviceType());
+        assertEquals("Chrome", event.getBrowser());
+        assertEquals("Windows", event.getOs());
+    }
+
+    /**
+     * 请求头中的客户端标识优先于登录时的客户端；没有当前用户时不记录操作人。
+     */
+    @Test
+    @DisplayName("请求头的客户端标识优先，未登录时操作人为空")
+    void shouldPreferHeaderClientKeyAndSkipOperatorWithoutUser() throws Throwable {
+        CurrentUser user = new CurrentUser();
+        user.setUserId(7L);
+        user.setUserName("carol");
+        user.setClientKey("pc");
+        UserContext.setProvider(() -> Optional.of(user));
+        OperationLog annotation = TestController.class.getDeclaredMethod("audit", CreateRequest.class).getAnnotation(OperationLog.class);
+
+        new LogAspect().doAround(joinPoint(new CreateRequest("dave", "secret"), null), annotation);
+        assertEquals("web-client", LAST_EVENT.get().getClientKey());
+        assertEquals("carol", LAST_EVENT.get().getOperName());
+
+        UserContext.setProvider(Optional::empty);
+        new LogAspect().doAround(joinPoint(new CreateRequest("dave", "secret"), null), annotation);
+        assertNull(LAST_EVENT.get().getOperName());
+        assertNull(LAST_EVENT.get().getUserId());
+    }
+
+    /**
+     * 操作类型的存储值写进操作日志表，与前端字典 sys_oper_type 对应，取值固定。
+     */
+    @Test
+    @DisplayName("AuditAction 的存储值固定")
+    void auditActionCodesAreStable() {
+        assertEquals(10, AuditAction.values().length);
+        assertEquals(0, AuditAction.OTHER.code());
+        assertEquals(1, AuditAction.CREATE.code());
+        assertEquals(2, AuditAction.UPDATE.code());
+        assertEquals(3, AuditAction.DELETE.code());
+        assertEquals(4, AuditAction.GRANT.code());
+        assertEquals(5, AuditAction.EXPORT.code());
+        assertEquals(6, AuditAction.IMPORT.code());
+        assertEquals(7, AuditAction.FORCE_LOGOUT.code());
+        assertEquals(8, AuditAction.GENERATE_CODE.code());
+        assertEquals(9, AuditAction.CLEAN.code());
     }
 
     /**
@@ -164,8 +269,8 @@ class LogFunctionTest {
         /**
          * 提供完整日志注解配置供反射测试读取。
          */
-        @Log(title = "用户管理", businessType = BusinessType.UPDATE, operatorType = OperatorType.MOBILE,
-            isSaveRequestData = false, excludeParamNames = "password")
+        @OperationLog(module = "用户管理", action = AuditAction.UPDATE, operatorType = OperatorType.MOBILE,
+            saveRequestData = false, excludeParamNames = "password")
         private void update() {
         }
 
@@ -174,8 +279,17 @@ class LogFunctionTest {
          *
          * @param request 新增请求
          */
-        @Log(title = "新增用户", businessType = BusinessType.INSERT, excludeParamNames = "password")
+        @OperationLog(module = "新增用户", action = AuditAction.CREATE, excludeParamNames = "password")
         private void create(CreateRequest request) {
+        }
+
+        /**
+         * 提供 @OperationLog 配置供切面测试。
+         *
+         * @param request 新增请求
+         */
+        @OperationLog(module = "用户管理", action = AuditAction.CREATE, saveResponseData = false, excludeParamNames = "password")
+        private void audit(CreateRequest request) {
         }
     }
 

@@ -6,7 +6,7 @@ import com.github.yulichang.base.MPJBaseMapper;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.mybatis.annotation.DataColumn;
 import org.tuoyu.common.mybatis.annotation.DataPermission;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysPost;
 import org.tuoyu.system.domain.SysUserPost;
@@ -20,7 +20,7 @@ import java.util.List;
  *
  * @author Lion Li
  */
-public interface SysPostMapper extends BaseMapperPlus<SysPost, SysPostVo>, MPJBaseMapper<SysPost> {
+public interface SysPostMapper extends BaseMapper<SysPost>, MPJBaseMapper<SysPost> {
 
     /**
      * 分页查询岗位列表
@@ -33,8 +33,8 @@ public interface SysPostMapper extends BaseMapperPlus<SysPost, SysPostVo>, MPJBa
         @DataColumn(key = "deptName", value = "dept_id"),
         @DataColumn(key = "userName", value = "create_by")
     })
-    default Page<SysPostVo> selectPagePostList(Page<SysPost> page, Wrapper<SysPost> queryWrapper) {
-        return this.selectVoPage(page, queryWrapper);
+    default Page<SysPost> selectPagePostList(Page<SysPost> page, Wrapper<SysPost> queryWrapper) {
+        return this.selectPage(page, queryWrapper);
     }
 
     /**
@@ -47,8 +47,8 @@ public interface SysPostMapper extends BaseMapperPlus<SysPost, SysPostVo>, MPJBa
         @DataColumn(key = "deptName", value = "dept_id"),
         @DataColumn(key = "userName", value = "create_by")
     })
-    default List<SysPostVo> selectPostList(Wrapper<SysPost> queryWrapper) {
-        return this.selectVoList(queryWrapper);
+    default List<SysPost> selectPostList(Wrapper<SysPost> queryWrapper) {
+        return this.selectList(queryWrapper);
     }
 
     /**
@@ -62,7 +62,7 @@ public interface SysPostMapper extends BaseMapperPlus<SysPost, SysPostVo>, MPJBa
         @DataColumn(key = "userName", value = "create_by")
     })
     default long selectPostCount(Collection<Long> postIds) {
-        return this.lambda().in(SysPost::getPostId, postIds).count();
+        return this.selectCount(QueryBuilder.lambda(SysPost.class).in(SysPost::getPostId, postIds).build());
     }
 
     /**
@@ -75,12 +75,12 @@ public interface SysPostMapper extends BaseMapperPlus<SysPost, SysPostVo>, MPJBa
         @DataColumn(key = "deptName", value = "dept_id"),
         @DataColumn(key = "userName", value = "create_by")
     })
-    default List<SysPostVo> selectPostOptions(Collection<Long> postIds) {
-        return this.lambda()
+    default List<SysPost> selectPostOptions(Collection<Long> postIds) {
+        return this.selectList(QueryBuilder.lambda(SysPost.class)
             .select(SysPost::getPostId, SysPost::getPostName, SysPost::getPostCode)
             .eq(SysPost::getStatus, SystemConstants.NORMAL)
             .inIfNotEmpty(SysPost::getPostId, postIds)
-            .voList();
+            .build());
     }
 
     /**

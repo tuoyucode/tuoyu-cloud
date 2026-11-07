@@ -5,15 +5,13 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
-import org.tuoyu.common.core.validate.QueryGroup;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.resource.domain.bo.SysOssConfigBo;
 import org.tuoyu.resource.domain.vo.SysOssConfigVo;
 import org.tuoyu.resource.service.ISysOssConfigService;
@@ -33,7 +31,7 @@ import java.util.Arrays;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/oss/config")
-public class SysOssConfigController extends BaseController {
+public class SysOssConfigController {
 
     private final ISysOssConfigService ossConfigService;
 
@@ -42,8 +40,8 @@ public class SysOssConfigController extends BaseController {
      */
     @SaCheckPermission("system:ossConfig:list")
     @GetMapping("/list")
-    public R<PageResult<SysOssConfigVo>> list(@Validated(QueryGroup.class) SysOssConfigBo bo, PageQuery pageQuery) {
-        return R.ok(ossConfigService.queryPageList(bo, pageQuery));
+    public ApiResult<PageResult<SysOssConfigVo>> list(SysOssConfigBo bo, PageParam pageParam) {
+        return ApiResult.ok(ossConfigService.queryPageList(bo, pageParam));
     }
 
     /**
@@ -53,28 +51,30 @@ public class SysOssConfigController extends BaseController {
      */
     @SaCheckPermission("system:ossConfig:list")
     @GetMapping("/{ossConfigId}")
-    public R<SysOssConfigVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable("ossConfigId") Long ossConfigId) {
-        return R.ok(ossConfigService.queryById(ossConfigId));
+    public ApiResult<SysOssConfigVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable("ossConfigId") Long ossConfigId) {
+        return ApiResult.ok(ossConfigService.queryById(ossConfigId));
     }
 
     /**
      * 新增对象存储配置
      */
     @SaCheckPermission("system:ossConfig:add")
-    @Log(title = "对象存储配置", businessType = BusinessType.INSERT)
+    @OperationLog(module = "对象存储配置", action = AuditAction.CREATE)
     @PostMapping()
-    public R<Void> add(@Validated(AddGroup.class) @RequestBody SysOssConfigBo bo) {
-        return toAjax(ossConfigService.insertByBo(bo));
+    public ApiResult<Void> add(@Validated(OnCreate.class) @RequestBody SysOssConfigBo bo) {
+        ossConfigService.insertByBo(bo);
+        return ApiResult.ok();
     }
 
     /**
      * 修改对象存储配置
      */
     @SaCheckPermission("system:ossConfig:edit")
-    @Log(title = "对象存储配置", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "对象存储配置", action = AuditAction.UPDATE)
     @PutMapping()
-    public R<Void> edit(@Validated(EditGroup.class) @RequestBody SysOssConfigBo bo) {
-        return toAjax(ossConfigService.updateByBo(bo));
+    public ApiResult<Void> edit(@Validated(OnUpdate.class) @RequestBody SysOssConfigBo bo) {
+        ossConfigService.updateByBo(bo);
+        return ApiResult.ok();
     }
 
     /**
@@ -83,20 +83,22 @@ public class SysOssConfigController extends BaseController {
      * @param ossConfigIds OSS配置ID串
      */
     @SaCheckPermission("system:ossConfig:remove")
-    @Log(title = "对象存储配置", businessType = BusinessType.DELETE)
+    @OperationLog(module = "对象存储配置", action = AuditAction.DELETE)
     @DeleteMapping("/{ossConfigIds}")
-    public R<Void> remove(@NotEmpty(message = "主键不能为空") @PathVariable Long[] ossConfigIds) {
-        return toAjax(ossConfigService.deleteWithValidByIds(Arrays.asList(ossConfigIds), true));
+    public ApiResult<Void> remove(@NotEmpty(message = "主键不能为空") @PathVariable Long[] ossConfigIds) {
+        ossConfigService.deleteWithValidByIds(Arrays.asList(ossConfigIds), true);
+        return ApiResult.ok();
     }
 
     /**
      * 状态修改
      */
     @SaCheckPermission("system:ossConfig:edit")
-    @Log(title = "对象存储状态修改", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "对象存储状态修改", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping("/changeStatus")
-    public R<Void> changeStatus(@RequestBody SysOssConfigBo bo) {
-        return toAjax(ossConfigService.updateOssConfigStatus(bo));
+    public ApiResult<Void> changeStatus(@RequestBody SysOssConfigBo bo) {
+        ossConfigService.updateOssConfigStatus(bo);
+        return ApiResult.ok();
     }
 }

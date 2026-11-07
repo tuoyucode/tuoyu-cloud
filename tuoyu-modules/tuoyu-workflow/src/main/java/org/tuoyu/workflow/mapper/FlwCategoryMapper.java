@@ -1,8 +1,8 @@
 package org.tuoyu.workflow.mapper;
 
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.workflow.domain.FlowCategory;
-import org.tuoyu.workflow.domain.vo.FlowCategoryVo;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -14,7 +14,7 @@ import java.util.stream.Stream;
  * @author may
  * @date 2023-06-27
  */
-public interface FlwCategoryMapper extends BaseMapperPlus<FlowCategory, FlowCategoryVo> {
+public interface FlwCategoryMapper extends BaseMapper<FlowCategory> {
 
     /**
      * 根据父流程分类ID查询其所有子流程分类的列表
@@ -23,10 +23,10 @@ public interface FlwCategoryMapper extends BaseMapperPlus<FlowCategory, FlowCate
      * @return 包含子流程分类的列表
      */
     default List<FlowCategory> selectListByParentId(Long parentId) {
-        return this.lambda()
+        return this.selectList(QueryBuilder.lambda(FlowCategory.class)
             .select(FlowCategory::getCategoryId)
-            .findInSet(parentId, FlowCategory::getAncestors)
-            .list();
+            .findInSet(parentId, "ancestors")
+            .build());
     }
 
     /**

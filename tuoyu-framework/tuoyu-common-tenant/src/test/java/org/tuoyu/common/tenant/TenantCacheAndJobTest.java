@@ -7,7 +7,7 @@ import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.tenant.cache.TenantAwareCacheManager;
 import org.tuoyu.common.tenant.core.DefaultTenantContext;
 import org.tuoyu.common.tenant.core.TenantDirectory;
@@ -29,7 +29,7 @@ class TenantCacheAndJobTest {
     void enableTenant() {
         TenantProperties properties = new TenantProperties();
         properties.setEnabled(true);
-        new DefaultTenantContext(properties, new StaticListableBeanFactory().getBeanProvider(UserContext.class), id -> null);
+        new DefaultTenantContext(properties, new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), id -> null);
     }
 
     @Test

@@ -2,20 +2,22 @@ package org.tuoyu.common.satoken.context;
 
 import org.tuoyu.common.core.context.CurrentRole;
 import org.tuoyu.common.core.context.CurrentUser;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.tuoyu.system.api.model.LoginUser;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * 基于 Sa-Token 登录会话的当前用户上下文
+ * 基于 Sa-Token 登录会话的当前用户
  *
  * @author tuoyu
  */
-public class SaTokenUserContext implements UserContext {
+public class SaTokenUserContext implements UserContextProvider {
 
     @Override
     public Optional<CurrentUser> currentUser() {
@@ -33,13 +35,22 @@ public class SaTokenUserContext implements UserContext {
         CurrentUser user = new CurrentUser();
         user.setUserId(loginUser.getUserId());
         user.setUserName(loginUser.getUsername());
+        user.setNickname(loginUser.getNickname());
+        user.setUserType(loginUser.getUserType());
         user.setDeptId(loginUser.getDeptId());
         user.setDeptName(loginUser.getDeptName());
+        user.setDeptCategory(loginUser.getDeptCategory());
         user.setTenantId(loginUser.getTenantId());
+        user.setClientKey(loginUser.getClientKey());
+        user.setDeviceType(loginUser.getDeviceType());
+        user.setBrowser(loginUser.getBrowser());
+        user.setOs(loginUser.getOs());
         user.setSuperAdmin(LoginHelper.isSuperAdmin(loginUser.getUserId()));
         user.setRoles(loginUser.getRoles() == null ? List.of() : loginUser.getRoles().stream()
             .map(role -> new CurrentRole(role.getRoleId(), role.getRoleKey(), role.getDataScope()))
             .toList());
+        user.setRoleKeys(loginUser.getRolePermission() == null ? Set.of() : new LinkedHashSet<>(loginUser.getRolePermission()));
+        user.setPermissions(loginUser.getMenuPermission() == null ? Set.of() : new LinkedHashSet<>(loginUser.getMenuPermission()));
         user.setDataScopeRoleMap(loginUser.getDataScopeRoleMap() == null ? Map.of() : loginUser.getDataScopeRoleMap());
         return user;
     }

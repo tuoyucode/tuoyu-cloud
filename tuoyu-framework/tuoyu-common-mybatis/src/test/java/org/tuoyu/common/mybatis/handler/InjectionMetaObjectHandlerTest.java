@@ -12,12 +12,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.http.ResponseEntity;
+import com.baomidou.dynamic.datasource.exception.CannotFindDataSourceException;
 import org.mybatis.spring.MyBatisSystemException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.tuoyu.common.core.context.CurrentUser;
 import org.tuoyu.common.core.context.TenantContext;
-import org.tuoyu.common.core.context.UserContext;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.context.UserContextProvider;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.mybatis.core.domain.BaseEntity;
 
@@ -26,6 +28,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @DisplayName("自动填充：创建人与时间、租户在插入时改写为当前租户、更新时不改动租户；数据库异常的提示")
 class InjectionMetaObjectHandlerTest {
@@ -72,7 +75,7 @@ class InjectionMetaObjectHandlerTest {
 
     private static InjectionMetaObjectHandler handler(CurrentUser user, boolean enabled, String tenantId, boolean ignoring) {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("userContext", (UserContext) () -> Optional.ofNullable(user));
+        beans.addBean("userContext", (UserContextProvider) () -> Optional.ofNullable(user));
         beans.addBean("tenantContext", new TenantContext() {
             @Override
             public boolean enabled() {
@@ -89,7 +92,7 @@ class InjectionMetaObjectHandlerTest {
                 return ignoring;
             }
         });
-        return new InjectionMetaObjectHandler(beans.getBeanProvider(UserContext.class), beans.getBeanProvider(TenantContext.class));
+        return new InjectionMetaObjectHandler(beans.getBeanProvider(UserContextProvider.class), beans.getBeanProvider(TenantContext.class));
     }
 
     private static CurrentUser user() {
@@ -142,7 +145,7 @@ class InjectionMetaObjectHandlerTest {
         assertThat(disabled.getTenantId()).isEqualTo(TenantContext.DEFAULT_TENANT_ID);
 
         TenantRow withoutModule = new TenantRow();
-        new InjectionMetaObjectHandler(new StaticListableBeanFactory().getBeanProvider(UserContext.class),
+        new InjectionMetaObjectHandler(new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class),
             new StaticListableBeanFactory().getBeanProvider(TenantContext.class))
             .insertFill(SystemMetaObject.forObject(withoutModule));
         assertThat(withoutModule.getTenantId()).isEqualTo(TenantContext.DEFAULT_TENANT_ID);
@@ -179,6 +182,47 @@ class InjectionMetaObjectHandlerTest {
     }
 
     @Test
+    @DisplayName("填充失败：业务异常原样抛出（缺少租户上下文为 400）；其他异常不把内部信息放进消息，按未预期的异常返回 500 与错误编号")
+    void fillFailureDoesNotLeakDetails() {
+        TenantRow missingTenant = new TenantRow();
+        ServiceException rejected = assertThrows(ServiceException.class,
+            () -> handler(user(), true, null, false).insertFill(SystemMetaObject.forObject(missingTenant)));
+        assertThat(rejected.getCode()).isNull();
+
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("userContext", (UserContextProvider) () -> {
+            throw new IllegalStateException("Unable to connect to Redis server: 10.0.0.8/10.0.0.8:6379");
+        });
+        InjectionMetaObjectHandler broken = new InjectionMetaObjectHandler(beans.getBeanProvider(UserContextProvider.class),
+            new StaticListableBeanFactory().getBeanProvider(TenantContext.class));
+
+        for (Runnable fill : new Runnable[]{
+            () -> broken.insertFill(SystemMetaObject.forObject(new TenantRow())),
+            () -> broken.updateFill(SystemMetaObject.forObject(new TenantRow()))}) {
+            assertThatThrownBy(fill::run)
+                .isNotInstanceOf(ServiceException.class)
+                .hasMessageNotContaining("10.0.0.8")
+                .hasRootCauseMessage("Unable to connect to Redis server: 10.0.0.8/10.0.0.8:6379");
+        }
+
+        // 经 MyBatis 包装后到达异常处理：只返回错误编号
+        RuntimeException failure = assertThrows(RuntimeException.class,
+            () -> broken.updateFill(SystemMetaObject.forObject(new TenantRow())));
+        ResponseEntity<ApiResult<Void>> response = new MybatisExceptionHandler().handleMyBatisSystemException(
+            new MyBatisSystemException("wrapped", failure), new MockHttpServletRequest("PUT", "/system/user"));
+        assertThat(response.getStatusCode().value()).isEqualTo(500);
+        assertThat(response.getBody().getMessage()).contains("错误编号").doesNotContain("10.0.0.8", "Redis");
+
+        // 缺少租户上下文经 MyBatis 包装后仍按业务异常返回 400
+        ServiceException tenantMissing = assertThrows(ServiceException.class,
+            () -> handler(user(), true, null, false).insertFill(SystemMetaObject.forObject(new TenantRow())));
+        ResponseEntity<ApiResult<Void>> badRequest = new MybatisExceptionHandler().handleMyBatisSystemException(
+            new MyBatisSystemException("wrapped", tenantMissing), new MockHttpServletRequest("POST", "/system/user"));
+        assertThat(badRequest.getStatusCode().value()).isEqualTo(400);
+        assertThat(badRequest.getBody().getMessage()).contains("缺少租户上下文");
+    }
+
+    @Test
     @DisplayName("插入：忽略租户的代码块中保留实体中的租户（例如平台为新租户初始化数据）")
     void insertKeepsTenantWhenIgnoring() {
         TenantRow row = new TenantRow();
@@ -205,29 +249,41 @@ class InjectionMetaObjectHandlerTest {
     }
 
     @Test
-    @DisplayName("数据库异常：重复记录返回 409；认证失败的根因返回 401；不泄露重复键的细节")
+    @DisplayName("数据库异常：重复记录返回 409；业务异常的根因按其错误码返回；不泄露重复键与 SQL 的细节")
     void exceptionHandler() {
         MybatisExceptionHandler handler = new MybatisExceptionHandler();
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/system/user");
 
-        R<Void> duplicate = handler.handleDuplicateKeyException(new DuplicateKeyException("Duplicate entry 'admin' for key 'uk_user'"), request);
-        assertThat(duplicate.getCode()).isEqualTo(409);
-        assertThat(duplicate.getMsg()).doesNotContain("admin");
+        ResponseEntity<ApiResult<Void>> duplicate = handler.handleDuplicateKeyException(
+            new DuplicateKeyException("Duplicate entry 'admin' for key 'uk_user'"), request);
+        assertThat(duplicate.getStatusCode().value()).isEqualTo(409);
+        assertThat(duplicate.getBody().getCode()).isEqualTo(409);
+        assertThat(duplicate.getBody().getMessage()).doesNotContain("admin");
 
         MyBatisSystemException unauthorized = new MyBatisSystemException("wrapped",
-            new RuntimeException(new ServiceException("认证失败，无法访问系统资源", 401)));
-        assertThat(handler.handleCannotFindDataSourceException(unauthorized, request).getCode()).isEqualTo(401);
+            new RuntimeException(new ServiceException("请先登录", 401)));
+        ResponseEntity<ApiResult<Void>> notLogin = handler.handleMyBatisSystemException(unauthorized, request);
+        assertThat(notLogin.getStatusCode().value()).isEqualTo(401);
+        assertThat(notLogin.getBody().getCode()).isEqualTo(401);
 
         // 其他数据访问异常：不把 SQL 与数据库报错返回给客户端，只返回通用提示与错误编号
         MyBatisSystemException sqlError = new MyBatisSystemException("### Error querying database. SQL: select password from sys_user",
             new RuntimeException("Table 'tuoyu-cloud.sys_user' doesn't exist"));
-        R<Void> generic = handler.handleCannotFindDataSourceException(sqlError, request);
-        assertThat(generic.getCode()).isEqualTo(500);
-        assertThat(generic.getMsg()).contains("错误编号").doesNotContain("select", "sys_user", "doesn't exist");
+        ResponseEntity<ApiResult<Void>> generic = handler.handleMyBatisSystemException(sqlError, request);
+        assertThat(generic.getStatusCode().value()).isEqualTo(500);
+        assertThat(generic.getBody().getCode()).isEqualTo(500);
+        assertThat(generic.getBody().getMessage()).contains("错误编号").doesNotContain("select", "sys_user", "doesn't exist");
 
-        // 业务异常：消息本来就是给用户看的，照常返回
+        // 未找到数据源：500，固定提示
+        MyBatisSystemException noDataSource = new MyBatisSystemException("wrapped",
+            new CannotFindDataSourceException("dynamic-datasource can not find primary datasource"));
+        assertThat(handler.handleMyBatisSystemException(noDataSource, request).getStatusCode().value()).isEqualTo(500);
+
+        // 业务异常：消息本来就是给用户看的，照常返回；没有错误码时为 400
         MyBatisSystemException business = new MyBatisSystemException("wrapped", new ServiceException("缺少租户，拒绝执行"));
-        assertThat(handler.handleCannotFindDataSourceException(business, request).getMsg()).isEqualTo("缺少租户，拒绝执行");
+        ResponseEntity<ApiResult<Void>> rejected = handler.handleMyBatisSystemException(business, request);
+        assertThat(rejected.getStatusCode().value()).isEqualTo(400);
+        assertThat(rejected.getBody().getMessage()).isEqualTo("缺少租户，拒绝执行");
 
         assertThat(MybatisExceptionHandler.findCause(unauthorized, ServiceException.class)).isInstanceOf(ServiceException.class);
         assertThat(MybatisExceptionHandler.findCause(unauthorized, IllegalStateException.class)).isNull();

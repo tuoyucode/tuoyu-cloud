@@ -44,9 +44,9 @@ public class RemoteTaskAssigneeBo implements Serializable {
     private String endTime;
 
     /**
-     * 当前页
+     * 当前页（从 1 开始）
      */
-    private Integer pageNum = 1;
+    private Integer page = 1;
 
     /**
      * 每页显示条数

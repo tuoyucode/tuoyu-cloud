@@ -5,7 +5,7 @@ import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.tuoyu.common.core.context.CurrentUser;
 import org.tuoyu.common.core.context.TenantContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 
 import java.util.Optional;
 import java.util.function.Function;
@@ -27,14 +27,14 @@ public class DefaultTenantContext implements TenantContext {
 
     private final TenantProperties properties;
 
-    private final ObjectProvider<UserContext> userContext;
+    private final ObjectProvider<UserContextProvider> userContext;
 
     private final Function<Long, String> dynamicTenant;
 
     /**
      * @param dynamicTenant 按用户 ID 查询超级管理员切换进入的租户（没有切换时返回 null）
      */
-    public DefaultTenantContext(TenantProperties properties, ObjectProvider<UserContext> userContext,
+    public DefaultTenantContext(TenantProperties properties, ObjectProvider<UserContextProvider> userContext,
                                 Function<Long, String> dynamicTenant) {
         this.properties = properties;
         this.userContext = userContext;
@@ -81,7 +81,7 @@ public class DefaultTenantContext implements TenantContext {
      * 所属租户；超级管理员切换进入其他租户时为切换后的租户
      */
     private String resolveFromUser() {
-        UserContext context = userContext.getIfAvailable();
+        UserContextProvider context = userContext.getIfAvailable();
         Optional<CurrentUser> user = context == null ? Optional.empty() : context.currentUser();
         if (user.isEmpty()) {
             return null;

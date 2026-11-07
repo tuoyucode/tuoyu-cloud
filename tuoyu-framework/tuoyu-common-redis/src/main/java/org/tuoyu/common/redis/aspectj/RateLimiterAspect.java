@@ -6,6 +6,7 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.tuoyu.common.core.constant.GlobalConstants;
+import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.MessageUtils;
 import org.tuoyu.common.core.utils.ServletUtils;
@@ -73,7 +74,7 @@ public class RateLimiterAspect {
                 if (StringUtils.startsWith(message, "{") && StringUtils.endsWith(message, "}")) {
                     message = MessageUtils.message(StringUtils.substring(message, 1, message.length() - 1));
                 }
-                throw new ServiceException(message);
+                throw new ServiceException(message, HttpStatus.TOO_MANY_REQUESTS);
             }
             log.info("限制令牌 => {}, 剩余令牌 => {}, 缓存key => '{}'", count, number, combineKey);
         } catch (Exception e) {

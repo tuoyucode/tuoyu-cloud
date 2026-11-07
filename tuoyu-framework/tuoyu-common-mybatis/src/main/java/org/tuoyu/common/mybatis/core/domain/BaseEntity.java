@@ -2,7 +2,6 @@ package org.tuoyu.common.mybatis.core.domain;
 
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
@@ -22,13 +21,6 @@ public class BaseEntity implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
-
-    /**
-     * 搜索值
-     */
-    @JsonIgnore
-    @TableField(exist = false)
-    private String searchValue;
 
     /**
      * 创建部门

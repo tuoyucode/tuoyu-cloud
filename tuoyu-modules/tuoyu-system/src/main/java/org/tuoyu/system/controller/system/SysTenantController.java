@@ -1,26 +1,25 @@
 package org.tuoyu.system.controller.system;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
+import org.tuoyu.common.core.context.CurrentUser;
+import org.tuoyu.common.core.context.UserContext;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import org.tuoyu.common.encrypt.annotation.ApiEncrypt;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.common.tenant.core.DynamicTenantStore;
 import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.common.tenant.core.TenantProperties;
-import org.tuoyu.common.web.core.BaseController;
-import org.tuoyu.system.api.model.LoginUser;
 import org.tuoyu.system.domain.bo.SysTenantBo;
 import org.tuoyu.system.domain.vo.SysTenantVo;
 import org.tuoyu.system.service.ISysTenantService;
@@ -36,7 +35,7 @@ import java.util.Arrays;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/tenant")
-public class SysTenantController extends BaseController {
+public class SysTenantController {
 
     private final ISysTenantService tenantService;
 
@@ -47,9 +46,9 @@ public class SysTenantController extends BaseController {
      */
     @SaCheckPermission("system:tenant:list")
     @GetMapping("/list")
-    public R<PageResult<SysTenantVo>> list(SysTenantBo bo, PageQuery pageQuery) {
+    public ApiResult<PageResult<SysTenantVo>> list(SysTenantBo bo, PageParam pageParam) {
         checkPlatform();
-        return R.ok(tenantService.selectPageList(bo, pageQuery));
+        return ApiResult.ok(tenantService.selectPageList(bo, pageParam));
     }
 
     /**
@@ -57,9 +56,9 @@ public class SysTenantController extends BaseController {
      */
     @SaCheckPermission("system:tenant:query")
     @GetMapping("/{tenantId}")
-    public R<SysTenantVo> getInfo(@PathVariable String tenantId) {
+    public ApiResult<SysTenantVo> getInfo(@PathVariable String tenantId) {
         checkPlatform();
-        return R.ok(tenantService.selectById(tenantId));
+        return ApiResult.ok(tenantService.selectById(tenantId));
     }
 
     /**
@@ -67,66 +66,66 @@ public class SysTenantController extends BaseController {
      */
     @ApiEncrypt
     @SaCheckPermission("system:tenant:add")
-    @Log(title = "租户管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "租户管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping
-    public R<Void> add(@Validated(AddGroup.class) @RequestBody SysTenantBo bo) {
+    public ApiResult<Void> add(@Validated(OnCreate.class) @RequestBody SysTenantBo bo) {
         checkPlatform();
         tenantService.insertTenant(bo);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 修改租户
      */
     @SaCheckPermission("system:tenant:edit")
-    @Log(title = "租户管理", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "租户管理", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping
-    public R<Void> edit(@Validated(EditGroup.class) @RequestBody SysTenantBo bo) {
+    public ApiResult<Void> edit(@Validated(OnUpdate.class) @RequestBody SysTenantBo bo) {
         checkPlatform();
         tenantService.updateTenant(bo);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 启用、停用租户
      */
     @SaCheckPermission("system:tenant:edit")
-    @Log(title = "租户管理", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "租户管理", action = AuditAction.UPDATE)
     @PutMapping("/changeStatus")
-    public R<Void> changeStatus(@RequestBody SysTenantBo bo) {
+    public ApiResult<Void> changeStatus(@RequestBody SysTenantBo bo) {
         checkPlatform();
         tenantService.updateStatus(bo.getTenantId(), bo.getStatus());
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 删除租户
      */
     @SaCheckPermission("system:tenant:remove")
-    @Log(title = "租户管理", businessType = BusinessType.DELETE)
+    @OperationLog(module = "租户管理", action = AuditAction.DELETE)
     @DeleteMapping("/{tenantIds}")
-    public R<Void> remove(@PathVariable String[] tenantIds) {
+    public ApiResult<Void> remove(@PathVariable String[] tenantIds) {
         checkPlatform();
         tenantService.deleteByIds(Arrays.asList(tenantIds));
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 超级管理员切换进入某个租户（之后的请求在该租户中执行，12 小时后自动恢复）。
      * 超级管理员按用户 ID 判断（不是角色），在方法内校验，所以注解只要求登录
      */
-    @Log(title = "租户管理", businessType = BusinessType.OTHER)
+    @OperationLog(module = "租户管理", action = AuditAction.OTHER)
     @SaCheckLogin
     @GetMapping("/dynamic/{tenantId}")
-    public R<Void> switchTenant(@PathVariable String tenantId) {
+    public ApiResult<Void> switchTenant(@PathVariable String tenantId) {
         checkSuperAdmin();
         if (TenantHelper.ignore(() -> tenantService.selectById(tenantId)) == null) {
-            return R.fail("租户不存在");
+            throw new ServiceException("租户不存在");
         }
-        DynamicTenantStore.set(LoginHelper.getUserId(), tenantId);
-        return R.ok();
+        DynamicTenantStore.set(UserContext.userId(), tenantId);
+        return ApiResult.ok();
     }
 
     /**
@@ -134,10 +133,10 @@ public class SysTenantController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping("/dynamic/clear")
-    public R<Void> clearSwitch() {
+    public ApiResult<Void> clearSwitch() {
         checkSuperAdmin();
-        DynamicTenantStore.clear(LoginHelper.getUserId());
-        return R.ok();
+        DynamicTenantStore.clear(UserContext.userId());
+        return ApiResult.ok();
     }
 
     /**
@@ -147,12 +146,12 @@ public class SysTenantController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping("/dynamic")
-    public R<CurrentTenant> currentTenant() {
+    public ApiResult<CurrentTenant> currentTenant() {
         if (!TenantHelper.isEnabled()) {
-            return R.ok(new CurrentTenant(false, null, false));
+            return ApiResult.ok(new CurrentTenant(false, null, false));
         }
-        boolean switched = LoginHelper.isSuperAdmin() && DynamicTenantStore.get(LoginHelper.getUserId()) != null;
-        return R.ok(new CurrentTenant(true, TenantHelper.currentTenantId(), switched));
+        boolean switched = UserContext.isSuperAdmin() && DynamicTenantStore.get(UserContext.userId()) != null;
+        return ApiResult.ok(new CurrentTenant(true, TenantHelper.currentTenantId(), switched));
     }
 
     /**
@@ -170,7 +169,7 @@ public class SysTenantController extends BaseController {
         if (!TenantHelper.isEnabled()) {
             throw new ServiceException("未开启多租户");
         }
-        LoginUser user = LoginHelper.getLoginUser();
+        CurrentUser user = UserContext.current().orElse(null);
         if (user == null || !tenantProperties.getDefaultTenantId().equals(user.getTenantId())) {
             throw new ServiceException("只有平台用户可以管理租户");
         }
@@ -180,7 +179,7 @@ public class SysTenantController extends BaseController {
         if (!TenantHelper.isEnabled()) {
             throw new ServiceException("未开启多租户");
         }
-        if (!LoginHelper.isSuperAdmin()) {
+        if (!UserContext.isSuperAdmin()) {
             throw new ServiceException("只有超级管理员可以切换租户");
         }
     }

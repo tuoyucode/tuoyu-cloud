@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -318,9 +319,9 @@ class SysMenuServiceBusinessTest {
         when(menuMapper.insert(any(SysMenu.class))).thenReturn(1);
         when(menuMapper.updateById(any(SysMenu.class))).thenReturn(1);
         when(menuMapper.deleteById(10L)).thenReturn(1);
-        assertEquals(1, service.insertMenu(bo));
-        assertEquals(1, service.updateMenu(bo));
-        assertEquals(1, service.deleteMenuById(10L));
+        assertDoesNotThrow(() -> service.insertMenu(bo));
+        assertDoesNotThrow(() -> service.updateMenu(bo));
+        assertDoesNotThrow(() -> service.deleteMenuById(10L));
         service.deleteMenuById(List.of(10L, 11L));
         verify(menuMapper).deleteByIds(List.of(10L, 11L));
         verify(roleMenuMapper).delete(any());

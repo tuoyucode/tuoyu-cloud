@@ -1,22 +1,24 @@
 package org.tuoyu.system.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
+import org.tuoyu.common.core.utils.BeanMapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.tuoyu.common.mybatis.core.page.PageResults;
+import org.tuoyu.common.core.context.UserContext;
 import cn.hutool.core.convert.Convert;
 import cn.hutool.core.lang.tree.Tree;
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.*;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.query.LambdaQueryBuilder;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.redis.utils.CacheUtils;
-import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.tuoyu.system.domain.SysDept;
 import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.domain.SysUser;
@@ -54,13 +56,12 @@ public class SysDeptServiceImpl implements ISysDeptService {
      * 分页查询部门管理数据
      *
      * @param dept      部门信息
-     * @param pageQuery 分页对象
+     * @param pageParam 分页对象
      * @return 部门信息集合
      */
     @Override
-    public PageResult<SysDeptVo> selectPageDeptList(SysDeptBo dept, PageQuery pageQuery) {
-        Page<SysDeptVo> page = deptMapper.selectPageDeptList(pageQuery.build(), buildQueryWrapper(dept));
-        return PageResult.build(page.getRecords(), page.getTotal());
+    public PageResult<SysDeptVo> selectPageDeptList(SysDeptBo dept, PageParam pageParam) {
+        return PageResults.of(deptMapper.selectPageDeptList(pageParam.toPage(SysDept.class), buildQueryWrapper(dept)), SysDeptVo.class);
     }
 
     /**
@@ -72,7 +73,7 @@ public class SysDeptServiceImpl implements ISysDeptService {
     @Override
     public List<SysDeptVo> selectDeptList(SysDeptBo dept) {
         LambdaQueryWrapper<SysDept> lqw = buildQueryWrapper(dept);
-        return deptMapper.selectDeptList(lqw);
+        return BeanMapper.mapList(deptMapper.selectDeptList(lqw), SysDeptVo.class);
     }
 
     /**
@@ -84,7 +85,7 @@ public class SysDeptServiceImpl implements ISysDeptService {
     @Override
     public List<Tree<Long>> selectDeptTreeList(SysDeptBo bo) {
         LambdaQueryWrapper<SysDept> lqw = buildQueryWrapper(bo);
-        List<SysDeptVo> depts = deptMapper.selectDeptList(lqw);
+        List<SysDeptVo> depts = BeanMapper.mapList(deptMapper.selectDeptList(lqw), SysDeptVo.class);
         return buildDeptTreeSelect(depts);
     }
 
@@ -153,15 +154,15 @@ public class SysDeptServiceImpl implements ISysDeptService {
     @Cacheable(cacheNames = CacheNames.SYS_DEPT, key = "#deptId")
     @Override
     public SysDeptVo selectDeptById(Long deptId) {
-        SysDeptVo dept = deptMapper.selectVoById(deptId);
+        SysDeptVo dept = BeanMapper.map(deptMapper.selectById(deptId), SysDeptVo.class);
         if (ObjectUtil.isNull(dept)) {
             return null;
         }
-        SysDeptVo parentDept = deptMapper.lambda()
+        SysDept parentDept = deptMapper.selectOne(QueryBuilder.lambda(SysDept.class)
             .select(SysDept::getDeptName)
             .eq(SysDept::getDeptId, dept.getParentId())
-            .voOne();
-        dept.setParentName(ObjectUtils.notNullGetter(parentDept, SysDeptVo::getDeptName));
+            .build());
+        dept.setParentName(ObjectUtils.notNullGetter(parentDept, SysDept::getDeptName));
         return dept;
     }
 
@@ -173,11 +174,11 @@ public class SysDeptServiceImpl implements ISysDeptService {
      */
     @Override
     public List<SysDeptVo> selectDeptByIds(List<Long> deptIds) {
-        return deptMapper.selectDeptList(deptMapper.lambda()
+        return BeanMapper.mapList(deptMapper.selectDeptList(QueryBuilder.lambda(SysDept.class)
             .select(SysDept::getDeptId, SysDept::getDeptName, SysDept::getLeader)
             .eq(SysDept::getStatus, SystemConstants.NORMAL)
             .inIfNotEmpty(SysDept::getDeptId, deptIds)
-            .build());
+            .build()), SysDeptVo.class);
     }
 
     /**
@@ -206,10 +207,10 @@ public class SysDeptServiceImpl implements ISysDeptService {
      */
     @Override
     public long selectNormalChildrenDeptById(Long deptId) {
-        return deptMapper.lambda()
+        return deptMapper.selectCount(QueryBuilder.lambda(SysDept.class)
             .eq(SysDept::getStatus, SystemConstants.NORMAL)
-            .findInSet(deptId, SysDept::getAncestors)
-            .count();
+            .findInSet(deptId, "ancestors")
+            .build());
     }
 
     /**
@@ -220,7 +221,7 @@ public class SysDeptServiceImpl implements ISysDeptService {
      */
     @Override
     public boolean hasChildByDeptId(Long deptId) {
-        return deptMapper.lambda().eq(SysDept::getParentId, deptId).exists();
+        return deptMapper.exists(QueryBuilder.lambda(SysDept.class).eq(SysDept::getParentId, deptId).build());
     }
 
     /**
@@ -231,7 +232,7 @@ public class SysDeptServiceImpl implements ISysDeptService {
      */
     @Override
     public boolean checkDeptExistUser(Long deptId) {
-        return userMapper.lambda().eq(SysUser::getDeptId, deptId).exists();
+        return userMapper.exists(QueryBuilder.lambda(SysUser.class).eq(SysUser::getDeptId, deptId).build());
     }
 
     /**
@@ -242,11 +243,11 @@ public class SysDeptServiceImpl implements ISysDeptService {
      */
     @Override
     public boolean checkDeptNameUnique(SysDeptBo dept) {
-        boolean exist = deptMapper.lambda()
+        boolean exist = deptMapper.exists(QueryBuilder.lambda(SysDept.class)
             .eq(SysDept::getDeptName, dept.getDeptName())
             .eq(SysDept::getParentId, dept.getParentId())
             .neIfPresent(SysDept::getDeptId, dept.getDeptId())
-            .exists();
+            .build());
         return !exist;
     }
 
@@ -260,7 +261,7 @@ public class SysDeptServiceImpl implements ISysDeptService {
         if (ObjectUtil.isNull(deptId)) {
             return;
         }
-        if (LoginHelper.isSuperAdmin()) {
+        if (UserContext.isSuperAdmin()) {
             return;
         }
         if (deptMapper.countDeptById(deptId) == 0) {
@@ -272,11 +273,10 @@ public class SysDeptServiceImpl implements ISysDeptService {
      * 新增保存部门信息
      *
      * @param bo 部门信息
-     * @return 结果
      */
     @CacheEvict(cacheNames = CacheNames.SYS_DEPT_AND_CHILD, allEntries = true)
     @Override
-    public int insertDept(SysDeptBo bo) {
+    public void insertDept(SysDeptBo bo) {
         SysDept info = deptMapper.selectById(bo.getParentId());
         // 如果父节点不存在或不为正常状态,则不允许新增子节点
         if (ObjectUtil.isNull(info)) {
@@ -285,9 +285,9 @@ public class SysDeptServiceImpl implements ISysDeptService {
         if (!SystemConstants.NORMAL.equals(info.getStatus())) {
             throw new ServiceException("部门停用，不允许新增");
         }
-        SysDept dept = MapstructUtils.convert(bo, SysDept.class);
+        SysDept dept = BeanMapper.map(bo, SysDept.class);
         dept.setAncestors(info.getAncestors() + StringUtils.SEPARATOR + dept.getParentId());
-        return deptMapper.insert(dept);
+        deptMapper.insert(dept);
     }
 
     /**
@@ -302,8 +302,8 @@ public class SysDeptServiceImpl implements ISysDeptService {
     })
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public int updateDept(SysDeptBo bo) {
-        SysDept dept = MapstructUtils.convert(bo, SysDept.class);
+    public void updateDept(SysDeptBo bo) {
+        SysDept dept = BeanMapper.map(bo, SysDept.class);
         SysDept oldDept = deptMapper.selectById(dept.getDeptId());
         if (ObjectUtil.isNull(oldDept)) {
             throw new ServiceException("部门不存在，无法修改");
@@ -321,10 +321,10 @@ public class SysDeptServiceImpl implements ISysDeptService {
         } else {
             dept.setAncestors(oldDept.getAncestors());
         }
-        int result = deptMapper.updateById(dept);
-        if (result > 0) {
-            clearLeaderIfRemoved(oldDept, dept);
+        if (deptMapper.updateById(dept) == 0) {
+            throw new ServiceException("修改部门'{}'失败，部门不存在", bo.getDeptName());
         }
+        clearLeaderIfRemoved(oldDept, dept);
         // 如果部门状态为启用，且部门祖级列表不为空，且部门祖级列表不等于根部门祖级列表（如果部门祖级列表不等于根部门祖级列表，则说明存在上级部门）
         if (SystemConstants.NORMAL.equals(dept.getStatus())
             && StringUtils.isNotEmpty(dept.getAncestors())
@@ -332,7 +332,6 @@ public class SysDeptServiceImpl implements ISysDeptService {
             // 如果该部门是启用状态，则启用该部门的所有上级部门
             updateParentDeptStatusNormal(dept);
         }
-        return result;
     }
 
     /**
@@ -344,10 +343,9 @@ public class SysDeptServiceImpl implements ISysDeptService {
      */
     void clearLeaderIfRemoved(SysDept oldDept, SysDept dept) {
         if (dept.getLeader() == null && oldDept.getLeader() != null) {
-            deptMapper.lambda()
+            deptMapper.update(Wrappers.<SysDept>lambdaUpdate()
                 .set(SysDept::getLeader, null)
-                .eq(SysDept::getDeptId, dept.getDeptId())
-                .update();
+                .eq(SysDept::getDeptId, dept.getDeptId()));
         }
     }
 
@@ -359,10 +357,9 @@ public class SysDeptServiceImpl implements ISysDeptService {
     private void updateParentDeptStatusNormal(SysDept dept) {
         String ancestors = dept.getAncestors();
         Long[] deptIds = Convert.toLongArray(ancestors);
-        deptMapper.lambda()
+        deptMapper.update(Wrappers.<SysDept>lambdaUpdate()
             .set(SysDept::getStatus, SystemConstants.NORMAL)
-            .in(SysDept::getDeptId, Arrays.asList(deptIds))
-            .update();
+            .in(SysDept::getDeptId, Arrays.asList(deptIds)));
     }
 
     /**
@@ -373,7 +370,7 @@ public class SysDeptServiceImpl implements ISysDeptService {
      * @param oldAncestors 旧的父ID集合
      */
     private void updateDeptChildren(Long deptId, String newAncestors, String oldAncestors) {
-        List<SysDept> children = deptMapper.lambda().findInSet(deptId, SysDept::getAncestors).list();
+        List<SysDept> children = deptMapper.selectList(QueryBuilder.lambda(SysDept.class).findInSet(deptId, "ancestors").build());
         List<SysDept> list = new ArrayList<>();
         for (SysDept child : children) {
             SysDept dept = new SysDept();
@@ -382,9 +379,8 @@ public class SysDeptServiceImpl implements ISysDeptService {
             list.add(dept);
         }
         if (CollUtil.isNotEmpty(list)) {
-            if (deptMapper.updateBatchById(list)) {
-                list.forEach(dept -> CacheUtils.evict(CacheNames.SYS_DEPT, dept.getDeptId()));
-            }
+            deptMapper.updateById(list);
+            list.forEach(dept -> CacheUtils.evict(CacheNames.SYS_DEPT, dept.getDeptId()));
         }
     }
 
@@ -399,8 +395,10 @@ public class SysDeptServiceImpl implements ISysDeptService {
         @CacheEvict(cacheNames = CacheNames.SYS_DEPT_AND_CHILD, allEntries = true)
     })
     @Override
-    public int deleteDeptById(Long deptId) {
-        return deptMapper.deleteById(deptId);
+    public void deleteDeptById(Long deptId) {
+        if (deptMapper.deleteById(deptId) == 0) {
+            throw new ServiceException("删除部门失败，部门不存在");
+        }
     }
 
 }

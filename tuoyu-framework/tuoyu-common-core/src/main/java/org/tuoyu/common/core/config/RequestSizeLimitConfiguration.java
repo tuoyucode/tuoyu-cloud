@@ -8,12 +8,14 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.Environment;
 import org.springframework.util.unit.DataSize;
 import org.tuoyu.common.core.web.RequestSizeLimitFilter;
+import org.tuoyu.common.core.web.TraceIdSource;
 
 /**
  * 注册请求大小限制过滤器，网关与各业务服务都会加载。
@@ -42,15 +44,17 @@ public class RequestSizeLimitConfiguration {
 
     @Bean
     public FilterRegistrationBean<RequestSizeLimitFilter> requestSizeLimitFilter(RequestLimitProperties properties,
-                                                                                 Environment environment) {
+                                                                                 Environment environment,
+                                                                                 ObjectProvider<TraceIdSource> traceIdSource) {
         Binder binder = Binder.get(environment);
         long maxRequest = binder.bind("spring.servlet.multipart.max-request-size", DataSize.class)
             .orElse(DEFAULT_MULTIPART_MAX_REQUEST_SIZE).toBytes();
         // 没有配置单个文件上限时只看整个请求的上限
         long maxFile = binder.bind("spring.servlet.multipart.max-file-size", DataSize.class)
             .map(DataSize::toBytes).orElse(-1L);
+        TraceIdSource traceId = () -> traceIdSource.getIfAvailable(() -> TraceIdSource.NONE).currentTraceId();
         RequestSizeLimitFilter filter = new RequestSizeLimitFilter(properties.getMaxBodySize().toBytes(),
-            multipartLimit(maxRequest, maxFile));
+            multipartLimit(maxRequest, maxFile), traceId);
         FilterRegistrationBean<RequestSizeLimitFilter> registration = new FilterRegistrationBean<>(filter);
         registration.setName("requestSizeLimitFilter");
         registration.addUrlPatterns("/*");

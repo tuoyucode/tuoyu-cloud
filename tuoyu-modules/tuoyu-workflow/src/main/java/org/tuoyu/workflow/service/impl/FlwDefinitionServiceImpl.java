@@ -14,10 +14,11 @@ import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.json.utils.JsonUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.query.LambdaQueryBuilder;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.dromara.warm.flow.core.dto.DefJson;
+import org.dromara.warm.flow.core.entity.Definition;
 import org.dromara.warm.flow.core.enums.NodeType;
 import org.dromara.warm.flow.core.enums.PublishStatus;
 import org.dromara.warm.flow.core.service.DefService;
@@ -64,32 +65,32 @@ public class FlwDefinitionServiceImpl implements IFlwDefinitionService {
      * 查询流程定义列表
      *
      * @param flowDefinition 流程定义信息
-     * @param pageQuery      分页
+     * @param pageParam      分页
      * @return 返回分页列表
      */
     @Override
-    public PageResult<FlowDefinitionVo> queryList(FlowDefinition flowDefinition, PageQuery pageQuery) {
+    public PageResult<FlowDefinitionVo> queryList(FlowDefinition flowDefinition, PageParam pageParam) {
         LambdaQueryWrapper<FlowDefinition> wrapper = buildQueryWrapper(flowDefinition);
         wrapper.eq(FlowDefinition::getIsPublish, PublishStatus.PUBLISHED.getKey());
-        Page<FlowDefinition> page = flowDefinitionMapper.selectPage(pageQuery.build(), wrapper);
+        Page<FlowDefinition> page = flowDefinitionMapper.selectPage(pageParam.toPage(FlowDefinition.class), wrapper);
         List<FlowDefinitionVo> list = BeanUtil.copyToList(page.getRecords(), FlowDefinitionVo.class);
-        return PageResult.build(list, page.getTotal());
+        return PageResult.of(list, page.getTotal());
     }
 
     /**
      * 查询未发布的流程定义列表
      *
      * @param flowDefinition 流程定义信息
-     * @param pageQuery      分页
+     * @param pageParam      分页
      * @return 返回分页列表
      */
     @Override
-    public PageResult<FlowDefinitionVo> unPublishList(FlowDefinition flowDefinition, PageQuery pageQuery) {
+    public PageResult<FlowDefinitionVo> unPublishList(FlowDefinition flowDefinition, PageParam pageParam) {
         LambdaQueryWrapper<FlowDefinition> wrapper = buildQueryWrapper(flowDefinition);
         wrapper.in(FlowDefinition::getIsPublish, Arrays.asList(PublishStatus.UNPUBLISHED.getKey(), PublishStatus.EXPIRED.getKey()));
-        Page<FlowDefinition> page = flowDefinitionMapper.selectPage(pageQuery.build(), wrapper);
+        Page<FlowDefinition> page = flowDefinitionMapper.selectPage(pageParam.toPage(FlowDefinition.class), wrapper);
         List<FlowDefinitionVo> list = BeanUtil.copyToList(page.getRecords(), FlowDefinitionVo.class);
-        return PageResult.build(list, page.getTotal());
+        return PageResult.of(list, page.getTotal());
     }
 
     private LambdaQueryWrapper<FlowDefinition> buildQueryWrapper(FlowDefinition flowDefinition) {
@@ -103,6 +104,27 @@ public class FlwDefinitionServiceImpl implements IFlwDefinitionService {
         return builder.orderByDesc(FlowDefinition::getCreateTime).build();
     }
 
+    @Override
+    public Definition getById(Long id) {
+        return defService.getById(id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void insertDefinition(FlowDefinition flowDefinition) {
+        if (!defService.checkAndSave(flowDefinition)) {
+            throw new ServiceException("新增流程定义失败");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateDefinition(FlowDefinition flowDefinition) {
+        if (!defService.updateById(flowDefinition)) {
+            throw new ServiceException("流程定义不存在，无法修改");
+        }
+    }
+
     /**
      * 发布流程定义
      *
@@ -110,7 +132,7 @@ public class FlwDefinitionServiceImpl implements IFlwDefinitionService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean publish(Long id) {
+    public void publish(Long id) {
         List<FlowNode> flowNodes = flowNodeMapper.selectList(
             QueryBuilder.lambda(FlowNode.class).eq(FlowNode::getDefinitionId, id).build());
         List<String> errorMsg = new ArrayList<>();
@@ -125,7 +147,39 @@ public class FlwDefinitionServiceImpl implements IFlwDefinitionService {
                 throw new ServiceException("节点【{}】未配置办理人!", StringUtils.joinComma(errorMsg));
             }
         }
-        return defService.publish(id);
+        if (!defService.publish(id)) {
+            throw new ServiceException("发布流程定义失败，流程定义未更新");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unPublish(Long id) {
+        if (!defService.unPublish(id)) {
+            throw new ServiceException("取消发布流程定义失败，流程定义未更新");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void copyDef(Long id) {
+        if (!defService.copyDef(id)) {
+            throw new ServiceException("复制流程定义失败");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void active(Long id, boolean active) {
+        boolean updated = active ? defService.active(id) : defService.unActive(id);
+        if (!updated) {
+            throw new ServiceException((active ? "激活" : "挂起") + "流程定义失败，流程定义未更新");
+        }
+    }
+
+    @Override
+    public String exportJson(Long id) {
+        return defService.exportJson(id);
     }
 
     /**
@@ -135,7 +189,7 @@ public class FlwDefinitionServiceImpl implements IFlwDefinitionService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean importJson(MultipartFile file, String category) {
+    public void importJson(MultipartFile file, String category) {
         try {
             DefJson defJson = JsonUtils.parseObject(file.getBytes(), DefJson.class);
             defJson.setCategory(category);
@@ -144,7 +198,6 @@ public class FlwDefinitionServiceImpl implements IFlwDefinitionService {
             log.error("读取文件流错误: {}", e.getMessage(), e);
             throw new IllegalStateException("文件读取失败，请检查文件内容", e);
         }
-        return true;
     }
 
     /**
@@ -173,7 +226,7 @@ public class FlwDefinitionServiceImpl implements IFlwDefinitionService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean removeDef(List<Long> ids) {
+    public void removeDef(List<Long> ids) {
         List<FlowHisTask> flowHisTasks = flowHisTaskMapper.selectList(
             QueryBuilder.lambda(FlowHisTask.class)
                 .inIfNotEmpty(FlowHisTask::getDefinitionId, ids)
@@ -192,7 +245,6 @@ public class FlwDefinitionServiceImpl implements IFlwDefinitionService {
             log.error("Error removing flow definitions: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to remove flow definitions", e);
         }
-        return true;
     }
 
 }

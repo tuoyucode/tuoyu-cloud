@@ -20,7 +20,7 @@ import org.tuoyu.common.core.context.AccessRequirement;
 import org.tuoyu.common.core.context.CurrentRole;
 import org.tuoyu.common.core.context.CurrentUser;
 import org.tuoyu.common.core.context.PermissionContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.service.DataScopeService;
 import org.tuoyu.common.mybatis.annotation.DataColumn;
@@ -75,9 +75,9 @@ class DataPermissionSqlTest {
     @BeforeEach
     void setUp() {
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("userContext", (UserContext) () -> Optional.ofNullable(currentUser.get()));
+        beans.addBean("userContext", (UserContextProvider) () -> Optional.ofNullable(currentUser.get()));
         beans.addBean("permissionContext", (PermissionContext) requirement::get);
-        DataPermissionSqlHandler handler = new DataPermissionSqlHandler(beans.getBeanProvider(UserContext.class),
+        DataPermissionSqlHandler handler = new DataPermissionSqlHandler(beans.getBeanProvider(UserContextProvider.class),
             beans.getBeanProvider(PermissionContext.class));
         interceptor = new DataPermissionSqlInterceptor(handler);
     }

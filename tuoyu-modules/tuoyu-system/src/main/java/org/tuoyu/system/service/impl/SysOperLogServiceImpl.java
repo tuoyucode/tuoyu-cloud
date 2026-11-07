@@ -1,13 +1,14 @@
 package org.tuoyu.system.service.impl;
 
 import cn.hutool.core.util.ArrayUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.utils.MapstructUtils;
-import org.tuoyu.common.core.utils.StringUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.core.utils.BeanMapper;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysOperLog;
 import org.tuoyu.system.domain.bo.SysOperLogBo;
@@ -36,17 +37,16 @@ public class SysOperLogServiceImpl implements ISysOperLogService {
      * 分页查询操作日志列表
      *
      * @param operLog   查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 操作日志分页列表
      */
     @Override
-    public PageResult<SysOperLogVo> selectPageOperLogList(SysOperLogBo operLog, PageQuery pageQuery) {
+    public PageResult<SysOperLogVo> selectPageOperLogList(SysOperLogBo operLog, PageParam pageParam) {
         LambdaQueryWrapper<SysOperLog> lqw = buildQueryWrapper(operLog);
-        if (StringUtils.isBlank(pageQuery.getOrderByColumn())) {
+        if (!pageParam.hasSort()) {
             lqw.orderByDesc(SysOperLog::getOperId);
         }
-        Page<SysOperLogVo> page = operLogMapper.selectVoPage(pageQuery.build(), lqw);
-        return PageResult.build(page.getRecords(), page.getTotal());
+        return PageResults.of(operLogMapper.selectPage(pageParam.toPage(SysOperLog.class), lqw), SysOperLogVo.class);
     }
 
     private LambdaQueryWrapper<SysOperLog> buildQueryWrapper(SysOperLogBo operLog) {
@@ -80,7 +80,7 @@ public class SysOperLogServiceImpl implements ISysOperLogService {
      */
     @Override
     public void insertOperlog(SysOperLogBo bo) {
-        SysOperLog operLog = MapstructUtils.convert(bo, SysOperLog.class);
+        SysOperLog operLog = BeanMapper.map(bo, SysOperLog.class);
         operLog.setOperTime(LocalDateTime.now());
         operLogMapper.insert(operLog);
     }
@@ -94,7 +94,7 @@ public class SysOperLogServiceImpl implements ISysOperLogService {
     @Override
     public List<SysOperLogVo> selectOperLogList(SysOperLogBo operLog) {
         LambdaQueryWrapper<SysOperLog> lqw = buildQueryWrapper(operLog);
-        return operLogMapper.selectVoList(lqw.orderByDesc(SysOperLog::getOperId));
+        return BeanMapper.mapList(operLogMapper.selectList(lqw.orderByDesc(SysOperLog::getOperId)), SysOperLogVo.class);
     }
 
     /**
@@ -102,18 +102,19 @@ public class SysOperLogServiceImpl implements ISysOperLogService {
      */
     @Override
     public long countOperLogList(SysOperLogBo operLog) {
-        return operLogMapper.selectVoPage(PageQuery.countOnly(), buildQueryWrapper(operLog)).getTotal();
+        return operLogMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(operLog)).getTotal();
     }
 
     /**
      * 批量删除系统操作日志
      *
      * @param operIds 需要删除的操作日志ID
-     * @return 结果
      */
     @Override
-    public int deleteOperLogByIds(Long[] operIds) {
-        return operLogMapper.deleteByIds(Arrays.asList(operIds));
+    public void deleteOperLogByIds(Long[] operIds) {
+        if (operLogMapper.deleteByIds(Arrays.asList(operIds)) == 0) {
+            throw new ServiceException("删除操作日志失败，记录不存在");
+        }
     }
 
     /**
@@ -124,7 +125,7 @@ public class SysOperLogServiceImpl implements ISysOperLogService {
      */
     @Override
     public SysOperLogVo selectOperLogById(Long operId) {
-        return operLogMapper.selectVoById(operId);
+        return BeanMapper.map(operLogMapper.selectById(operId), SysOperLogVo.class);
     }
 
     /**
@@ -132,6 +133,6 @@ public class SysOperLogServiceImpl implements ISysOperLogService {
      */
     @Override
     public void cleanOperLog() {
-        operLogMapper.lambda().delete();
+        operLogMapper.delete(Wrappers.emptyWrapper());
     }
 }

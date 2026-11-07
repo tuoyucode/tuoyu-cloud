@@ -25,6 +25,20 @@
 - **依赖规则**：ArchUnit 在 CI 中检查（模块不使用 Dubbo、模块之间只能通过 api 包访问、ORM 层只依赖 core 等）。
 - Dubbo 中框架异常连同错误码原样到达调用方（此前会被包装、错误码丢失）。
 
+### 框架对外 API（ADR 0008）
+
+业务代码接触的框架类型统一为一套写法，旧类型已删除（升级方法见升级指南第 5 节）。
+
+- **响应结构与 HTTP 状态码**：统一返回 `ApiResult`：`{ code, message, data, traceId }`，成功为 HTTP 200、`code` 0；失败时由 HTTP 状态码表达错误类别：参数校验与业务规则 400、未登录或令牌失效 401、无权限 403、不存在 404、请求方式不支持 405、数据重复 409、请求过大 413、媒体类型不支持 415、重复提交与限流 429、未预期的异常 500（只返回错误编号）、网关下游没有实例 503。服务、网关、过滤器写出的错误都是同一结构并带 traceId。
+- **分页**：请求参数 `page`（从 1 开始）、`pageSize`、`sort`（`属性名,asc|desc`，可重复传多个，排序属性按实体校验，不在实体中的返回 400）；结果 `{ items, total }`。后端类型为 `PageParam`、`PageResult`，从 MyBatis-Plus 分页转换用 `PageResults`。
+- **当前用户**：业务代码只通过 core 的 `UserContext` 读取当前用户（`current()`、`require()`、`userId()`、`isSuperAdmin()` 等），实现方提供 `UserContextProvider`；`LoginHelper` 只在认证模块中处理登录、登出与会话（ArchUnit 检查）。查询其他会话的登录用户用 `LoginSessions`。
+- **Mapper 与转换**：Mapper 直接继承 MyBatis-Plus 的 `BaseMapper`，只处理实体；转换在服务层用 `BeanMapper`；条件用 `QueryBuilder`。
+- **写操作**：服务方法没有返回值，失败时抛出带具体原因的 `ServiceException`（不再只有一句“操作失败”）。
+- **注解与常量**：校验分组 `OnCreate` / `OnUpdate`；操作日志 `@OperationLog(module, action = AuditAction.XXX)`（操作日志表与前端字典的存储值不变）；防重复提交 `@PreventResubmit`；请求头名 `HeaderNames`；过滤器取 traceId 用 `TraceIdSource`。
+- **远程接口签名**：`RemoteSocialService.deleteWithValidById`、`RemoteUserService.registerUserInfo`、`RemoteWorkflowService.completeTask`、`startCompleteTask` 没有返回值，失败时抛出带原因的异常；`RemoteTaskAssigneeBo` 的页码字段为 `page`。
+- **工作流**：流程变量、作废、终止、催办、撤销等接口按参数上的约束校验必填项，缺少时返回 400。
+- **代码生成**：只提供 Vben 前端模板（Element Plus 与 React 模板删除，已有业务表由迁移 V7 改为 `vben`）；生成的后端代码按上述写法输出；代码生成详情接口返回 `{ info, columns }`。
+
 ### 两种部署方式
 
 - **单体启动器** `tuoyu-boot-all`：一个进程包含全部业务模块，跨模块调用是进程内调用；不需要 Nacos、Dubbo，配置与微服务方式是同一套文件；URL 与经过网关时完全相同；各模块仍使用自己的库（tuoyu-cloud、tuoyu-workflow）。
@@ -43,7 +57,7 @@
 - 核心模块行覆盖率不低于 50%（JaCoCo，CI 强制检查）。
 - CI 新增：提交说明格式检查、依赖漏洞与协议扫描（CycloneDX + Trivy，GPL / AGPL / LGPL 阻断）、各服务与单体的镜像构建、两种部署方式的端到端测试（模块 `tuoyu-e2e`）。
 - 依赖升级（修复高危漏洞）：Spring Boot 4.1.2（Tomcat 11.0.27、Jackson 3.1.7 / 2.21.7、Freemarker 2.3.35）；bcprov 统一到 1.86，guava 33.7.2，commons-beanutils 1.11.0，jsoup 1.23.2。
-- 依赖协议：GPL、AGPL 依赖禁止；LGPL 依赖只允许未修改、登记为例外的（目前为 SnailJob 服务端的 `aviator`、JustAuth 的 `simple-http`，见 THIRD-PARTY-NOTICES.md）。SnailJob 服务端排除了用不到的 MariaDB 方言与驱动（LGPL）。
+- 依赖协议：GPL、AGPL 依赖禁止；LGPL 依赖只允许未修改、登记为例外的（目前为 SnailJob 服务端的 `aviator`、JustAuth 的 `simple-http`，见 README 的“许可证”一节）。SnailJob 服务端排除了用不到的 MariaDB 方言与驱动（LGPL）。
 
 ### 多租户（默认关闭）
 
@@ -55,7 +69,7 @@
 ### 数据库
 
 - Flyway 迁移，同时支持 MySQL 与 PostgreSQL；已有数据库按基线接入。
-- V2：删除没有接口的“批量强退”按钮；V3：多租户的表与菜单；V4：“流程设计”菜单的权限码改为 `workflow:definition:edit`；V5：删除没有接口的“流程表达式定义导出”按钮。
+- V2：删除没有接口的“批量强退”按钮；V3：多租户的表与菜单；V4：“流程设计”菜单的权限码改为 `workflow:definition:edit`；V5：删除没有接口的“流程表达式定义导出”按钮；V6：删除演示账号；V7：代码生成的前端模板类型统一为 `vben`。
 
 ### 修复
 

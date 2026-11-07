@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysDictDataBo;
 import org.tuoyu.system.domain.vo.SysDictDataVo;
 
@@ -18,10 +18,10 @@ public interface ISysDictDataService {
      * 分页查询字典数据列表
      *
      * @param dictData  查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 字典数据分页列表
      */
-    PageResult<SysDictDataVo> selectPageDictDataList(SysDictDataBo dictData, PageQuery pageQuery);
+    PageResult<SysDictDataVo> selectPageDictDataList(SysDictDataBo dictData, PageParam pageParam);
 
     /**
      * 根据条件分页查询字典数据

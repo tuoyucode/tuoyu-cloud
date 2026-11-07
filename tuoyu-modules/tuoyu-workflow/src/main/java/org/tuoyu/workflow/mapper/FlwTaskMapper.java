@@ -3,7 +3,6 @@ package org.tuoyu.workflow.mapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.yulichang.base.MPJBaseMapper;
 import org.tuoyu.common.core.enums.BusinessStatusEnum;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.dromara.warm.flow.core.enums.NodeType;
 import org.dromara.warm.flow.orm.entity.*;
@@ -20,7 +19,7 @@ import java.util.Map;
  * @author may
  * @date 2024-03-02
  */
-public interface FlwTaskMapper extends BaseMapperPlus<FlowTask, FlowTaskVo>, MPJBaseMapper<FlowTask> {
+public interface FlwTaskMapper extends MPJBaseMapper<FlowTask> {
 
     default Page<FlowTaskVo> getListRunTask(Page<FlowTaskVo> page,
                                             FlowTaskBo bo,

@@ -1,6 +1,7 @@
 package org.tuoyu.system.dubbo;
 
 import cn.hutool.core.collection.CollUtil;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.system.api.RemotePostService;
@@ -35,10 +36,10 @@ public class RemotePostServiceImpl implements RemotePostService {
         if (CollUtil.isEmpty(postIds)) {
             return Collections.emptyMap();
         }
-        List<SysPost> list = postMapper.lambda()
+        List<SysPost> list = postMapper.selectList(QueryBuilder.lambda(SysPost.class)
             .select(SysPost::getPostId, SysPost::getPostName)
             .in(SysPost::getPostId, postIds)
-            .list();
+            .build());
         return StreamUtils.toMap(list, SysPost::getPostId, SysPost::getPostName);
     }
 

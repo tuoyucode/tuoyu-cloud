@@ -1,7 +1,7 @@
 package org.tuoyu.gen.mapper;
 
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.gen.domain.GenTableColumn;
 
 /**
@@ -10,6 +10,6 @@ import org.tuoyu.gen.domain.GenTableColumn;
  * @author Lion Li
  */
 @InterceptorIgnore(dataPermission = "true", tenantLine = "true")
-public interface GenTableColumnMapper extends BaseMapperPlus<GenTableColumn, GenTableColumn> {
+public interface GenTableColumnMapper extends BaseMapper<GenTableColumn> {
 
 }

@@ -21,11 +21,7 @@ import org.tuoyu.gen.constant.GenConstants;
 import org.tuoyu.gen.domain.GenTable;
 import org.tuoyu.gen.domain.GenTableColumn;
 import org.tuoyu.gen.util.template.PathNamedTemplate;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
-import org.springframework.core.io.support.ResourcePatternResolver;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
@@ -55,7 +51,6 @@ public class TemplateEngineUtils {
     // 模板引擎
     private static final TemplateEngine TEMPLATE_ENGINE;
     private static final Map<String, PathNamedTemplate> TEMPLATE_MAPPER;
-    private static final ResourcePatternResolver RESOURCE_PATTERN_RESOLVER = new PathMatchingResourcePatternResolver();
 
     static {
         // 模板引擎初始化
@@ -97,7 +92,6 @@ public class TemplateEngineUtils {
         String functionName = genTable.getFunctionName();
 
         context.put("tplCategory", genTable.getTplCategory());
-        context.put("frontendType", resolveFrontendType(genTable.getFrontendType()));
         context.put("tableName", genTable.getTableName());
         context.put("functionName", StringUtils.isNotEmpty(functionName) ? functionName : "【请填写功能名称】");
         context.put("ClassName", genTable.getClassName());
@@ -242,6 +236,7 @@ public class TemplateEngineUtils {
         context.put("treeName", treeName);
         context.put("treeParentColumn", treeParentColumn);
         context.put("treeAncestorsField", ObjectUtil.isNotNull(treeAncestorsColumn) ? treeAncestorsColumn.getJavaField() : StringUtils.EMPTY);
+        context.put("treeAncestorsColumnName", ObjectUtil.isNotNull(treeAncestorsColumn) ? treeAncestorsColumn.getColumnName() : StringUtils.EMPTY);
         context.put("treeOrderField", ObjectUtil.isNotNull(treeOrderColumn) ? treeOrderColumn.getJavaField() : StringUtils.EMPTY);
         context.put("treeOrderColumn", treeOrderColumn);
         context.put("treeRootValue", treeRootValue);
@@ -272,21 +267,11 @@ public class TemplateEngineUtils {
     /**
      * 获取模板信息
      *
+     * @param tplCategory 生成模板分类：crud 或 tree
+     * @param dsName      数据源名称
      * @return 模板列表
      */
     public static List<PathNamedTemplate> getTemplateList(String tplCategory, String dsName) {
-        return getTemplateList(tplCategory, dsName, GenConstants.FRONTEND_TYPE_DEFAULT);
-    }
-
-    /**
-     * 获取模板信息
-     *
-     * @param tplCategory  前端页面模板分类
-     * @param dsName       数据源名称
-     * @param frontendType 前端模板类型
-     * @return 模板列表
-     */
-    public static List<PathNamedTemplate> getTemplateList(String tplCategory, String dsName, String frontendType) {
         List<PathNamedTemplate> templates = new ArrayList<>();
         // 后端源码模板
         templates.add(TEMPLATE_MAPPER.get(GenConstants.JAVA_DOMAIN_TEMPLATE_PATH));
@@ -311,52 +296,26 @@ public class TemplateEngineUtils {
             templates.add(TEMPLATE_MAPPER.get(GenConstants.SQL_MYSQL_TEMPLATE_PATH));
         }
         // 前端模板
-        templates.addAll(getFrontendTemplateList(tplCategory, frontendType));
+        templates.addAll(getFrontendTemplateList(tplCategory));
         return templates;
     }
 
     /**
-     * 获取前端模板列表（不涉及数据库，可单独测试）
+     * 获取前端（Vben）模板列表（不涉及数据库，可单独测试）
      *
-     * @param tplCategory  生成模板分类：crud 或 tree
-     * @param frontendType 前端模板类型
+     * @param tplCategory 生成模板分类：crud 或 tree
      * @return 前端模板列表
      */
-    public static List<PathNamedTemplate> getFrontendTemplateList(String tplCategory, String frontendType) {
+    public static List<PathNamedTemplate> getFrontendTemplateList(String tplCategory) {
         List<PathNamedTemplate> templates = new ArrayList<>();
-        if (GenConstants.FRONTEND_TYPE_VBEN.equals(resolveFrontendType(frontendType))) {
-            templates.add(getTemplate(GenConstants.VBEN_API_TEMPLATE_PATH));
-            templates.add(getTemplate(GenConstants.VBEN_DATA_TEMPLATE_PATH));
-            templates.add(getTemplate(GenConstants.VBEN_DRAWER_TEMPLATE_PATH));
-            templates.add(getTemplate(GenConstants.TPL_TREE.equals(tplCategory)
-                ? GenConstants.VBEN_INDEX_TREE_TEMPLATE_PATH : GenConstants.VBEN_INDEX_TEMPLATE_PATH));
-            templates.add(getTemplate(GenConstants.VBEN_LOCALE_ZH_TEMPLATE_PATH));
-            templates.add(getTemplate(GenConstants.VBEN_LOCALE_EN_TEMPLATE_PATH));
-            return templates;
-        }
-        // 其他前端模板：API 与类型、页面
-        templates.add(getTemplate(getFrontendApiTemplatePath(frontendType)));
-        templates.add(getTemplate(getFrontendTypesTemplatePath(frontendType)));
-        if (GenConstants.TPL_CRUD.equals(tplCategory)) {
-            templates.add(getTemplate(getFrontendIndexTemplatePath(frontendType)));
-        } else if (GenConstants.TPL_TREE.equals(tplCategory)) {
-            templates.add(getTemplate(getFrontendIndexTreeTemplatePath(frontendType)));
-        }
+        templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_API_TEMPLATE_PATH));
+        templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_DATA_TEMPLATE_PATH));
+        templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_DRAWER_TEMPLATE_PATH));
+        templates.add(TEMPLATE_MAPPER.get(GenConstants.TPL_TREE.equals(tplCategory)
+            ? GenConstants.VBEN_INDEX_TREE_TEMPLATE_PATH : GenConstants.VBEN_INDEX_TEMPLATE_PATH));
+        templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_LOCALE_ZH_TEMPLATE_PATH));
+        templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_LOCALE_EN_TEMPLATE_PATH));
         return templates;
-    }
-
-    /**
-     * 获取模板，支持按前端模板类型动态加载模板根目录下的模板。
-     *
-     * @param templatePath 模板路径
-     * @return 带路径名的模板
-     */
-    private static PathNamedTemplate getTemplate(String templatePath) {
-        PathNamedTemplate template = TEMPLATE_MAPPER.get(templatePath);
-        if (ObjectUtil.isNotNull(template)) {
-            return template;
-        }
-        return PathNamedTemplate.form(TEMPLATE_ENGINE, templatePath);
     }
 
     /**
@@ -380,8 +339,6 @@ public class TemplateEngineUtils {
 
         String javaPath = PROJECT_PATH + "/" + StringUtils.replace(packageName, ".", "/");
         String mybatisPath = MYBATIS_PATH + "/" + moduleName;
-        String frontendPath = getFrontendPath(genTable.getFrontendType());
-        String frontendPagePath = getFrontendPagePath(genTable.getFrontendType());
         // templatePath
         // genFilePathFormat
         if (template.contains("domain.java.")) {
@@ -404,16 +361,6 @@ public class TemplateEngineUtils {
             fileName = getVbenFileName(template, moduleName, businessName);
         } else if (template.contains("sql.")) {
             fileName = businessName + "Menu.sql";
-        } else if (template.contains("api.ts.")) {
-            fileName = StringUtils.format("{}/api/{}/{}/index.ts", frontendPath, moduleName, businessName);
-        } else if (template.contains("types.ts.")) {
-            fileName = StringUtils.format("{}/api/{}/{}/types.ts", frontendPath, moduleName, businessName);
-        } else if (isFrontendPageTemplate(template, GenConstants.FRONTEND_INDEX_TEMPLATE_PREFIX)) {
-            fileName = StringUtils.format("{}/{}/{}/{}/index.{}", frontendPath, frontendPagePath, moduleName, businessName,
-                getFrontendPageExtension(template, GenConstants.FRONTEND_INDEX_TEMPLATE_PREFIX));
-        } else if (isFrontendPageTemplate(template, GenConstants.FRONTEND_INDEX_TREE_TEMPLATE_PREFIX)) {
-            fileName = StringUtils.format("{}/{}/{}/{}/index.{}", frontendPath, frontendPagePath, moduleName, businessName,
-                getFrontendPageExtension(template, GenConstants.FRONTEND_INDEX_TREE_TEMPLATE_PREFIX));
         }
         return fileName;
     }
@@ -436,117 +383,6 @@ public class TemplateEngineUtils {
                 StringUtils.format("{}/locales/langs/en-US/{}/{}.json", root, moduleName, businessName);
             default -> throw new ServiceException(StringUtils.format("未知的 Vben 模板: {}", template));
         };
-    }
-
-    /**
-     * 获取前端输出目录。
-     *
-     * @param frontendType 前端模板类型
-     * @return 前端输出目录
-     */
-    private static String getFrontendPath(String frontendType) {
-        return resolveFrontendType(frontendType);
-    }
-
-    /**
-     * 获取前端页面输出目录。
-     *
-     * @param frontendType 前端模板类型
-     * @return 页面输出目录
-     */
-    private static String getFrontendPagePath(String frontendType) {
-        return GenConstants.FRONTEND_TYPE_REACT.equals(resolveFrontendType(frontendType)) ? "pages" : "views";
-    }
-
-    /**
-     * 获取前端页面文件扩展名。
-     *
-     * @param template       模板路径
-     * @param templatePrefix 模板文件名前缀
-     * @return 文件扩展名
-     */
-    private static String getFrontendPageExtension(String template, String templatePrefix) {
-        String fileName = getTemplateFileName(template);
-        int suffixIndex = fileName.lastIndexOf('.');
-        String withoutTemplateSuffix = suffixIndex >= 0 ? fileName.substring(0, suffixIndex) : fileName;
-        return withoutTemplateSuffix.substring((templatePrefix + ".").length());
-    }
-
-    private static String getFrontendApiTemplatePath(String frontendType) {
-        return getFrontendTemplatePath(frontendType, GenConstants.FRONTEND_API_TEMPLATE_NAME);
-    }
-
-    private static String getFrontendTypesTemplatePath(String frontendType) {
-        return getFrontendTemplatePath(frontendType, GenConstants.FRONTEND_TYPES_TEMPLATE_NAME);
-    }
-
-    private static String getFrontendIndexTemplatePath(String frontendType) {
-        return getFrontendPageTemplatePath(frontendType, GenConstants.FRONTEND_INDEX_TEMPLATE_PREFIX);
-    }
-
-    private static String getFrontendIndexTreeTemplatePath(String frontendType) {
-        return getFrontendPageTemplatePath(frontendType, GenConstants.FRONTEND_INDEX_TREE_TEMPLATE_PREFIX);
-    }
-
-    /**
-     * 解析前端模板类型。
-     *
-     * @param frontendType 前端模板类型
-     * @return 已规范化的模板目录名
-     */
-    private static String resolveFrontendType(String frontendType) {
-        String type = StringUtils.blankToDefault(frontendType, GenConstants.FRONTEND_TYPE_DEFAULT);
-        if (!type.matches("[A-Za-z0-9_-]+")) {
-            throw new ServiceException("前端模板类型仅支持字母、数字、下划线和中划线");
-        }
-        return type;
-    }
-
-    private static String getFrontendTemplatePath(String frontendType, String templateName) {
-        return StringUtils.format("{}/{}/{}", GenConstants.TEMPLATE_ROOT_PATH, resolveFrontendType(frontendType), templateName);
-    }
-
-    /**
-     * 获取前端页面模板路径，页面输出扩展名由模板文件名决定。
-     *
-     * @param frontendType   前端模板类型
-     * @param templatePrefix 页面模板文件名前缀
-     * @return 页面模板路径
-     */
-    private static String getFrontendPageTemplatePath(String frontendType, String templatePrefix) {
-        String type = resolveFrontendType(frontendType);
-        String templatePathPattern = getFrontendPageTemplatePathPattern(type, templatePrefix);
-        String resourcePattern = GenConstants.TEMPLATE_RESOURCE_PREFIX + templatePathPattern;
-        try {
-            Resource[] resources = RESOURCE_PATTERN_RESOLVER.getResources(resourcePattern);
-            if (resources.length == 0) {
-                throw new ServiceException(StringUtils.format("未找到前端模板: {}", templatePathPattern));
-            }
-            return Arrays.stream(resources)
-                .map(Resource::getFilename)
-                .filter(StringUtils::isNotBlank)
-                .sorted()
-                .findFirst()
-                .map(fileName -> StringUtils.format("{}/{}/{}", GenConstants.TEMPLATE_ROOT_PATH, type, fileName))
-                .orElseThrow(() -> new ServiceException(StringUtils.format("未找到前端模板: {}", templatePathPattern)));
-        } catch (IOException e) {
-            throw new ServiceException(StringUtils.format("读取前端模板失败: {}", templatePathPattern), e);
-        }
-    }
-
-    private static String getFrontendPageTemplatePathPattern(String frontendType, String templatePrefix) {
-        return StringUtils.format("{}/{}/{}{}", GenConstants.TEMPLATE_ROOT_PATH, frontendType,
-            templatePrefix, GenConstants.TEMPLATE_PAGE_PATTERN_SUFFIX);
-    }
-
-    private static boolean isFrontendPageTemplate(String template, String templatePrefix) {
-        String fileName = getTemplateFileName(template);
-        return fileName.startsWith(templatePrefix + ".") && fileName.endsWith(GenConstants.TEMPLATE_FILE_SUFFIX);
-    }
-
-    private static String getTemplateFileName(String template) {
-        int index = Math.max(template.lastIndexOf('/'), template.lastIndexOf('\\'));
-        return index >= 0 ? template.substring(index + 1) : template;
     }
 
     /**

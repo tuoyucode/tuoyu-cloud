@@ -1,7 +1,8 @@
 package org.tuoyu.common.sms;
 
 import cn.hutool.http.HttpStatus;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.springframework.http.ResponseEntity;
 import org.tuoyu.common.sms.handler.SmsExceptionHandler;
 import org.dromara.sms4j.comm.exception.SmsBlendException;
 import org.junit.jupiter.api.DisplayName;
@@ -22,9 +23,10 @@ class SmsExceptionHandlerTest {
     void shouldConvertSmsExceptionToFailureResponse() {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/sms/send");
 
-        R<Void> response = new SmsExceptionHandler().handleSmsBlendException(mock(SmsBlendException.class), request);
+        ResponseEntity<ApiResult<Void>> response = new SmsExceptionHandler().handleSmsBlendException(mock(SmsBlendException.class), request);
 
-        assertEquals(HttpStatus.HTTP_INTERNAL_ERROR, response.getCode());
-        assertEquals("短信发送失败，请稍后再试...", response.getMsg());
+        assertEquals(HttpStatus.HTTP_INTERNAL_ERROR, response.getStatusCode().value());
+        assertEquals(HttpStatus.HTTP_INTERNAL_ERROR, response.getBody().getCode());
+        assertEquals("短信发送失败，请稍后再试...", response.getBody().getMessage());
     }
 }

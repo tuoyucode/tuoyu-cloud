@@ -6,16 +6,14 @@ import cn.hutool.core.lang.tree.Tree;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import org.tuoyu.common.excel.utils.ExcelBuilder;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.workflow.common.ConditionalOnEnable;
-import org.tuoyu.workflow.common.constant.FlowConstant;
 import org.tuoyu.workflow.domain.bo.FlowCategoryBo;
 import org.tuoyu.workflow.domain.vo.FlowCategoryVo;
 import org.tuoyu.workflow.service.IFlwCategoryService;
@@ -34,7 +32,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/category")
-public class FlwCategoryController extends BaseController {
+public class FlwCategoryController {
 
     private final IFlwCategoryService flwCategoryService;
 
@@ -43,16 +41,16 @@ public class FlwCategoryController extends BaseController {
      */
     @SaCheckPermission("workflow:category:list")
     @GetMapping("/list")
-    public R<List<FlowCategoryVo>> list(FlowCategoryBo bo) {
+    public ApiResult<List<FlowCategoryVo>> list(FlowCategoryBo bo) {
         List<FlowCategoryVo> list = flwCategoryService.queryList(bo);
-        return R.ok(list);
+        return ApiResult.ok(list);
     }
 
     /**
      * 导出流程分类列表
      */
     @SaCheckPermission("workflow:category:export")
-    @Log(title = "流程分类", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "流程分类", action = AuditAction.EXPORT)
     @PostMapping("/export")
     public void export(FlowCategoryBo bo, HttpServletResponse response) {
         ExcelBuilder.query(() -> flwCategoryService.countList(bo), () -> flwCategoryService.queryList(bo), FlowCategoryVo.class)
@@ -66,39 +64,32 @@ public class FlwCategoryController extends BaseController {
      */
     @SaCheckPermission("workflow:category:query")
     @GetMapping("/{categoryId}")
-    public R<FlowCategoryVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable Long categoryId) {
-        return R.ok(flwCategoryService.queryById(categoryId));
+    public ApiResult<FlowCategoryVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable Long categoryId) {
+        return ApiResult.ok(flwCategoryService.queryById(categoryId));
     }
 
     /**
      * 新增流程分类
      */
     @SaCheckPermission("workflow:category:add")
-    @Log(title = "流程分类", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "流程分类", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping()
-    public R<Void> add(@Validated(AddGroup.class) @RequestBody FlowCategoryBo category) {
-        if (!flwCategoryService.checkCategoryNameUnique(category)) {
-            return R.fail("新增流程分类'" + category.getCategoryName() + "'失败，流程分类名称已存在");
-        }
-        return toAjax(flwCategoryService.insertByBo(category));
+    public ApiResult<Void> add(@Validated(OnCreate.class) @RequestBody FlowCategoryBo category) {
+        flwCategoryService.insertByBo(category);
+        return ApiResult.ok();
     }
 
     /**
      * 修改流程分类
      */
     @SaCheckPermission("workflow:category:edit")
-    @Log(title = "流程分类", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "流程分类", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping()
-    public R<Void> edit(@Validated(EditGroup.class) @RequestBody FlowCategoryBo category) {
-        Long categoryId = category.getCategoryId();
-        if (!flwCategoryService.checkCategoryNameUnique(category)) {
-            return R.fail("修改流程分类'" + category.getCategoryName() + "'失败，流程分类名称已存在");
-        } else if (category.getParentId().equals(categoryId)) {
-            return R.fail("修改流程分类'" + category.getCategoryName() + "'失败，上级流程分类不能是自己");
-        }
-        return toAjax(flwCategoryService.updateByBo(category));
+    public ApiResult<Void> edit(@Validated(OnUpdate.class) @RequestBody FlowCategoryBo category) {
+        flwCategoryService.updateByBo(category);
+        return ApiResult.ok();
     }
 
     /**
@@ -107,19 +98,11 @@ public class FlwCategoryController extends BaseController {
      * @param categoryId 主键
      */
     @SaCheckPermission("workflow:category:remove")
-    @Log(title = "流程分类", businessType = BusinessType.DELETE)
+    @OperationLog(module = "流程分类", action = AuditAction.DELETE)
     @DeleteMapping("/{categoryId}")
-    public R<Void> remove(@PathVariable Long categoryId) {
-        if (FlowConstant.FLOW_CATEGORY_ID.equals(categoryId)) {
-            return R.warn("默认流程分类,不允许删除");
-        }
-        if (flwCategoryService.hasChildByCategoryId(categoryId)) {
-            return R.warn("存在下级流程分类,不允许删除");
-        }
-        if (flwCategoryService.checkCategoryExistDefinition(categoryId)) {
-            return R.warn("流程分类存在流程定义,不允许删除");
-        }
-        return toAjax(flwCategoryService.deleteWithValidById(categoryId));
+    public ApiResult<Void> remove(@PathVariable Long categoryId) {
+        flwCategoryService.deleteWithValidById(categoryId);
+        return ApiResult.ok();
     }
 
     /**
@@ -129,8 +112,8 @@ public class FlwCategoryController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping("/categoryTree")
-    public R<List<Tree<String>>> categoryTree(FlowCategoryBo categoryBo) {
-        return R.ok(flwCategoryService.selectCategoryTreeList(categoryBo));
+    public ApiResult<List<Tree<String>>> categoryTree(FlowCategoryBo categoryBo) {
+        return ApiResult.ok(flwCategoryService.selectCategoryTreeList(categoryBo));
     }
 
 }

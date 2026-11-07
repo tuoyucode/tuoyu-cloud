@@ -1,21 +1,22 @@
 package org.tuoyu.common.security.config;
 
 import cn.dev33.satoken.SaManager;
-import cn.dev33.satoken.exception.NotLoginException;
-import org.tuoyu.common.satoken.handler.NotLoginMessage;
 import cn.dev33.satoken.filter.SaServletFilter;
 import cn.dev33.satoken.httpauth.basic.SaHttpBasicUtil;
 import cn.dev33.satoken.interceptor.SaInterceptor;
 import cn.dev33.satoken.same.SaSameUtil;
-import cn.dev33.satoken.util.SaResult;
 import cn.dev33.satoken.util.SaTokenConsts;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.tuoyu.common.core.constant.HttpStatus;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.utils.ServletUtils;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.StringUtils;
+import org.tuoyu.common.core.web.TraceIdSource;
 import org.tuoyu.common.satoken.auth.RequestAuthenticator;
+import org.tuoyu.common.satoken.handler.AuthErrors;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -44,7 +45,8 @@ public class SecurityConfiguration implements WebMvcConfigurer {
      * 内网请求即使绕过网关、伪造了 same-token 之外的请求头，也必须登录
      */
     @Bean
-    public SaServletFilter getSaServletFilter(RequestAuthenticator authenticator) {
+    public SaServletFilter getSaServletFilter(RequestAuthenticator authenticator,
+                                              ObjectProvider<TraceIdSource> traceIdSource) {
         return new SaServletFilter()
             .addInclude("/**")
             .addExclude("/actuator", "/actuator/**", "/error", "/favicon.ico")
@@ -59,17 +61,9 @@ public class SecurityConfiguration implements WebMvcConfigurer {
                 HttpServletResponse response = ServletUtils.getResponse();
                 response.setContentType(SaTokenConsts.CONTENT_TYPE_APPLICATION_JSON);
             })
-            .setError(e -> {
-                HttpServletResponse response = ServletUtils.getResponse();
-                if (response != null) {
-                    response.setContentType(SaTokenConsts.CONTENT_TYPE_APPLICATION_JSON);
-                }
-                if (e instanceof NotLoginException) {
-                    // 异常消息中带着令牌，按类型给出固定提示
-                    return SaResult.error(NotLoginMessage.of((NotLoginException) e)).setCode(HttpStatus.UNAUTHORIZED);
-                }
-                return SaResult.error("认证失败，无法访问系统资源").setCode(HttpStatus.UNAUTHORIZED);
-            });
+            // 未登录 401（提示按类型给出，不带令牌）、客户端不允许访问 403、其他认证失败 401
+            .setError(e -> AuthErrors.write(ServletUtils.getResponse(), AuthErrors.of(e),
+                traceIdSource.getIfAvailable(() -> TraceIdSource.NONE).currentTraceId()));
     }
 
     /**
@@ -98,7 +92,8 @@ public class SecurityConfiguration implements WebMvcConfigurer {
             .setAuth(obj -> {
                 SaHttpBasicUtil.check(username + StringUtils.COLON + password);
             })
-            .setError(e -> SaResult.error(e.getMessage()).setCode(HttpStatus.UNAUTHORIZED));
+            .setError(e -> AuthErrors.write(ServletUtils.getResponse(),
+                ApiResult.fail(HttpStatus.UNAUTHORIZED, e.getMessage()), null));
     }
 
 }

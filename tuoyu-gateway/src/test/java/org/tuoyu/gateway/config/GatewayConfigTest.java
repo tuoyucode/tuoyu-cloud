@@ -5,7 +5,9 @@ import cn.dev33.satoken.context.mock.SaRequestForMock;
 import cn.dev33.satoken.context.mock.SaTokenContextMockUtil;
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.filter.SaServletFilter;
-import cn.dev33.satoken.util.SaResult;
+import cn.dev33.satoken.exception.NotPermissionException;
+import tools.jackson.databind.JsonNode;
+import org.tuoyu.common.json.utils.JsonUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -76,16 +78,29 @@ class GatewayConfigTest {
             .when(authenticator).authenticate(request, "/system/user/list");
         assertThatThrownBy(() -> filter.auth.run(null)).isInstanceOf(NotLoginException.class);
 
-        SaResult notLogin = (SaResult) filter.error.run(
+        String notLoginBody = (String) filter.error.run(
             NotLoginException.newInstance("login", NotLoginException.INVALID_TOKEN, "token 无效", "secret-token-value"));
-        assertThat(notLogin.getCode()).isEqualTo(401);
+        JsonNode notLogin = json(notLoginBody);
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(notLogin.get("code").asInt()).isEqualTo(401);
         // 固定提示，不带上请求中的令牌
-        assertThat(notLogin.getMsg()).isEqualTo("登录状态异常，请重新登录").doesNotContain("secret-token-value");
+        assertThat(notLogin.get("message").asString()).isEqualTo("登录状态异常，请重新登录");
+        assertThat(notLoginBody).doesNotContain("secret-token-value");
         assertThat(response.getContentType()).contains("application/json");
 
-        SaResult other = (SaResult) filter.error.run(new IllegalStateException("内部细节"));
-        assertThat(other.getCode()).isEqualTo(401);
-        assertThat(other.getMsg()).isEqualTo("认证失败，无法访问系统资源");
+        JsonNode forbidden = json(filter.error.run(new NotPermissionException("当前客户端未授权访问该接口路径")));
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(forbidden.get("code").asInt()).isEqualTo(403);
+        assertThat(forbidden.get("message").asString()).isEqualTo("没有访问权限，请联系管理员授权");
+
+        JsonNode other = json(filter.error.run(new IllegalStateException("内部细节")));
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(other.get("code").asInt()).isEqualTo(401);
+        assertThat(other.get("message").asString()).isEqualTo("认证失败，无法访问系统资源");
+    }
+
+    private static JsonNode json(Object body) {
+        return JsonUtils.getJsonMapper().readTree((String) body);
     }
 
     @Test
@@ -97,8 +112,8 @@ class GatewayConfigTest {
         bindRequest(new MockHttpServletRequest("GET", "/actuator/health"));
         SaTokenContextMockUtil.setMockContext();
         assertThatThrownBy(() -> filter.auth.run(null)).isInstanceOf(RuntimeException.class);
-        SaResult result = (SaResult) filter.error.run(new IllegalStateException("需要认证"));
-        assertThat(result.getCode()).isEqualTo(401);
+        JsonNode result = json(filter.error.run(new IllegalStateException("需要认证")));
+        assertThat(result.get("code").asInt()).isEqualTo(401);
 
         String credentials = GatewayTestContext.ACTUATOR_USERNAME + ":" + GatewayTestContext.ACTUATOR_PASSWORD;
         SaRequestForMock saRequest = (SaRequestForMock) SaHolder.getRequest();

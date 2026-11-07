@@ -4,7 +4,8 @@ import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
 import cn.hutool.http.HttpStatus;
 import cn.hutool.extra.spring.SpringUtil;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.springframework.http.ResponseEntity;
 import org.tuoyu.common.satoken.core.dao.RedisSaTokenDao;
 import org.tuoyu.common.satoken.core.service.SaPermissionImpl;
 import org.tuoyu.common.satoken.handler.SaTokenExceptionHandler;
@@ -36,10 +37,11 @@ class SaTokenFunctionTest {
         SaTokenExceptionHandler handler = new SaTokenExceptionHandler();
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/system/user");
 
-        R<Void> result = handler.handleNotAccessException(new NotPermissionException("system:user:list"), request);
+        ResponseEntity<ApiResult<Void>> result = handler.handleNotAccessException(new NotPermissionException("system:user:list"), request);
 
-        assertEquals(HttpStatus.HTTP_FORBIDDEN, result.getCode());
-        assertEquals("没有访问权限，请联系管理员授权", result.getMsg());
+        assertEquals(HttpStatus.HTTP_FORBIDDEN, result.getStatusCode().value());
+        assertEquals(HttpStatus.HTTP_FORBIDDEN, result.getBody().getCode());
+        assertEquals("没有访问权限，请联系管理员授权", result.getBody().getMessage());
     }
 
     /**
@@ -54,8 +56,11 @@ class SaTokenFunctionTest {
         NotLoginException timeout = NotLoginException.newInstance("login", NotLoginException.TOKEN_TIMEOUT, "timeout", "token");
         NotLoginException replaced = NotLoginException.newInstance("login", NotLoginException.BE_REPLACED, "replaced", "token");
 
-        assertEquals("登录已过期，请重新登录", handler.handleNotLoginException(timeout, request).getMsg());
-        assertEquals("当前账号已在其他设备登录，您已被强制下线", handler.handleNotLoginException(replaced, request).getMsg());
+        ResponseEntity<ApiResult<Void>> expired = handler.handleNotLoginException(timeout, request);
+        assertEquals(HttpStatus.HTTP_UNAUTHORIZED, expired.getStatusCode().value());
+        assertEquals(HttpStatus.HTTP_UNAUTHORIZED, expired.getBody().getCode());
+        assertEquals("登录已过期，请重新登录", expired.getBody().getMessage());
+        assertEquals("当前账号已在其他设备登录，您已被强制下线", handler.handleNotLoginException(replaced, request).getBody().getMessage());
     }
 
     /**

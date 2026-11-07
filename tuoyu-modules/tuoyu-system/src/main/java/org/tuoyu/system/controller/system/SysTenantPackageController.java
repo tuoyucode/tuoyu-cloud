@@ -1,23 +1,22 @@
 package org.tuoyu.system.controller.system;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import org.tuoyu.common.core.context.CurrentUser;
+import org.tuoyu.common.core.context.UserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.common.tenant.core.TenantProperties;
-import org.tuoyu.common.web.core.BaseController;
-import org.tuoyu.system.api.model.LoginUser;
 import org.tuoyu.system.domain.bo.SysTenantPackageBo;
 import org.tuoyu.system.domain.vo.SysTenantPackageVo;
 import org.tuoyu.system.service.ISysTenantPackageService;
@@ -34,7 +33,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/tenant/package")
-public class SysTenantPackageController extends BaseController {
+public class SysTenantPackageController {
 
     private final ISysTenantPackageService packageService;
 
@@ -42,9 +41,9 @@ public class SysTenantPackageController extends BaseController {
 
     @SaCheckPermission("system:tenantPackage:list")
     @GetMapping("/list")
-    public R<PageResult<SysTenantPackageVo>> list(SysTenantPackageBo bo, PageQuery pageQuery) {
+    public ApiResult<PageResult<SysTenantPackageVo>> list(SysTenantPackageBo bo, PageParam pageParam) {
         checkPlatform();
-        return R.ok(packageService.selectPageList(bo, pageQuery));
+        return ApiResult.ok(packageService.selectPageList(bo, pageParam));
     }
 
     /**
@@ -52,52 +51,52 @@ public class SysTenantPackageController extends BaseController {
      */
     @SaCheckPermission("system:tenant:list")
     @GetMapping("/optionselect")
-    public R<List<SysTenantPackageVo>> optionselect() {
+    public ApiResult<List<SysTenantPackageVo>> optionselect() {
         checkPlatform();
-        return R.ok(packageService.selectOptions());
+        return ApiResult.ok(packageService.selectOptions());
     }
 
     @SaCheckPermission("system:tenantPackage:query")
     @GetMapping("/{packageId}")
-    public R<SysTenantPackageVo> getInfo(@PathVariable Long packageId) {
+    public ApiResult<SysTenantPackageVo> getInfo(@PathVariable Long packageId) {
         checkPlatform();
-        return R.ok(packageService.selectById(packageId));
+        return ApiResult.ok(packageService.selectById(packageId));
     }
 
     @SaCheckPermission("system:tenantPackage:add")
-    @Log(title = "租户套餐", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "租户套餐", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping
-    public R<Void> add(@Validated(AddGroup.class) @RequestBody SysTenantPackageBo bo) {
+    public ApiResult<Void> add(@Validated(OnCreate.class) @RequestBody SysTenantPackageBo bo) {
         checkPlatform();
         packageService.insertPackage(bo);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     @SaCheckPermission("system:tenantPackage:edit")
-    @Log(title = "租户套餐", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "租户套餐", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping
-    public R<Void> edit(@Validated(EditGroup.class) @RequestBody SysTenantPackageBo bo) {
+    public ApiResult<Void> edit(@Validated(OnUpdate.class) @RequestBody SysTenantPackageBo bo) {
         checkPlatform();
         packageService.updatePackage(bo);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     @SaCheckPermission("system:tenantPackage:remove")
-    @Log(title = "租户套餐", businessType = BusinessType.DELETE)
+    @OperationLog(module = "租户套餐", action = AuditAction.DELETE)
     @DeleteMapping("/{packageIds}")
-    public R<Void> remove(@PathVariable Long[] packageIds) {
+    public ApiResult<Void> remove(@PathVariable Long[] packageIds) {
         checkPlatform();
         packageService.deleteByIds(Arrays.asList(packageIds));
-        return R.ok();
+        return ApiResult.ok();
     }
 
     private void checkPlatform() {
         if (!TenantHelper.isEnabled()) {
             throw new ServiceException("未开启多租户");
         }
-        LoginUser user = LoginHelper.getLoginUser();
+        CurrentUser user = UserContext.current().orElse(null);
         if (user == null || !tenantProperties.getDefaultTenantId().equals(user.getTenantId())) {
             throw new ServiceException("只有平台用户可以管理租户套餐");
         }

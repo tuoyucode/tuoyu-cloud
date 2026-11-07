@@ -3,13 +3,13 @@ package org.tuoyu.common.redis;
 import cn.hutool.extra.spring.SpringUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.aspectj.lang.JoinPoint;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.ServletUtils;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.common.redis.annotation.RateLimiter;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
 import org.tuoyu.common.redis.aspectj.RateLimiterAspect;
-import org.tuoyu.common.redis.aspectj.RepeatSubmitAspect;
+import org.tuoyu.common.redis.aspectj.PreventResubmitAspect;
 import org.tuoyu.common.redis.utils.CacheUtils;
 import org.tuoyu.common.redis.utils.RedisUtils;
 import org.tuoyu.common.redis.utils.SequenceUtils;
@@ -40,6 +40,7 @@ import org.springframework.context.support.StaticApplicationContext;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import tools.jackson.databind.json.JsonMapper;
+import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -430,6 +431,7 @@ class RedisAspectContractTest {
                 () -> aspect.doBefore(point, annotation));
 
             assertEquals("请求过于频繁", exception.getMessage());
+            assertEquals(429, exception.getCode());
             verify(limiter, times(2)).trySetRate(RateType.OVERALL, 2, Duration.ofSeconds(10),
                 Duration.ofSeconds(60));
             verify(limiter, times(2)).tryAcquire();
@@ -441,13 +443,60 @@ class RedisAspectContractTest {
      */
     @Test
     @DisplayName("拒绝过短的防重复提交间隔")
-    void shouldRejectTooShortRepeatSubmitInterval() throws Exception {
-        RepeatSubmit annotation = annotation("invalidRepeat", RepeatSubmit.class);
+    void shouldRejectTooShortResubmitInterval() throws Exception {
+        PreventResubmit annotation = annotation("invalidRepeat", PreventResubmit.class);
 
         ServiceException exception = assertThrows(ServiceException.class,
-            () -> new RepeatSubmitAspect().doBefore(mock(JoinPoint.class), annotation));
+            () -> new PreventResubmitAspect().doBefore(mock(JoinPoint.class), annotation));
 
         assertEquals("重复提交间隔时间不能小于'1'秒", exception.getMessage());
+    }
+
+    /**
+     * 验证 @PreventResubmit：间隔内的重复请求返回 429；成功响应保留防重键，失败响应与异常释放防重键。
+     */
+    @Test
+    @DisplayName("@PreventResubmit 拒绝重复请求（429），失败时释放")
+    void shouldPreventResubmitAndReleaseOnFailure() throws Throwable {
+        PreventResubmit annotation = annotation("preventedEndpoint", PreventResubmit.class);
+        JoinPoint point = mock(JoinPoint.class);
+        when(point.getArgs()).thenReturn(new Object[]{Map.of("orderId", 1L)});
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/orders");
+        PreventResubmitAspect aspect = new PreventResubmitAspect();
+        @SuppressWarnings("unchecked")
+        RBucket<Object> bucket = mock(RBucket.class);
+        when(redissonClient.getBucket(anyString())).thenReturn(bucket);
+        when(bucket.setIfAbsent("", Duration.ofSeconds(3))).thenReturn(true, false, true, true, true);
+        when(bucket.delete()).thenReturn(true);
+
+        try (MockedStatic<ServletUtils> servlet = mockStatic(ServletUtils.class)) {
+            servlet.when(ServletUtils::getRequest).thenReturn(request);
+
+            // 第一次通过，成功响应保留防重键
+            aspect.doBefore(point, annotation);
+            aspect.doAfterReturning(point, annotation, ApiResult.ok());
+            verify(bucket, never()).delete();
+
+            // 间隔内重复：429
+            ServiceException repeated = assertThrows(ServiceException.class, () -> aspect.doBefore(point, annotation));
+            assertEquals(429, repeated.getCode());
+            assertEquals("请勿重复提交", repeated.getMessage());
+
+            // 失败响应（HTTP 4xx）释放
+            aspect.doBefore(point, annotation);
+            aspect.doAfterReturning(point, annotation, ResponseEntity.badRequest().body(ApiResult.fail(400, "x")));
+            verify(bucket, times(1)).delete();
+
+            // 抛出异常释放
+            aspect.doBefore(point, annotation);
+            aspect.doAfterThrowing(point, annotation, new IllegalStateException("boom"));
+            verify(bucket, times(2)).delete();
+
+            // 其他类型的返回值视为成功
+            aspect.doBefore(point, annotation);
+            aspect.doAfterReturning(point, annotation, "plain");
+            verify(bucket, times(2)).delete();
+        }
     }
 
     /**
@@ -455,12 +504,12 @@ class RedisAspectContractTest {
      */
     @Test
     @DisplayName("失败响应释放防重复提交键")
-    void shouldReleaseRepeatSubmitKeyAfterFailedResponse() throws Throwable {
-        RepeatSubmit annotation = annotation("validRepeat", RepeatSubmit.class);
+    void shouldReleaseResubmitKeyAfterFailedResponse() throws Throwable {
+        PreventResubmit annotation = annotation("validRepeat", PreventResubmit.class);
         JoinPoint point = mock(JoinPoint.class);
         when(point.getArgs()).thenReturn(new Object[]{Map.of("orderId", 1L)});
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/orders");
-        RepeatSubmitAspect aspect = new RepeatSubmitAspect();
+        PreventResubmitAspect aspect = new PreventResubmitAspect();
         @SuppressWarnings("unchecked")
         RBucket<Object> bucket = mock(RBucket.class);
         when(redissonClient.getBucket(anyString())).thenReturn(bucket);
@@ -471,7 +520,7 @@ class RedisAspectContractTest {
             servlet.when(ServletUtils::getRequest).thenReturn(request);
 
             aspect.doBefore(point, annotation);
-            aspect.doAfterReturning(point, annotation, R.fail("failed"));
+            aspect.doAfterReturning(point, annotation, ApiResult.fail(400, "failed"));
 
             verify(redissonClient, times(2)).getBucket(startsWith("global:repeat_submit:/orders"));
             verify(bucket).setIfAbsent("", Duration.ofSeconds(2));
@@ -484,8 +533,8 @@ class RedisAspectContractTest {
      */
     @Test
     @DisplayName("过滤不可序列化的防重参数")
-    void shouldFilterInfrastructureObjectsFromRepeatSubmitArguments() {
-        RepeatSubmitAspect aspect = new RepeatSubmitAspect();
+    void shouldFilterInfrastructureObjectsFromResubmitArguments() {
+        PreventResubmitAspect aspect = new PreventResubmitAspect();
         MockMultipartFile file = new MockMultipartFile("file", new byte[]{1});
 
         assertTrue(aspect.isFilterObject(file));
@@ -520,15 +569,22 @@ class RedisAspectContractTest {
         /**
          * 提供不满足最小间隔的防重配置供校验测试。
          */
-        @RepeatSubmit(interval = 999)
+        @PreventResubmit(interval = 999)
         private void invalidRepeat() {
         }
 
         /**
          * 提供有效防重配置供 Redis 键生命周期测试。
          */
-        @RepeatSubmit(interval = 2, timeUnit = java.util.concurrent.TimeUnit.SECONDS, message = "重复请求")
+        @PreventResubmit(interval = 2, timeUnit = java.util.concurrent.TimeUnit.SECONDS, message = "重复请求")
         private void validRepeat() {
+        }
+
+        /**
+         * 提供 @PreventResubmit 配置供切面测试。
+         */
+        @PreventResubmit(interval = 3, timeUnit = java.util.concurrent.TimeUnit.SECONDS, message = "请勿重复提交")
+        private void preventedEndpoint() {
         }
     }
 }

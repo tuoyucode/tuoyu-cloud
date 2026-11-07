@@ -85,8 +85,8 @@ class AuthFlowIT {
         String body = E2eClient.toJson(anonymous.passwordLoginBody(config.username(), config.password()));
         ApiResponse response = anonymous.sendRaw("POST", "/auth/login", body, Map.of());
 
-        response.assertCode(400, "未加密的登录请求应被拒绝");
-        assertThat(response.msg()).contains("加密");
+        response.assertError(400, "未加密的登录请求应被拒绝");
+        assertThat(response.message()).contains("加密");
         assertThat(response.data().path("access_token").isMissingNode() || response.data().isNull()).isTrue();
     }
 
@@ -112,8 +112,8 @@ class AuthFlowIT {
 
         // 原样重发同一个信封：nonce 已使用，按协议返回 400“请求已过期”，不能再次登录
         ApiResponse replay = anonymous.sendSealed("POST", "/auth/login", sealed);
-        replay.assertCode(400, "重放的加密请求应被拒绝");
-        assertThat(replay.msg()).contains("过期");
+        replay.assertError(400, "重放的加密请求应被拒绝");
+        assertThat(replay.message()).contains("过期");
         assertThat(replay.data().path("access_token").isMissingNode() || replay.data().isNull()).isTrue();
     }
 
@@ -129,8 +129,8 @@ class AuthFlowIT {
         String tampered = E2eClient.toJson(envelope);
 
         ApiResponse response = anonymous.sendRaw("POST", "/auth/login", tampered, Map.of(ApiCrypto.HEADER, "1"));
-        response.assertCode(400, "篡改的加密请求应被拒绝");
-        assertThat(response.msg()).contains("解密失败");
+        response.assertError(400, "篡改的加密请求应被拒绝");
+        assertThat(response.message()).contains("解密失败");
     }
 
     @Test
@@ -150,10 +150,10 @@ class AuthFlowIT {
     @Test
     @Order(8)
     void protectedEndpointsRequireLogin() {
-        anonymous.get("/system/user/getInfo").assertCode(401, "未登录访问用户信息");
-        anonymous.get("/system/user/list", Map.of("pageNum", 1, "pageSize", 10)).assertCode(401, "未登录访问用户列表");
-        anonymous.get("/system/menu/getRouters").assertCode(401, "未登录访问路由");
-        anonymous.withToken("not-a-valid-token").get("/system/user/getInfo").assertCode(401, "无效令牌访问用户信息");
+        anonymous.get("/system/user/getInfo").assertError(401, "未登录访问用户信息");
+        anonymous.get("/system/user/list", Map.of("page", 1, "pageSize", 10)).assertError(401, "未登录访问用户列表");
+        anonymous.get("/system/menu/getRouters").assertError(401, "未登录访问路由");
+        anonymous.withToken("not-a-valid-token").get("/system/user/getInfo").assertError(401, "无效令牌访问用户信息");
     }
 
     @Test
@@ -163,7 +163,7 @@ class AuthFlowIT {
         session.get("/system/user/getInfo").assertOk("登出前访问用户信息");
 
         session.post("/auth/logout", Map.of()).assertOk("登出");
-        session.get("/system/user/getInfo").assertCode(401, "登出后使用原令牌");
+        session.get("/system/user/getInfo").assertError(401, "登出后使用原令牌");
     }
 
     private E2eClient admin() {

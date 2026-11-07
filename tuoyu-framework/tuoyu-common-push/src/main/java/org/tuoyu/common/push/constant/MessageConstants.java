@@ -8,7 +8,7 @@ package org.tuoyu.common.push.constant;
 public interface MessageConstants {
 
     /**
-     * 登录用户信息
+     * 当前用户（{@code CurrentUser}）在 WebSocket 会话属性中的键
      */
     String LOGIN_USER_KEY = "loginUser";
 

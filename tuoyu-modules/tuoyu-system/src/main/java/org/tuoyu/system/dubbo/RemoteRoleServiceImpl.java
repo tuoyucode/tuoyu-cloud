@@ -1,6 +1,7 @@
 package org.tuoyu.system.dubbo;
 
 import cn.hutool.core.collection.CollUtil;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.system.api.RemoteRoleService;
@@ -35,10 +36,10 @@ public class RemoteRoleServiceImpl implements RemoteRoleService {
         if (CollUtil.isEmpty(roleIds)) {
             return Collections.emptyMap();
         }
-        List<SysRole> list = roleMapper.lambda()
+        List<SysRole> list = roleMapper.selectList(QueryBuilder.lambda(SysRole.class)
             .select(SysRole::getRoleId, SysRole::getRoleName)
             .in(SysRole::getRoleId, roleIds)
-            .list();
+            .build());
         return StreamUtils.toMap(list, SysRole::getRoleId, SysRole::getRoleName);
     }
 

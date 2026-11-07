@@ -1,7 +1,6 @@
 package org.tuoyu.common.mybatis.handler;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.http.HttpStatus;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -10,7 +9,7 @@ import org.apache.ibatis.reflection.MetaObject;
 import org.springframework.beans.factory.ObjectProvider;
 import org.tuoyu.common.core.context.CurrentUser;
 import org.tuoyu.common.core.context.TenantContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.ObjectUtils;
 import org.tuoyu.common.mybatis.core.domain.BaseEntity;
@@ -19,7 +18,7 @@ import java.time.LocalDateTime;
 import java.util.Date;
 
 /**
- * MP注入处理器。当前用户来自 {@link UserContext}；没有用户时（后台任务等）按系统用户 -1 填充
+ * MP注入处理器。当前用户来自 {@link UserContextProvider}；没有用户时（后台任务等）按系统用户 -1 填充
  *
  * @author Lion Li
  * @date 2021/4/25
@@ -34,11 +33,11 @@ public class InjectionMetaObjectHandler implements MetaObjectHandler {
 
     private static final String TENANT_ID = "tenantId";
 
-    private final ObjectProvider<UserContext> userContext;
+    private final ObjectProvider<UserContextProvider> userContext;
 
     private final ObjectProvider<TenantContext> tenantContext;
 
-    public InjectionMetaObjectHandler(ObjectProvider<UserContext> userContext, ObjectProvider<TenantContext> tenantContext) {
+    public InjectionMetaObjectHandler(ObjectProvider<UserContextProvider> userContext, ObjectProvider<TenantContext> tenantContext) {
         this.userContext = userContext;
         this.tenantContext = tenantContext;
     }
@@ -82,8 +81,10 @@ public class InjectionMetaObjectHandler implements MetaObjectHandler {
                 this.strictInsertFill(metaObject, "createTime", Date.class, legacyDate);
                 this.strictInsertFill(metaObject, "updateTime", Date.class, legacyDate);
             }
-        } catch (Exception e) {
-            throw new ServiceException("自动注入异常 => " + e.getMessage(), HttpStatus.HTTP_INTERNAL_ERROR);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw fillFailure(e);
         }
     }
 
@@ -109,9 +110,20 @@ public class InjectionMetaObjectHandler implements MetaObjectHandler {
                 this.strictUpdateFill(metaObject, "updateTime", LocalDateTime.class, LocalDateTime.now());
                 this.strictUpdateFill(metaObject, "updateTime", Date.class, new Date());
             }
-        } catch (Exception e) {
-            throw new ServiceException("自动注入异常 => " + e.getMessage(), HttpStatus.HTTP_INTERNAL_ERROR);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw fillFailure(e);
         }
+    }
+
+    /**
+     * 填充失败（读取当前用户、租户等出错）：业务异常（例如缺少租户上下文，400）在上面原样抛出，保留它的状态与提示；
+     * 其他异常的消息可能带内部信息（例如 Redis 地址），不放进异常消息，只作为 cause 保留，
+     * 由异常处理按未预期的异常返回 500 与错误编号，详情按编号记在日志中
+     */
+    private static IllegalStateException fillFailure(RuntimeException cause) {
+        return new IllegalStateException("自动填充审计字段失败", cause);
     }
 
     /**
@@ -120,7 +132,7 @@ public class InjectionMetaObjectHandler implements MetaObjectHandler {
      * @return 当前登录用户的信息，如果用户未登录则返回 null
      */
     private CurrentUser getLoginUser() {
-        UserContext context = userContext.getIfAvailable();
+        UserContextProvider context = userContext.getIfAvailable();
         return context == null ? null : context.currentUser().orElse(null);
     }
 

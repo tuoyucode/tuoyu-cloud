@@ -69,7 +69,7 @@ class SystemCrudIT {
             .findFirst()
             .orElseThrow(() -> new AssertionError("没有找到根部门"));
         // 新用户至少要有一个角色：取一个正常状态的非超级管理员角色
-        roleId = admin.get("/system/role/list", Map.of("pageNum", 1, "pageSize", 100)).assertOk("查询角色列表").rows().stream()
+        roleId = admin.get("/system/role/list", Map.of("page", 1, "pageSize", 100)).assertOk("查询角色列表").items().stream()
             .filter(role -> !"superadmin".equals(role.path("roleKey").asString()))
             .filter(role -> "0".equals(role.path("status").asString()))
             .map(role -> ApiResponse.id(role.path("roleId")))
@@ -137,8 +137,8 @@ class SystemCrudIT {
             "postSort", 99,
             "status", "0")).assertOk("新增岗位");
 
-        postId = admin.get("/system/post/list", Map.of("postCode", postCode, "pageNum", 1, "pageSize", 10))
-            .assertOk("按编码查询岗位").rows().stream()
+        postId = admin.get("/system/post/list", Map.of("postCode", postCode, "page", 1, "pageSize", 10))
+            .assertOk("按编码查询岗位").items().stream()
             .filter(post -> postCode.equals(post.path("postCode").asString()))
             .map(post -> ApiResponse.id(post.path("postId")))
             .findFirst()
@@ -209,8 +209,8 @@ class SystemCrudIT {
             assertThat(info.path("user").path("userName").asString()).isEqualTo(userName);
 
             // 选择用户（工作流转办、抄送等）只要求登录，且只返回识别用户所需的字段，不含联系方式
-            List<JsonNode> options = user.get("/system/user/options", Map.of("pageNum", 1, "pageSize", 10, "userName", userName))
-                .assertOk("普通用户选择用户").rows();
+            List<JsonNode> options = user.get("/system/user/options", Map.of("page", 1, "pageSize", 10, "userName", userName))
+                .assertOk("普通用户选择用户").items();
             assertThat(options).as("应能选到刚创建的用户").isNotEmpty();
             assertThat(options.getFirst().has("phoneNumber")).as("选择用户的结果不应含手机号").isFalse();
             assertThat(options.getFirst().has("email")).as("选择用户的结果不应含邮箱").isFalse();
@@ -220,7 +220,7 @@ class SystemCrudIT {
                 canManageUsers |= "system:user:list".equals(code) || "*:*:*".equals(code);
             }
             if (!canManageUsers) {
-                assertThat(user.get("/system/user/list").code()).as("没有用户管理权限时不能查询用户列表").isEqualTo(403);
+                user.get("/system/user/list").assertError(403, "没有用户管理权限时不能查询用户列表");
             }
         } finally {
             user.post("/auth/logout", Map.of()).assertOk("新用户登出");
@@ -240,7 +240,7 @@ class SystemCrudIT {
     void deletePost() {
         admin.delete("/system/post/" + requireId(postId, "岗位")).assertOk("删除岗位");
         ApiResponse detail = admin.get("/system/post/" + postId);
-        assertThat(detail.code() != 200 || detail.data().isNull() || detail.data().isMissingNode())
+        assertThat(detail.code() != ApiResponse.SUCCESS || detail.data().isNull() || detail.data().isMissingNode())
             .as("删除后不应再查询到岗位：" + detail).isTrue();
         postId = null;
     }
@@ -255,9 +255,36 @@ class SystemCrudIT {
         deptId = null;
     }
 
+    @Test
+    @Order(11)
+    void pagingAndSorting() {
+        // 前面的步骤登录过多次，登录日志至少有 2 条。sort 可以重复传多个，按顺序优先（同一秒内的登录再按编号排）
+        List<String> sort = List.of("loginTime,desc", "infoId,desc");
+        ApiResponse first = admin.get("/monitor/loginInfo/list", Map.of("page", 1, "pageSize", 2, "sort", sort))
+            .assertOk("分页查询登录日志");
+        List<JsonNode> items = first.items();
+        assertThat(items).as("每页 2 条").hasSize(2);
+        assertThat(first.total()).as("total 是全部行数").isGreaterThanOrEqualTo(2);
+        // 时间格式为 yyyy-MM-dd HH:mm:ss，按字符串比较即按时间比较
+        assertThat(items.get(0).path("loginTime").asString())
+            .as("按登录时间倒序").isGreaterThanOrEqualTo(items.get(1).path("loginTime").asString());
+
+        ApiResponse second = admin.get("/monitor/loginInfo/list", Map.of("page", 2, "pageSize", 1, "sort", sort))
+            .assertOk("查询登录日志第 2 页");
+        assertThat(second.total()).as("翻页不影响 total").isGreaterThanOrEqualTo(2);
+        assertThat(second.items()).hasSize(1);
+        assertThat(second.items().getFirst().path("infoId").asString())
+            .as("第 2 页（每页 1 条）是第 1 页（每页 2 条）的第 2 行")
+            .isEqualTo(items.get(1).path("infoId").asString());
+
+        // 排序属性只能来自实体，其他一律拒绝
+        admin.get("/monitor/loginInfo/list", Map.of("page", 1, "pageSize", 2, "sort", "noSuchField,desc"))
+            .assertError(400, "按不存在的属性排序");
+    }
+
     private java.util.Optional<JsonNode> findUser() {
-        return admin.get("/system/user/list", Map.of("userName", userName, "pageNum", 1, "pageSize", 10))
-            .assertOk("按账号查询用户").rows().stream()
+        return admin.get("/system/user/list", Map.of("userName", userName, "page", 1, "pageSize", 10))
+            .assertOk("按账号查询用户").items().stream()
             .filter(row -> userName.equals(row.path("userName").asString()))
             .findFirst();
     }
@@ -274,7 +301,7 @@ class SystemCrudIT {
     private static void quietly(String what, java.util.function.Supplier<ApiResponse> action) {
         try {
             ApiResponse response = action.get();
-            if (response.code() != 200) {
+            if (response.code() != ApiResponse.SUCCESS) {
                 System.err.println("清理测试数据未成功（" + what + "）：" + response);
             }
         } catch (RuntimeException e) {

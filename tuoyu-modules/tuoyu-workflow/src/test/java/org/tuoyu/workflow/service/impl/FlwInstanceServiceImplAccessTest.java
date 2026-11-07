@@ -21,12 +21,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.workflow.domain.bo.FlowVariableBo;
+import org.tuoyu.common.core.context.CurrentUser;
+import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.workflow.service.IFlwTaskService;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,12 +39,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DisplayName("流程实例：读取范围与流程变量的修改")
 class FlwInstanceServiceImplAccessTest {
 
-    private MockedStatic<LoginHelper> login;
+    private UserContextProvider previousProvider;
+    private CurrentUser currentUser;
     private MockedStatic<StpUtil> stp;
     private MockedStatic<FlowEngine> engine;
 
@@ -64,12 +71,11 @@ class FlwInstanceServiceImplAccessTest {
         userService = mock(UserService.class);
         service = new FlwInstanceServiceImpl(null, null, null, hisTaskMapper, instanceMapper, taskService, null, null);
 
-        login = mockStatic(LoginHelper.class);
+        currentUser = user(7L);
+        previousProvider = UserContext.setProvider(() -> Optional.ofNullable(currentUser));
         stp = mockStatic(StpUtil.class);
         engine = mockStatic(FlowEngine.class);
         engine.when(FlowEngine::userService).thenReturn(userService);
-        login.when(LoginHelper::getUserIdStr).thenReturn("7");
-        login.when(LoginHelper::isSuperAdmin).thenReturn(false);
         stp.when(() -> StpUtil.hasPermissionOr(any(String[].class))).thenReturn(false);
 
         FlowInstance instance = new FlowInstance();
@@ -83,7 +89,7 @@ class FlwInstanceServiceImplAccessTest {
 
     @AfterEach
     void tearDown() {
-        login.close();
+        UserContext.setProvider(previousProvider);
         stp.close();
         engine.close();
     }
@@ -97,7 +103,7 @@ class FlwInstanceServiceImplAccessTest {
     @Test
     @DisplayName("发起人可以查看")
     void initiatorCanRead() {
-        login.when(LoginHelper::getUserIdStr).thenReturn("1");
+        currentUser = user(1L);
         assertDoesNotThrow(() -> service.checkInstanceReadAccess(100L));
     }
 
@@ -133,6 +139,30 @@ class FlwInstanceServiceImplAccessTest {
     }
 
     @Test
+    @DisplayName("没有登录用户时拒绝（401），不能因办理人、发起人为空而放行")
+    void anonymousShouldBeRejected() {
+        currentUser = null;
+        ServiceException e = assertThrows(ServiceException.class, () -> service.checkInstanceReadAccess(100L));
+        assertEquals(Integer.valueOf(401), e.getCode());
+    }
+
+    @Test
+    @DisplayName("修改流程变量：变量不存在时拒绝并说明原因，不写入")
+    void updateUnknownVariableShouldBeRejected() {
+        FlowInstance instance = mock(FlowInstance.class);
+        when(instance.getVariableMap()).thenReturn(Map.of("days", 3));
+        when(instanceMapper.selectById(200L)).thenReturn(instance);
+        FlowVariableBo bo = new FlowVariableBo();
+        bo.setInstanceId(200L);
+        bo.setKey("amount");
+        bo.setValue("1");
+
+        ServiceException e = assertThrows(ServiceException.class, () -> service.updateVariable(bo));
+        assertEquals("流程变量 amount 不存在，只能修改已有的变量", e.getMessage());
+        verify(instanceMapper, never()).updateById(any(FlowInstance.class));
+    }
+
+    @Test
     @DisplayName("修改流程变量时按原来的类型转换，无法转换时拒绝")
     void shouldKeepVariableType() {
         assertEquals(1200, FlwInstanceServiceImpl.convertVariableValue("days", 3, " 1200 "));
@@ -144,6 +174,12 @@ class FlwInstanceServiceImplAccessTest {
         assertThrows(ServiceException.class, () -> FlwInstanceServiceImpl.convertVariableValue("days", 3, "three"));
         assertThrows(ServiceException.class, () -> FlwInstanceServiceImpl.convertVariableValue("pass", true, "yes"));
         assertThrows(ServiceException.class, () -> FlwInstanceServiceImpl.convertVariableValue("map", Map.of("a", 1), "x"));
+    }
+
+    private static CurrentUser user(Long userId) {
+        CurrentUser user = new CurrentUser();
+        user.setUserId(userId);
+        return user;
     }
 
 }

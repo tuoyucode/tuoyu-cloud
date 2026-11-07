@@ -1,8 +1,5 @@
 package org.tuoyu.common.web;
 
-import org.tuoyu.common.core.constant.HttpStatus;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.web.core.BaseController;
 import org.tuoyu.common.web.core.I18nLocaleResolver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,41 +52,5 @@ class WebFunctionTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("content-language", header);
         return resolver.resolveLocale(request);
-    }
-
-    /**
-     * 验证控制器通用响应转换。
-     */
-    @Test
-    @DisplayName("转换控制器操作结果")
-    void shouldConvertControllerResults() {
-        TestController controller = new TestController();
-
-        assertEquals(HttpStatus.SUCCESS, controller.rows(1).getCode());
-        assertEquals(HttpStatus.ERROR, controller.rows(0).getCode());
-        assertEquals(HttpStatus.SUCCESS, controller.result(true).getCode());
-    }
-
-    private static class TestController extends BaseController {
-
-        /**
-         * 暴露受保护的行数转换方法供测试调用。
-         *
-         * @param rows 影响行数
-         * @return 统一响应
-         */
-        private R<Void> rows(int rows) {
-            return toAjax(rows);
-        }
-
-        /**
-         * 暴露受保护的布尔转换方法供测试调用。
-         *
-         * @param result 操作结果
-         * @return 统一响应
-         */
-        private R<Void> result(boolean result) {
-            return toAjax(result);
-        }
     }
 }

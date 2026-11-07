@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.SysUserRole;
 import org.tuoyu.system.domain.bo.SysRoleBo;
 import org.tuoyu.system.domain.vo.SysRoleVo;
@@ -20,10 +20,10 @@ public interface ISysRoleService {
      * 分页查询角色列表
      *
      * @param role      查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 角色分页列表
      */
-    PageResult<SysRoleVo> selectPageRoleList(SysRoleBo role, PageQuery pageQuery);
+    PageResult<SysRoleVo> selectPageRoleList(SysRoleBo role, PageParam pageParam);
 
     /**
      * 根据条件分页查询角色数据
@@ -145,76 +145,67 @@ public interface ISysRoleService {
      * 新增保存角色信息
      *
      * @param bo 角色信息
-     * @return 结果
      */
-    int insertRole(SysRoleBo bo);
+    void insertRole(SysRoleBo bo);
 
     /**
      * 修改角色基础信息（不包含菜单/数据权限）。
      *
      * @param bo 角色信息
-     * @return 影响行数
      */
-    int updateRoleBaseInfo(SysRoleBo bo);
+    void updateRoleBaseInfo(SysRoleBo bo);
 
     /**
      * 修改角色权限信息（菜单权限 + 数据权限）。
      *
      * @param bo 角色权限参数
-     * @return 影响行数
      */
-    int updateRolePermission(SysRoleBo bo);
+    void updateRolePermission(SysRoleBo bo);
 
     /**
      * 修改角色状态
      *
      * @param roleId 角色ID
      * @param status 角色状态
-     * @return 结果
      */
-    int updateRoleStatus(Long roleId, String status);
+    void updateRoleStatus(Long roleId, String status);
 
     /**
      * 通过角色ID删除角色
      *
      * @param roleId 角色ID
-     * @return 结果
      */
-    int deleteRoleById(Long roleId);
+    void deleteRoleById(Long roleId);
 
     /**
      * 批量删除角色信息
      *
      * @param roleIds 需要删除的角色ID
-     * @return 结果
      */
-    int deleteRoleByIds(List<Long> roleIds);
+    void deleteRoleByIds(List<Long> roleIds);
 
     /**
      * 取消授权用户角色
      *
      * @param userRole 用户和角色关联信息
-     * @return 结果
      */
-    int deleteAuthUser(SysUserRole userRole);
+    void deleteAuthUser(SysUserRole userRole);
 
     /**
      * 批量取消授权用户角色
      *
      * @param roleId  角色ID
      * @param userIds 需要取消授权的用户数据ID
-     * @return 结果
      */
-    int deleteAuthUsers(Long roleId, Long[] userIds);
+    void deleteAuthUsers(Long roleId, Long[] userIds);
 
     /**
      * 批量选择授权用户角色
      *
      * @param roleId  角色ID
      * @param userIds 需要删除的用户数据ID
-     * @return 结果
      */
-    int insertAuthUsers(Long roleId, Long[] userIds);
+    void insertAuthUsers(Long roleId, Long[] userIds);
 
     void cleanOnlineUserByRole(Long roleId);
 

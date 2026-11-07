@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysUserBo;
 import org.tuoyu.system.domain.vo.SysUserExportVo;
 import org.tuoyu.system.domain.vo.SysUserOptionVo;
@@ -21,20 +21,20 @@ public interface ISysUserService {
      * 根据条件分页查询用户列表
      *
      * @param user      用户信息
-     * @param pageQuery 发呢也
+     * @param pageParam 发呢也
      * @return 用户信息
      */
-    PageResult<SysUserVo> selectPageUserList(SysUserBo user, PageQuery pageQuery);
+    PageResult<SysUserVo> selectPageUserList(SysUserBo user, PageParam pageParam);
 
     /**
      * 选择用户时分页查询（工作流转办、委派、加签、抄送等）：只查正常状态的用户，只返回识别用户所需的字段。
      * 不按数据权限过滤：办理流程时要能选到其他部门的人
      *
      * @param user      查询条件（账号、昵称、部门、排除的用户）
-     * @param pageQuery 分页
+     * @param pageParam 分页
      * @return 用户信息
      */
-    PageResult<SysUserOptionVo> selectUserOptionPage(SysUserBo user, PageQuery pageQuery);
+    PageResult<SysUserOptionVo> selectUserOptionPage(SysUserBo user, PageParam pageParam);
 
     /**
      * 导出用户列表
@@ -58,7 +58,7 @@ public interface ISysUserService {
      * @param user 用户信息
      * @return 用户信息集合信息
      */
-    PageResult<SysUserVo> selectAllocatedList(SysUserBo user, PageQuery pageQuery);
+    PageResult<SysUserVo> selectAllocatedList(SysUserBo user, PageParam pageParam);
 
     /**
      * 根据条件分页查询未分配用户角色列表
@@ -66,7 +66,7 @@ public interface ISysUserService {
      * @param user 用户信息
      * @return 用户信息集合信息
      */
-    PageResult<SysUserVo> selectUnallocatedList(SysUserBo user, PageQuery pageQuery);
+    PageResult<SysUserVo> selectUnallocatedList(SysUserBo user, PageParam pageParam);
 
     /**
      * 通过用户名查询用户
@@ -159,25 +159,23 @@ public interface ISysUserService {
      * 新增用户信息
      *
      * @param user 用户信息
-     * @return 结果
      */
-    int insertUser(SysUserBo user);
+    void insertUser(SysUserBo user);
 
     /**
      * 注册用户信息
      *
      * @param user 用户信息
-     * @return 结果
+     * @throws org.tuoyu.common.core.exception.user.UserException 没有写入用户
      */
-    boolean registerUser(SysUserBo user);
+    void registerUser(SysUserBo user);
 
     /**
      * 修改用户信息
      *
      * @param user 用户信息
-     * @return 结果
      */
-    int updateUser(SysUserBo user);
+    void updateUser(SysUserBo user);
 
     /**
      * 用户授权角色（覆盖原有角色）
@@ -197,42 +195,37 @@ public interface ISysUserService {
      *
      * @param userId 用户ID
      * @param status 账号状态
-     * @return 结果
      */
-    int updateUserStatus(Long userId, String status);
+    void updateUserStatus(Long userId, String status);
 
     /**
      * 修改用户基本信息
      *
      * @param user 用户信息
-     * @return 结果
      */
-    int updateUserProfile(SysUserBo user);
+    void updateUserProfile(SysUserBo user);
 
     /**
      * 重置用户密码
      *
      * @param userId   用户ID
      * @param password 密码
-     * @return 结果
      */
-    int resetUserPwd(Long userId, String password);
+    void resetUserPwd(Long userId, String password);
 
     /**
      * 通过用户ID删除用户
      *
      * @param userId 用户ID
-     * @return 结果
      */
-    int deleteUserById(Long userId);
+    void deleteUserById(Long userId);
 
     /**
      * 批量删除用户信息
      *
      * @param userIds 需要删除的用户ID
-     * @return 结果
      */
-    int deleteUserByIds(Long[] userIds);
+    void deleteUserByIds(Long[] userIds);
 
     /**
      * 通过用户ID查询用户账户

@@ -10,6 +10,8 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
+import org.tuoyu.common.core.web.TraceIdSource;
+import org.tuoyu.common.observability.trace.TraceContext;
 import org.tuoyu.common.observability.trace.TraceFilter;
 import org.tuoyu.common.observability.trace.TraceProperties;
 import org.tuoyu.common.observability.trace.TracePropagator;
@@ -28,6 +30,14 @@ public class TraceAutoConfiguration {
      * 过滤器顺序：最先执行，之后的过滤器（请求大小限制、解密、网关日志等）的日志与拒绝响应都带 traceId
      */
     public static final int FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE;
+
+    /**
+     * 当前 traceId：不依赖本模块的组件（请求大小限制、服务的登录校验）写错误响应时使用
+     */
+    @Bean
+    public TraceIdSource traceIdSource() {
+        return TraceContext::traceId;
+    }
 
     /**
      * HTTP 入口

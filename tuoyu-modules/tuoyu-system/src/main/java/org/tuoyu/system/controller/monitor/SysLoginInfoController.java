@@ -5,15 +5,14 @@ import com.baomidou.lock.annotation.Lock4j;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.utils.LoginFailureKeys;
 import org.tuoyu.common.excel.utils.ExcelBuilder;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.common.redis.utils.RedisUtils;
-import org.tuoyu.common.web.core.BaseController;
 import org.tuoyu.system.domain.bo.SysLoginInfoBo;
 import org.tuoyu.system.domain.vo.SysLoginInfoVo;
 import org.tuoyu.system.service.ISysLoginInfoService;
@@ -29,7 +28,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/loginInfo")
-public class SysLoginInfoController extends BaseController {
+public class SysLoginInfoController {
 
     private final ISysLoginInfoService loginInfoService;
 
@@ -38,14 +37,14 @@ public class SysLoginInfoController extends BaseController {
      */
     @SaCheckPermission("monitor:logininfo:list")
     @GetMapping("/list")
-    public R<PageResult<SysLoginInfoVo>> list(SysLoginInfoBo loginInfo, PageQuery pageQuery) {
-        return R.ok(loginInfoService.selectPageLoginInfoList(loginInfo, pageQuery));
+    public ApiResult<PageResult<SysLoginInfoVo>> list(SysLoginInfoBo loginInfo, PageParam pageParam) {
+        return ApiResult.ok(loginInfoService.selectPageLoginInfoList(loginInfo, pageParam));
     }
 
     /**
      * 导出系统访问记录列表
      */
-    @Log(title = "登录日志", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "登录日志", action = AuditAction.EXPORT)
     @SaCheckPermission("monitor:logininfo:export")
     @PostMapping("/export")
     public void export(SysLoginInfoBo loginInfo, HttpServletResponse response) {
@@ -60,32 +59,33 @@ public class SysLoginInfoController extends BaseController {
      * @param infoIds 日志ids
      */
     @SaCheckPermission("monitor:logininfo:remove")
-    @Log(title = "登录日志", businessType = BusinessType.DELETE)
+    @OperationLog(module = "登录日志", action = AuditAction.DELETE)
     @DeleteMapping("/{infoIds}")
-    public R<Void> remove(@PathVariable Long[] infoIds) {
-        return toAjax(loginInfoService.deleteLoginInfoByIds(infoIds));
+    public ApiResult<Void> remove(@PathVariable Long[] infoIds) {
+        loginInfoService.deleteLoginInfoByIds(infoIds);
+        return ApiResult.ok();
     }
 
     /**
      * 清理系统访问记录
      */
     @SaCheckPermission("monitor:logininfo:remove")
-    @Log(title = "登录日志", businessType = BusinessType.CLEAN)
+    @OperationLog(module = "登录日志", action = AuditAction.CLEAN)
     @Lock4j
     @DeleteMapping("/clean")
-    public R<Void> clean() {
+    public ApiResult<Void> clean() {
         loginInfoService.cleanLoginInfo();
-        return R.ok();
+        return ApiResult.ok();
     }
 
     @SaCheckPermission("monitor:logininfo:unlock")
-    @Log(title = "账户解锁", businessType = BusinessType.OTHER)
-    @RepeatSubmit()
+    @OperationLog(module = "账户解锁", action = AuditAction.OTHER)
+    @PreventResubmit
     @GetMapping("/unlock/{userName}")
-    public R<Void> unlock(@PathVariable("userName") String userName) {
+    public ApiResult<Void> unlock(@PathVariable("userName") String userName) {
         // 清除该账号（登录日志中的账号：用户名、手机号或邮箱）的登录失败计数
         RedisUtils.deleteObject(LoginFailureKeys.account(userName));
-        return R.ok();
+        return ApiResult.ok();
     }
 
 }

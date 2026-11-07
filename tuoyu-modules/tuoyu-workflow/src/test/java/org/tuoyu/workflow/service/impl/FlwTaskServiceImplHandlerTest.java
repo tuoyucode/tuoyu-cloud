@@ -15,12 +15,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.context.CurrentUser;
+import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.workflow.domain.bo.FlowUrgeTaskBo;
 import org.tuoyu.system.api.RemoteUserService;
 import org.tuoyu.system.api.domain.vo.RemoteUserVo;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,7 +40,7 @@ import static org.mockito.Mockito.when;
 @DisplayName("任务办理人：对外查询校验读取权限，流转后内部通知不校验")
 class FlwTaskServiceImplHandlerTest {
 
-    private MockedStatic<LoginHelper> login;
+    private UserContextProvider previousProvider;
     private MockedStatic<StpUtil> stp;
     private MockedStatic<FlowEngine> engine;
 
@@ -51,13 +56,13 @@ class FlwTaskServiceImplHandlerTest {
         service = new FlwTaskServiceImpl(taskService, insService, null, null, null, null, null, null, null, null,
             null, null, null, null, null, remoteUserService);
 
-        login = mockStatic(LoginHelper.class);
         stp = mockStatic(StpUtil.class);
         engine = mockStatic(FlowEngine.class);
         engine.when(FlowEngine::userService).thenReturn(userService);
         // 当前用户 7：既不是下一节点的办理人，也不是发起人，没有任务管理权限
-        login.when(LoginHelper::getUserIdStr).thenReturn("7");
-        login.when(LoginHelper::isSuperAdmin).thenReturn(false);
+        CurrentUser user = new CurrentUser();
+        user.setUserId(7L);
+        previousProvider = UserContext.setProvider(() -> Optional.of(user));
         stp.when(() -> StpUtil.hasPermission(anyString())).thenReturn(false);
 
         FlowTask next = new FlowTask();
@@ -80,7 +85,7 @@ class FlwTaskServiceImplHandlerTest {
 
     @AfterEach
     void tearDown() {
-        login.close();
+        UserContext.setProvider(previousProvider);
         stp.close();
         engine.close();
     }
@@ -106,6 +111,24 @@ class FlwTaskServiceImplHandlerTest {
         assertThat(service.selectHandlersByTaskIds(List.of())).isEmpty();
         assertThat(service.selectHandlersByTaskIds(null)).isEmpty();
         assertThat(service.selectHandlersByTaskIds(Arrays.asList((Long) null))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("催办：没有选择任务时拒绝并说明原因")
+    void urgeWithoutTasksShouldBeRejected() {
+        FlowUrgeTaskBo bo = new FlowUrgeTaskBo();
+        bo.setTaskIdList(List.of());
+        assertThatThrownBy(() -> service.urgeTask(bo))
+            .isInstanceOf(ServiceException.class)
+            .hasMessage("请选择要催办的任务");
+    }
+
+    @Test
+    @DisplayName("修改办理人：没有选择任务时拒绝并说明原因")
+    void updateAssigneeWithoutTasksShouldBeRejected() {
+        assertThatThrownBy(() -> service.updateAssignee(List.of(), "1"))
+            .isInstanceOf(ServiceException.class)
+            .hasMessage("请选择要修改办理人的任务");
     }
 
 }

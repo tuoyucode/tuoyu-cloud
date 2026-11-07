@@ -7,12 +7,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.mockito.MockedStatic;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.system.support.CurrentUserStub;
 import org.tuoyu.system.domain.SysUser;
 import org.tuoyu.system.domain.SysUserPost;
 import org.tuoyu.system.domain.SysUserRole;
@@ -32,19 +31,20 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -70,7 +70,7 @@ class SysUserServiceBusinessTest {
     private final SysUserServiceImpl service = new SysUserServiceImpl(userMapper, deptMapper, roleMapper, postMapper,
         userRoleMapper, userPostMapper, quota);
 
-    private final MockedStatic<LoginHelper> login = mockStatic(LoginHelper.class, CALLS_REAL_METHODS);
+    private final CurrentUserStub login = CurrentUserStub.install();
 
     @AfterEach
     void closeStatic() {
@@ -78,7 +78,7 @@ class SysUserServiceBusinessTest {
     }
 
     private void loginAs(Long userId) {
-        login.when(LoginHelper::getUserId).thenReturn(userId);
+        login.userId(userId);
     }
 
     private static SysUser user(Long id, String name) {
@@ -117,7 +117,7 @@ class SysUserServiceBusinessTest {
             bo.setPostIds(new Long[]{3L, 4L});
             bo.setRoleIds(new Long[]{2L});
 
-            assertEquals(1, service.insertUser(bo));
+            assertDoesNotThrow(() -> service.insertUser(bo));
 
             verify(quota).checkBeforeAdd();
             assertEquals(100L, bo.getUserId());
@@ -127,12 +127,12 @@ class SysUserServiceBusinessTest {
             assertEquals("Alice", saved.getValue().getNickName());
 
             ArgumentCaptor<Collection<SysUserPost>> posts = ArgumentCaptor.captor();
-            verify(userPostMapper).insertBatch(posts.capture());
+            verify(userPostMapper).insert(posts.capture());
             assertThat(posts.getValue()).extracting(SysUserPost::getPostId).containsExactly(3L, 4L);
             assertThat(posts.getValue()).allMatch(p -> p.getUserId() == 100L);
 
             ArgumentCaptor<Collection<SysUserRole>> roles = ArgumentCaptor.captor();
-            verify(userRoleMapper).insertBatch(roles.capture());
+            verify(userRoleMapper).insert(roles.capture());
             assertThat(roles.getValue()).extracting(SysUserRole::getRoleId).containsExactly(2L);
             // 新增时不清理旧的关联
             verify(userRoleMapper, never()).deleteByUserId(any());
@@ -157,7 +157,7 @@ class SysUserServiceBusinessTest {
 
             ServiceException ex = assertThrows(ServiceException.class, () -> service.insertUser(bo));
             assertTrue(ex.getMessage().contains("岗位"));
-            verify(userPostMapper, never()).insertBatch(any());
+            verify(userPostMapper, never()).insert(anyCollection());
         }
 
         @Test
@@ -172,7 +172,7 @@ class SysUserServiceBusinessTest {
 
             ServiceException ex = assertThrows(ServiceException.class, () -> service.insertUser(bo));
             assertTrue(ex.getMessage().contains("超级管理员"));
-            verify(userRoleMapper, never()).insertBatch(any());
+            verify(userRoleMapper, never()).insert(anyCollection());
         }
 
         @Test
@@ -183,7 +183,7 @@ class SysUserServiceBusinessTest {
             service.insertUserAuth(100L, new Long[]{ADMIN_ROLE, 5L});
 
             ArgumentCaptor<Collection<SysUserRole>> roles = ArgumentCaptor.captor();
-            verify(userRoleMapper).insertBatch(roles.capture());
+            verify(userRoleMapper).insert(roles.capture());
             assertThat(roles.getValue()).extracting(SysUserRole::getRoleId).containsExactly(5L);
             verify(userRoleMapper).deleteByUserId(100L);
         }
@@ -196,7 +196,7 @@ class SysUserServiceBusinessTest {
             service.insertUserAuth(ADMIN, new Long[]{ADMIN_ROLE});
 
             ArgumentCaptor<Collection<SysUserRole>> roles = ArgumentCaptor.captor();
-            verify(userRoleMapper).insertBatch(roles.capture());
+            verify(userRoleMapper).insert(roles.capture());
             assertThat(roles.getValue()).extracting(SysUserRole::getRoleId).containsExactly(ADMIN_ROLE);
         }
 
@@ -216,13 +216,17 @@ class SysUserServiceBusinessTest {
             SysUserBo bo = new SysUserBo();
             bo.setUserName("bob");
 
-            assertTrue(service.registerUser(bo));
+            service.registerUser(bo);
 
             verify(quota).checkBeforeAdd();
             ArgumentCaptor<SysUser> saved = ArgumentCaptor.forClass(SysUser.class);
             verify(userMapper).insert(saved.capture());
             assertEquals(0L, saved.getValue().getCreateBy());
             assertEquals(0L, saved.getValue().getUpdateBy());
+
+            // 没有写入用户时抛出带原因的异常
+            when(userMapper.insert(any(SysUser.class))).thenReturn(0);
+            assertThrows(org.tuoyu.common.core.exception.user.UserException.class, () -> service.registerUser(new SysUserBo()));
         }
     }
 
@@ -253,21 +257,21 @@ class SysUserServiceBusinessTest {
             bo.setRoleIds(new Long[]{2L});
             bo.setPostIds(new Long[]{3L});
 
-            assertEquals(1, service.updateUser(bo));
+            assertDoesNotThrow(() -> service.updateUser(bo));
 
             verify(userRoleMapper).deleteByUserId(100L);
             ArgumentCaptor<Wrapper> wrapper = ArgumentCaptor.forClass(Wrapper.class);
             verify(userPostMapper).delete(wrapper.capture());
             assertThat(captured(wrapper).getSqlSegment()).contains("user_id");
-            verify(userRoleMapper).insertBatch(any());
-            verify(userPostMapper).insertBatch(any());
+            verify(userRoleMapper).insert(anyCollection());
+            verify(userPostMapper).insert(anyCollection());
         }
 
         @Test
         @DisplayName("删除单个用户：先删角色、岗位关联；用户不存在时报错")
         void deleteUserById() {
             when(userMapper.deleteById(100L)).thenReturn(1);
-            assertEquals(1, service.deleteUserById(100L));
+            assertDoesNotThrow(() -> service.deleteUserById(100L));
             verify(userRoleMapper).delete(any());
             verify(userPostMapper).delete(any());
 
@@ -300,7 +304,7 @@ class SysUserServiceBusinessTest {
         void deleteUsers() {
             loginAs(ADMIN);
             when(userMapper.deleteByIds(anyList())).thenReturn(2);
-            assertEquals(2, service.deleteUserByIds(new Long[]{100L, 101L}));
+            assertDoesNotThrow(() -> service.deleteUserByIds(new Long[]{100L, 101L}));
             verify(userRoleMapper).delete(any());
             verify(userPostMapper).delete(any());
 
@@ -311,17 +315,18 @@ class SysUserServiceBusinessTest {
         @Test
         @DisplayName("修改状态、个人资料、重置密码都按用户 ID 更新")
         void updateFields() {
-            when(userMapper.update(any(Wrapper.class))).thenReturn(1);
+            // SysUserMapper.update(Wrapper) 是带数据权限的默认方法，转调 update(null, wrapper)
+            when(userMapper.update(org.mockito.ArgumentMatchers.isNull(), any(Wrapper.class))).thenReturn(1);
 
-            assertEquals(1, service.updateUserStatus(100L, "1"));
+            assertDoesNotThrow(() -> service.updateUserStatus(100L, "1"));
             SysUserBo profile = new SysUserBo();
             profile.setUserId(100L);
             profile.setNickName("新昵称");
-            assertEquals(1, service.updateUserProfile(profile));
-            assertEquals(1, service.resetUserPwd(100L, "hash"));
+            assertDoesNotThrow(() -> service.updateUserProfile(profile));
+            assertDoesNotThrow(() -> service.resetUserPwd(100L, "hash"));
 
             ArgumentCaptor<Wrapper> wrapper = ArgumentCaptor.forClass(Wrapper.class);
-            verify(userMapper, org.mockito.Mockito.times(3)).update(wrapper.capture());
+            verify(userMapper, org.mockito.Mockito.times(3)).update(org.mockito.ArgumentMatchers.isNull(), wrapper.capture());
             List<Wrapper> all = wrapper.getAllValues();
             assertThat(all.get(0).getSqlSet()).contains("status");
             assertThat(all.get(1).getSqlSet()).contains("nick_name").doesNotContain("email");
@@ -404,10 +409,10 @@ class SysUserServiceBusinessTest {
             bo.setUserName("ali");
             bo.setExcludeUserIds("1,2");
 
-            PageResult<SysUserVo> result = service.selectPageUserList(bo, new PageQuery());
+            PageResult<SysUserVo> result = service.selectPageUserList(bo, new PageParam());
 
-            assertEquals(1, result.getRows().size());
-            assertEquals("alice", result.getRows().iterator().next().getUserName());
+            assertEquals(1, result.getItems().size());
+            assertEquals("alice", result.getItems().iterator().next().getUserName());
             ArgumentCaptor<Wrapper> wrapper = ArgumentCaptor.forClass(Wrapper.class);
             verify(userMapper).selectList(any(com.baomidou.mybatisplus.core.metadata.IPage.class), wrapper.capture());
             String sql = captured(wrapper).getSqlSegment();
@@ -516,10 +521,10 @@ class SysUserServiceBusinessTest {
             bo.setRoleId(2L);
             bo.setUserName("a");
 
-            assertEquals(1, service.selectAllocatedList(bo, new PageQuery()).getTotal());
+            assertEquals(1, service.selectAllocatedList(bo, new PageParam()).getTotal());
 
             when(userRoleMapper.selectUserIdsByRoleId(2L)).thenReturn(List.of(100L));
-            assertEquals(1, service.selectUnallocatedList(bo, new PageQuery()).getTotal());
+            assertEquals(1, service.selectUnallocatedList(bo, new PageParam()).getTotal());
         }
 
         @Test

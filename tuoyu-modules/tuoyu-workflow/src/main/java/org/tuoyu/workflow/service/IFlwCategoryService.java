@@ -88,27 +88,24 @@ public interface IFlwCategoryService {
     boolean hasChildByCategoryId(Long categoryId);
 
     /**
-     * 新增流程分类
+     * 新增流程分类：父级分类不存在、同一父级下名称重复时抛出业务异常
      *
      * @param bo 流程分类
-     * @return 是否新增成功
      */
-    int insertByBo(FlowCategoryBo bo);
+    void insertByBo(FlowCategoryBo bo);
 
     /**
-     * 修改流程分类
+     * 修改流程分类：分类不存在、名称重复、上级是自己时抛出业务异常
      *
      * @param bo 流程分类
-     * @return 是否修改成功
      */
-    int updateByBo(FlowCategoryBo bo);
+    void updateByBo(FlowCategoryBo bo);
 
     /**
-     * 删除流程分类信息
+     * 删除流程分类信息：默认分类、有下级分类或已有流程定义时抛出业务异常
      *
      * @param categoryId 主键
-     * @return 是否删除成功
      */
-    int deleteWithValidById(Long categoryId);
+    void deleteWithValidById(Long categoryId);
 
 }

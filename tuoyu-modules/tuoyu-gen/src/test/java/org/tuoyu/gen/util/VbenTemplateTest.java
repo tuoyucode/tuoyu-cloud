@@ -28,14 +28,24 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Vben 前端模板：渲染单表与树表，检查输出路径与关键内容。
+ * 代码生成模板：渲染单表与树表，检查输出路径与关键内容。
  * <p>
- * 渲染结果写到 target/vben-preview，便于放进前端仓库做类型检查与比对。
+ * 前端代码写到 target/vben-preview，便于放进前端仓库做类型检查与比对；
+ * 后端代码写到 target/java-preview，便于编译检查。
  */
-@DisplayName("Vben 风格代码生成模板")
+@DisplayName("代码生成模板")
 class VbenTemplateTest {
 
     private static final Path PREVIEW = Path.of("target", "vben-preview");
+
+    private static final Path JAVA_PREVIEW = Path.of("target", "java-preview");
+
+    /**
+     * 生成的后端代码中不应出现的旧写法
+     */
+    private static final List<String> REMOVED_API = List.of("R<", "R.ok", "R.fail", "toAjax", "BaseController",
+        "PageQuery", "BaseMapperPlus", "MapstructUtils", "selectVo", "AddGroup", "EditGroup", "@Log(",
+        "BusinessType", "RepeatSubmit", ".lambda()", "Boolean insertByBo", "Boolean updateByBo");
 
     private static AnnotationConfigApplicationContext context;
 
@@ -54,9 +64,9 @@ class VbenTemplateTest {
     }
 
     @Test
-    @DisplayName("默认使用 Vben 模板")
-    void shouldUseVbenByDefault() {
-        List<String> paths = TemplateEngineUtils.getFrontendTemplateList(GenConstants.TPL_CRUD, null).stream()
+    @DisplayName("前端只使用 Vben 模板")
+    void shouldUseVbenTemplates() {
+        List<String> paths = TemplateEngineUtils.getFrontendTemplateList(GenConstants.TPL_CRUD).stream()
             .map(PathNamedTemplate::getPathName).toList();
 
         assertEquals(List.of(GenConstants.VBEN_API_TEMPLATE_PATH, GenConstants.VBEN_DATA_TEMPLATE_PATH,
@@ -90,6 +100,11 @@ class VbenTemplateTest {
         String index = files.get("vben/views/system/postDemo/index.vue");
         assertTrue(index.contains("hasPermission('system:postDemo:export')"));
         assertTrue(index.contains("import PostDemoDrawer from './post-demo-drawer.vue';"));
+        // 分页参数用 toPageQuery 生成（page、pageSize、sort），结果读 items
+        assertTrue(index.contains("...toPageQuery(page),"));
+        assertTrue(index.contains("import { toPageQuery } from '#/utils/page-query';"));
+        assertFalse(index.contains("pageNum"));
+        assertTrue(api.contains("import type { PageQuery, PageResult } from '#/api/types';"));
         // 生成的 TS 中可以有模板字符串 ${...}，但不能有未替换的模板变量
         files.values().forEach(content -> assertFalse(
             content.matches("(?s).*\\$\\{(ClassName|className|BusinessName|businessName|moduleName|functionName|column|pk|i18n|D)[.}].*"),
@@ -110,6 +125,8 @@ class VbenTemplateTest {
         assertTrue(index.contains("parentField: 'parentId'"));
         assertTrue(index.contains("rowField: 'deptId'"));
         assertTrue(index.contains("onCreate(row)"));
+        assertTrue(index.contains("items: await listDeptDemo(formValues),"));
+        assertFalse(index.contains("rows:"));
 
         String data = files.get("vben/views/system/deptDemo/data.ts");
         assertTrue(data.contains("listToTree(await listDeptDemo(), 'deptId', 'parentId')"));
@@ -118,27 +135,67 @@ class VbenTemplateTest {
         String api = files.get("vben/api/system/deptDemo.ts");
         assertTrue(api.contains("requestClient.get<DeptDemoApi.DeptDemo[]>"));
         assertFalse(api.contains("PageResult"));
+        assertFalse(api.contains("PageQuery"));
     }
 
     @Test
     @DisplayName("后端模板：开启导出时先统计行数再查询（导出行数上限）")
-    void shouldRenderCountFirstExport() {
+    void shouldRenderCountFirstExport() throws IOException {
         Map<String, String> crud = renderBackend(postTable());
         assertTrue(crud.get(GenConstants.JAVA_CONTROLLER_TEMPLATE_PATH).contains(
             "ExcelBuilder.query(() -> postDemoService.countList(bo), () -> postDemoService.queryList(bo), PostDemoVo.class)"));
         assertTrue(crud.get(GenConstants.JAVA_SERVICE_TEMPLATE_PATH).contains("long countList(PostDemoBo bo);"));
         String impl = crud.get(GenConstants.JAVA_SERVICE_IMPL_TEMPLATE_PATH);
-        assertTrue(impl.contains("return postDemoMapper.selectVoPage(PageQuery.countOnly(), buildQueryWrapper(bo)).getTotal();"));
-        assertTrue(impl.contains("import org.tuoyu.common.mybatis.core.page.PageQuery;"));
+        assertTrue(impl.contains("return postDemoMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(bo, false)).getTotal();"));
+        assertTrue(impl.contains("import org.tuoyu.common.mybatis.core.page.PageParam;"));
 
         // 树表未开启导出：不生成统计方法，也不引入多余的 import
         Map<String, String> tree = renderBackend(deptTable());
         tree.values().forEach(content -> assertFalse(content.contains("countList")));
-        assertFalse(tree.get(GenConstants.JAVA_SERVICE_IMPL_TEMPLATE_PATH).contains("PageQuery"));
+        assertFalse(tree.get(GenConstants.JAVA_SERVICE_IMPL_TEMPLATE_PATH).contains("PageParam"));
+    }
+
+    @Test
+    @DisplayName("后端模板：使用框架对外 API（ApiResult、PageParam、BaseMapper、BeanMapper、@OperationLog 等）")
+    void shouldRenderCurrentApi() throws IOException {
+        Map<String, String> crud = renderBackend(postTable());
+        String controller = crud.get(GenConstants.JAVA_CONTROLLER_TEMPLATE_PATH);
+        assertTrue(controller.contains("public class PostDemoController {"));
+        assertTrue(controller.contains("public ApiResult<PageResult<PostDemoVo>> list(PostDemoBo bo, PageParam pageParam)"));
+        assertTrue(controller.contains("@OperationLog(module = \"岗位\", action = AuditAction.CREATE)"));
+        assertTrue(controller.contains("@PreventResubmit"));
+        assertTrue(controller.contains("public ApiResult<Void> add(@Validated(OnCreate.class) @RequestBody PostDemoBo bo)"));
+        assertTrue(controller.contains("public ApiResult<Void> edit(@Validated(OnUpdate.class) @RequestBody PostDemoBo bo)"));
+        assertTrue(controller.contains("return ApiResult.ok();"));
+
+        assertTrue(crud.get(GenConstants.JAVA_MAPPER_TEMPLATE_PATH).contains("extends BaseMapper<PostDemo>"));
+        assertTrue(crud.get(GenConstants.JAVA_BO_TEMPLATE_PATH).contains("groups = { OnCreate.class, OnUpdate.class }"));
+
+        String service = crud.get(GenConstants.JAVA_SERVICE_TEMPLATE_PATH);
+        assertTrue(service.contains("void insertByBo(PostDemoBo bo);"));
+        assertTrue(service.contains("void updateStatus(Long postId, String status);"));
+        assertTrue(service.contains("void deleteWithValidByIds(Collection<Long> ids, Boolean isValid);"));
+
+        String impl = crud.get(GenConstants.JAVA_SERVICE_IMPL_TEMPLATE_PATH);
+        assertTrue(impl.contains("return BeanMapper.map(postDemoMapper.selectById(postId), PostDemoVo.class);"));
+        assertTrue(impl.contains("PageResults.of(postDemoMapper.selectPage(pageParam.toPage(PostDemo.class), lqw), PostDemoVo.class)"));
+        assertTrue(impl.contains("buildQueryWrapper(bo, !pageParam.hasSort())"));
+        assertTrue(impl.contains("throw new ServiceException(\"新增岗位失败，组合唯一字段已存在\");"));
+        assertTrue(impl.contains("throw new ServiceException(\"修改岗位失败，数据不存在\");"));
+
+        Map<String, String> tree = renderBackend(deptTable());
+        String treeImpl = tree.get(GenConstants.JAVA_SERVICE_IMPL_TEMPLATE_PATH);
+        assertTrue(treeImpl.contains(".findInSet(currentId, \"ancestors\")"));
+        assertTrue(treeImpl.contains("deptDemoMapper.updateById(updateList);"));
+
+        for (Map<String, String> files : List.of(crud, tree)) {
+            files.forEach((path, content) -> REMOVED_API.forEach(old ->
+                assertFalse(content.contains(old), path + " 中不应出现 " + old)));
+        }
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, String> renderBackend(GenTable table) {
+    private static Map<String, String> renderBackend(GenTable table) throws IOException {
         // 后端模板的文件头需要作者
         table.setFunctionAuthor("tuoyu");
         Dict templateContext = TemplateEngineUtils.buildContext(table);
@@ -149,10 +206,16 @@ class VbenTemplateTest {
             return (Map<String, PathNamedTemplate>) field.get(null);
         });
         Map<String, String> files = new LinkedHashMap<>();
-        for (String path : List.of(GenConstants.JAVA_SERVICE_TEMPLATE_PATH, GenConstants.JAVA_SERVICE_IMPL_TEMPLATE_PATH,
+        for (String path : List.of(GenConstants.JAVA_DOMAIN_TEMPLATE_PATH, GenConstants.JAVA_VO_TEMPLATE_PATH,
+            GenConstants.JAVA_BO_TEMPLATE_PATH, GenConstants.JAVA_MAPPER_TEMPLATE_PATH,
+            GenConstants.JAVA_SERVICE_TEMPLATE_PATH, GenConstants.JAVA_SERVICE_IMPL_TEMPLATE_PATH,
             GenConstants.JAVA_CONTROLLER_TEMPLATE_PATH)) {
             PathNamedTemplate template = templates.get(path);
-            files.put(path, assertDoesNotThrow(() -> template.render(templateContext), path));
+            String content = assertDoesNotThrow(() -> template.render(templateContext), path);
+            files.put(path, content);
+            Path target = JAVA_PREVIEW.resolve(TemplateEngineUtils.getFileName(path, table));
+            Files.createDirectories(target.getParent());
+            Files.writeString(target, content, StandardCharsets.UTF_8);
         }
         return files;
     }
@@ -160,7 +223,7 @@ class VbenTemplateTest {
     private static Map<String, String> render(GenTable table) throws IOException {
         Dict templateContext = TemplateEngineUtils.buildContext(table);
         Map<String, String> files = new LinkedHashMap<>();
-        for (PathNamedTemplate template : TemplateEngineUtils.getFrontendTemplateList(table.getTplCategory(), table.getFrontendType())) {
+        for (PathNamedTemplate template : TemplateEngineUtils.getFrontendTemplateList(table.getTplCategory())) {
             String content = assertDoesNotThrow(() -> template.render(templateContext), template.getPathName());
             String fileName = TemplateEngineUtils.getFileName(template.getPathName(), table);
             files.put(fileName, content);
@@ -176,7 +239,8 @@ class VbenTemplateTest {
      */
     private static GenTable postTable() {
         GenTable table = table("sys_post_demo", "PostDemo", "postDemo", "岗位", GenConstants.TPL_CRUD,
-            "{\"enableExport\":true,\"enableStatus\":true,\"statusField\":\"status\"}");
+            "{\"enableExport\":true,\"enableStatus\":true,\"statusField\":\"status\","
+                + "\"enableUnique\":true,\"uniqueFields\":[\"post_code\"],\"enableSort\":true,\"sortField\":\"post_sort\"}");
         table.setColumns(List.of(
             column("post_id", "岗位ID", "Long", "postId", true, false, "input", null, null),
             column("post_code", "岗位编码", "String", "postCode", false, true, "input", null, "LIKE"),
@@ -185,7 +249,7 @@ class VbenTemplateTest {
             column("post_sort", "显示顺序", "Integer", "postSort", false, true, "inputNumber", null, null),
             column("status", "状态（0正常 1停用）", "String", "status", false, false, "radio", "sys_normal_disable", "EQ"),
             column("remark", "备注", "String", "remark", false, false, "textarea", null, null),
-            column("create_time", "创建时间", "Date", "createTime", false, false, "datetime", null, "BETWEEN")));
+            column("create_time", "创建时间", "LocalDateTime", "createTime", false, false, "datetime", null, "BETWEEN")));
         table.setPkColumn(table.getColumns().getFirst());
         return table;
     }
@@ -195,10 +259,12 @@ class VbenTemplateTest {
      */
     private static GenTable deptTable() {
         GenTable table = table("sys_dept_demo", "DeptDemo", "deptDemo", "部门", GenConstants.TPL_TREE,
-            "{\"treeCode\":\"dept_id\",\"treeParentCode\":\"parent_id\",\"treeName\":\"dept_name\",\"enableExport\":false}");
+            "{\"treeCode\":\"dept_id\",\"treeParentCode\":\"parent_id\",\"treeName\":\"dept_name\","
+                + "\"treeAncestors\":\"ancestors\",\"treeOrderField\":\"order_num\",\"enableExport\":false}");
         table.setColumns(List.of(
             column("dept_id", "部门ID", "Long", "deptId", true, false, "input", null, null),
             column("parent_id", "上级部门", "Long", "parentId", false, true, "select", null, null),
+            column("ancestors", "祖级列表", "String", "ancestors", false, false, "input", null, null),
             column("dept_name", "部门名称", "String", "deptName", false, true, "input", null, "LIKE"),
             column("order_num", "显示顺序", "Integer", "orderNum", false, true, "inputNumber", null, null),
             column("status", "状态（0正常 1停用）", "String", "status", false, false, "radio", "sys_normal_disable", "EQ")));

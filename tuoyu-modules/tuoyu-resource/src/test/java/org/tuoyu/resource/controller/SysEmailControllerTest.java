@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.context.support.GenericApplicationContext;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.mail.config.properties.MailProperties;
 import org.tuoyu.common.mail.core.MailBuilder;
@@ -73,18 +73,18 @@ class SysEmailControllerTest {
     void rejectWhenMailDisabled() {
         mailProperties.setEnabled(false);
 
-        R<Void> result = controller.emailCode(EMAIL, "1234", "uuid");
+        ServiceException e = assertThrows(ServiceException.class, () -> controller.emailCode(EMAIL, "1234", "uuid"));
 
-        assertTrue(R.isError(result));
+        assertEquals("当前系统没有开启邮箱功能！", e.getMessage());
         verifyNoInteractions(verifyCodeService);
     }
 
     @Test
     @DisplayName("邮箱格式不正确时拒绝，不消耗图形验证码")
     void rejectInvalidEmail() {
-        R<Void> result = controller.emailCode("not-an-email", "1234", "uuid");
+        ServiceException e = assertThrows(ServiceException.class, () -> controller.emailCode("not-an-email", "1234", "uuid"));
 
-        assertTrue(R.isError(result));
+        assertEquals("请输入正确的邮箱地址！", e.getMessage());
         verifyNoInteractions(verifyCodeService);
     }
 
@@ -94,8 +94,8 @@ class SysEmailControllerTest {
         when(verifyCodeService.checkCaptcha("uuid", "0000")).thenReturn(VerifyResult.MISMATCH);
         when(verifyCodeService.checkCaptcha("uuid2", "1234")).thenReturn(VerifyResult.EXPIRED);
 
-        assertTrue(R.isError(controller.emailCode(EMAIL, "0000", "uuid")));
-        assertTrue(R.isError(controller.emailCode(EMAIL, "1234", "uuid2")));
+        assertThrows(ServiceException.class, () -> controller.emailCode(EMAIL, "0000", "uuid"));
+        assertThrows(ServiceException.class, () -> controller.emailCode(EMAIL, "1234", "uuid2"));
 
         verify(controller, never()).emailCodeImpl(anyString());
         verify(verifyCodeService, never()).saveCode(anyString(), anyString(), anyString(), any());
@@ -107,9 +107,9 @@ class SysEmailControllerTest {
         when(verifyCodeService.checkCaptcha("uuid", "1234")).thenReturn(VerifyResult.PASSED);
         doNothing().when(controller).emailCodeImpl(EMAIL);
 
-        R<Void> result = controller.emailCode(EMAIL, "1234", "uuid");
+        ApiResult<Void> result = controller.emailCode(EMAIL, "1234", "uuid");
 
-        assertTrue(R.isSuccess(result));
+        assertEquals(ApiResult.SUCCESS, result.getCode());
         verify(controller).emailCodeImpl(EMAIL);
     }
 

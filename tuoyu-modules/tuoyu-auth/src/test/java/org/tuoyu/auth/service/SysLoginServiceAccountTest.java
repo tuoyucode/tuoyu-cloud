@@ -17,6 +17,9 @@ import org.tuoyu.auth.support.AuthTestContext;
 import org.tuoyu.auth.support.InMemoryGuardStore;
 import org.tuoyu.auth.support.SaTokenTestSupport;
 import org.tuoyu.common.core.constant.Constants;
+import org.tuoyu.common.core.context.CurrentUser;
+import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.exception.user.CaptchaExpireException;
 import org.tuoyu.common.core.exception.user.UserException;
@@ -34,6 +37,7 @@ import org.tuoyu.system.api.model.LoginUser;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -59,6 +63,8 @@ class SysLoginServiceAccountTest {
 
     private SysLoginService service;
 
+    private UserContextProvider previousProvider;
+
     @BeforeAll
     static void initContext() {
         AuthTestContext.init();
@@ -68,6 +74,7 @@ class SysLoginServiceAccountTest {
     void setUp() {
         LocaleContextHolder.setLocale(Locale.SIMPLIFIED_CHINESE);
         SaTokenTestSupport.enter();
+        previousProvider = UserContext.getProvider();
         AuthTestContext.loginEvents().clear();
         InMemoryGuardStore store = new InMemoryGuardStore();
         AuthSecurityProperties properties = new AuthSecurityProperties();
@@ -80,6 +87,7 @@ class SysLoginServiceAccountTest {
 
     @AfterEach
     void tearDown() {
+        UserContext.setProvider(previousProvider);
         SaTokenTestSupport.exit();
         LocaleContextHolder.resetLocaleContext();
     }
@@ -105,8 +113,6 @@ class SysLoginServiceAccountTest {
     @Test
     @DisplayName("注册时密码以哈希保存（不保存明文），用户类型默认为后台用户，并写入注册日志")
     void registerHashesPassword() {
-        when(remoteUserService.registerUserInfo(any())).thenReturn(true);
-
         service.register(registerBody());
 
         ArgumentCaptor<RemoteUserBo> captor = ArgumentCaptor.forClass(RemoteUserBo.class);
@@ -130,7 +136,6 @@ class SysLoginServiceAccountTest {
         verify(remoteUserService, never()).registerUserInfo(any());
 
         verifyCodeService.saveCaptcha("uuid-r", "8", Duration.ofMinutes(2));
-        when(remoteUserService.registerUserInfo(any())).thenReturn(true);
         service.register(registerBody());
         verify(remoteUserService).registerUserInfo(any());
     }
@@ -147,7 +152,8 @@ class SysLoginServiceAccountTest {
     @Test
     @DisplayName("注册失败时抛出异常，不写注册成功日志")
     void registerFailure() {
-        when(remoteUserService.registerUserInfo(any())).thenReturn(false);
+        org.mockito.Mockito.doThrow(new UserException("user.register.error"))
+            .when(remoteUserService).registerUserInfo(any());
         assertThatThrownBy(() -> service.register(registerBody())).isInstanceOf(UserException.class);
         assertThat(AuthTestContext.loginEvents()).isEmpty();
     }
@@ -167,6 +173,12 @@ class SysLoginServiceAccountTest {
         assertThat(event.getUsername()).isEqualTo("user3");
     }
 
+    private static void actAs(long userId) {
+        CurrentUser user = new CurrentUser();
+        user.setUserId(userId);
+        UserContext.setProvider(() -> Optional.of(user));
+    }
+
     private static AuthUser authUser() {
         AuthToken token = new AuthToken();
         token.setAccessToken("at");
@@ -182,7 +194,7 @@ class SysLoginServiceAccountTest {
     @Test
     @DisplayName("绑定第三方账号：已被其他用户绑定时拒绝")
     void socialAlreadyBound() {
-        LoginHelper.login(loginUser(3L), null);
+        actAs(3L);
         when(remoteSocialService.selectByAuthId("giteeu-1")).thenReturn(List.of(new RemoteSocialVo()));
 
         assertThatThrownBy(() -> service.socialRegister(authUser())).isInstanceOf(ServiceException.class)
@@ -194,7 +206,7 @@ class SysLoginServiceAccountTest {
     @Test
     @DisplayName("绑定第三方账号：当前用户在该平台没有绑定时新增，绑定的用户是当前登录用户")
     void socialInsert() {
-        LoginHelper.login(loginUser(3L), null);
+        actAs(3L);
         when(remoteSocialService.selectByAuthId("giteeu-1")).thenReturn(List.of());
         when(remoteSocialService.queryList(any())).thenReturn(List.of());
 
@@ -213,7 +225,7 @@ class SysLoginServiceAccountTest {
     @Test
     @DisplayName("绑定第三方账号：当前用户在该平台已有绑定时更新原记录")
     void socialUpdate() {
-        LoginHelper.login(loginUser(3L), null);
+        actAs(3L);
         RemoteSocialVo existing = new RemoteSocialVo();
         existing.setId(99L);
         when(remoteSocialService.selectByAuthId("giteeu-1")).thenReturn(List.of());

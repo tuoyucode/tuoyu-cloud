@@ -3,16 +3,15 @@ package org.tuoyu.system.controller.system;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.enums.PushSourceEnum;
 import org.tuoyu.common.core.enums.PushTypeEnum;
 import org.tuoyu.common.core.service.DictService;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.common.tenant.core.TenantHelper;
-import org.tuoyu.common.web.core.BaseController;
 import org.tuoyu.common.rpc.fallback.RemoteFallback;
 import org.tuoyu.resource.api.RemoteMessageService;
 import org.tuoyu.resource.api.domain.RemotePushPayLoad;
@@ -36,7 +35,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/notice")
-public class SysNoticeController extends BaseController {
+public class SysNoticeController {
 
     /**
      * 推送公告的降级调用名称（日志与计数）
@@ -54,8 +53,8 @@ public class SysNoticeController extends BaseController {
      */
     @SaCheckPermission("system:notice:list")
     @GetMapping("/list")
-    public R<PageResult<SysNoticeVo>> list(SysNoticeBo notice, PageQuery pageQuery) {
-        return R.ok(noticeService.selectPageNoticeList(notice, pageQuery));
+    public ApiResult<PageResult<SysNoticeVo>> list(SysNoticeBo notice, PageParam pageParam) {
+        return ApiResult.ok(noticeService.selectPageNoticeList(notice, pageParam));
     }
 
     /**
@@ -65,22 +64,19 @@ public class SysNoticeController extends BaseController {
      */
     @SaCheckPermission("system:notice:query")
     @GetMapping(value = "/{noticeId}")
-    public R<SysNoticeVo> getInfo(@PathVariable Long noticeId) {
-        return R.ok(noticeService.selectNoticeById(noticeId));
+    public ApiResult<SysNoticeVo> getInfo(@PathVariable Long noticeId) {
+        return ApiResult.ok(noticeService.selectNoticeById(noticeId));
     }
 
     /**
      * 新增通知公告
      */
     @SaCheckPermission("system:notice:add")
-    @Log(title = "通知公告", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "通知公告", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping
-    public R<Void> add(@Validated @RequestBody SysNoticeBo notice) {
-        int rows = noticeService.insertNotice(notice);
-        if (rows <= 0) {
-            return R.fail();
-        }
+    public ApiResult<Void> add(@Validated @RequestBody SysNoticeBo notice) {
+        noticeService.insertNotice(notice);
         String type = dictService.getDictLabel("sys_notice_type", notice.getNoticeType());
         Map<String, Object> data = new HashMap<>(6);
         data.put("noticeType", notice.getNoticeType());
@@ -104,18 +100,19 @@ public class SysNoticeController extends BaseController {
         } else {
             RemoteFallback.run(PUSH_FALLBACK_NAME, () -> remoteMessageService.publishAllPayload(payload));
         }
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 修改通知公告
      */
     @SaCheckPermission("system:notice:edit")
-    @Log(title = "通知公告", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "通知公告", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping
-    public R<Void> edit(@Validated @RequestBody SysNoticeBo notice) {
-        return toAjax(noticeService.updateNotice(notice));
+    public ApiResult<Void> edit(@Validated @RequestBody SysNoticeBo notice) {
+        noticeService.updateNotice(notice);
+        return ApiResult.ok();
     }
 
     /**
@@ -124,9 +121,10 @@ public class SysNoticeController extends BaseController {
      * @param noticeIds 公告ID串
      */
     @SaCheckPermission("system:notice:remove")
-    @Log(title = "通知公告", businessType = BusinessType.DELETE)
+    @OperationLog(module = "通知公告", action = AuditAction.DELETE)
     @DeleteMapping("/{noticeIds}")
-    public R<Void> remove(@PathVariable Long[] noticeIds) {
-        return toAjax(noticeService.deleteNoticeByIds(noticeIds));
+    public ApiResult<Void> remove(@PathVariable Long[] noticeIds) {
+        noticeService.deleteNoticeByIds(noticeIds);
+        return ApiResult.ok();
     }
 }

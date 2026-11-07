@@ -1,7 +1,7 @@
 package org.tuoyu.resource.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.resource.domain.SysOssExt;
 import org.tuoyu.resource.domain.bo.SysOssBo;
 import org.tuoyu.resource.domain.vo.SysOssVo;
@@ -23,10 +23,10 @@ public interface ISysOssService {
      * 查询OSS对象存储列表
      *
      * @param sysOss    OSS对象存储分页查询对象
-     * @param pageQuery 分页查询实体类
+     * @param pageParam 分页参数
      * @return 结果
      */
-    PageResult<SysOssVo> queryPageList(SysOssBo sysOss, PageQuery pageQuery);
+    PageResult<SysOssVo> queryPageList(SysOssBo sysOss, PageParam pageParam);
 
     /**
      * 根据一组 ossIds 获取对应的 SysOssVo 列表
@@ -93,10 +93,9 @@ public interface ISysOssService {
     /**
      * 新增OSS对象存储
      *
-     * @param bo SysOssBo 对象，包含待插入的数据
-     * @return 插入操作是否成功的布尔值
+     * @param bo SysOssBo 对象，包含待插入的数据；成功后回填 ossId
      */
-    Boolean insertByBo(SysOssBo bo);
+    void insertByBo(SysOssBo bo);
 
     /**
      * 文件下载方法，支持一次性下载完整文件
@@ -110,7 +109,7 @@ public interface ISysOssService {
      *
      * @param ids     OSS对象ID串
      * @param isValid 判断是否需要校验
-     * @return 结果
+     * @throws org.tuoyu.common.core.exception.ServiceException 文件数据不存在
      */
-    Boolean deleteWithValidByIds(Collection<Long> ids, Boolean isValid);
+    void deleteWithValidByIds(Collection<Long> ids, Boolean isValid);
 }

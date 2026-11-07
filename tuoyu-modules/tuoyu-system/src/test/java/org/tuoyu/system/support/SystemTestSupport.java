@@ -15,11 +15,11 @@ import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.PayloadApplicationEvent;
 import org.springframework.context.support.StaticApplicationContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.tenant.core.DefaultTenantContext;
 import org.tuoyu.common.tenant.core.TenantProperties;
-import org.tuoyu.common.core.utils.MapstructUtils;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import org.tuoyu.common.core.utils.BeanMapper;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.system.domain.SysClient;
 import org.tuoyu.system.domain.SysConfig;
 import org.tuoyu.system.domain.SysDept;
@@ -61,15 +61,18 @@ import java.util.Set;
  *     <li>对象转换使用真实的 mapstruct-plus 转换器（编译期生成的映射类），转换结果与运行时一致；</li>
  *     <li>登记实体的表信息，使 Lambda 条件能解析出列名，测试可以检查生成的 SQL 片段；</li>
  *     <li>Mapper 用 {@link #mapper(Class)} 创建：抽象方法由 Mockito 桩，
- *     本项目编写的默认方法（链式查询入口、Vo 转换、自定义查询）执行真实代码。</li>
+ *     本项目编写的默认方法（Vo 转换、自定义查询）与 BaseMapper 中只委托给其他方法的默认方法执行真实代码。</li>
  * </ul>
  */
 public final class SystemTestSupport {
 
     private static final StaticApplicationContext CONTEXT = new StaticApplicationContext();
 
-    /** 批量写入依赖 SqlSession，测试中一律桩掉 */
-    private static final Set<String> BATCH_METHODS = Set.of("insertBatch", "updateBatchById", "insertOrUpdateBatch");
+    /**
+     * MyBatis-Plus BaseMapper 中只依赖其他 Mapper 方法的默认方法，测试中执行真实代码；
+     * 其余默认方法（批量写入、按 ID 删除等）依赖 SqlSession，一律桩掉
+     */
+    private static final Set<String> DELEGATING_METHODS = Set.of("selectOne", "selectPage");
 
     /** RedisUtils 持有的客户端（静态字段只初始化一次），各测试自行桩、用后 {@code Mockito.reset} */
     private static final RedissonClient REDISSON = Mockito.mock(RedissonClient.class);
@@ -89,8 +92,8 @@ public final class SystemTestSupport {
         CONTEXT.refresh();
         CONTEXT.addApplicationListener((ApplicationListener<ApplicationEvent>) EVENTS::add);
         new SpringUtil().setApplicationContext(CONTEXT);
-        // 触发 MapstructUtils 的静态初始化，使其持有上面的真实转换器
-        MapstructUtils.convert((Object) null, Object.class);
+        // 触发 BeanMapper 的静态初始化，使其持有上面的真实转换器
+        BeanMapper.map((Object) null, Object.class);
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
         for (Class<?> entity : ENTITIES) {
             if (TableInfoHelper.getTableInfo(entity) == null) {
@@ -132,7 +135,7 @@ public final class SystemTestSupport {
     /**
      * 创建 Mapper 的模拟对象：本项目接口中的默认方法执行真实代码，其余方法由 Mockito 桩
      */
-    public static <M extends BaseMapperPlus<?, ?>> M mapper(Class<M> type) {
+    public static <M extends BaseMapper<?>> M mapper(Class<M> type) {
         return Mockito.mock(type, Mockito.withSettings().defaultAnswer(new ProjectDefaultMethods()));
     }
 
@@ -156,7 +159,7 @@ public final class SystemTestSupport {
     public static TenantProperties tenant(boolean enabled) {
         TenantProperties properties = new TenantProperties();
         properties.setEnabled(enabled);
-        new DefaultTenantContext(properties, new StaticListableBeanFactory().getBeanProvider(UserContext.class), id -> null);
+        new DefaultTenantContext(properties, new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), id -> null);
         return properties;
     }
 
@@ -194,9 +197,12 @@ public final class SystemTestSupport {
         public Object answer(InvocationOnMock invocation) throws Throwable {
             Method method = invocation.getMethod();
             boolean projectDefault = method.isDefault()
-                && method.getDeclaringClass().getName().startsWith("org.tuoyu.")
-                && !BATCH_METHODS.contains(method.getName());
-            if (projectDefault) {
+                && method.getDeclaringClass().getName().startsWith("org.tuoyu.");
+            boolean delegating = method.isDefault()
+                && method.getDeclaringClass() == BaseMapper.class
+                && DELEGATING_METHODS.contains(method.getName())
+                && method.getParameterCount() == ("selectPage".equals(method.getName()) ? 2 : 1);
+            if (projectDefault || delegating) {
                 return invocation.callRealMethod();
             }
             return Mockito.RETURNS_DEFAULTS.answer(invocation);

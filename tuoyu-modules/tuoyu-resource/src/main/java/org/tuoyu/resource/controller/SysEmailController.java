@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.constant.Constants;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.regex.RegexValidator;
@@ -14,7 +14,6 @@ import org.tuoyu.common.mail.config.properties.MailProperties;
 import org.tuoyu.common.mail.core.MailBuilder;
 import org.tuoyu.common.redis.annotation.RateLimiter;
 import org.tuoyu.common.redis.guard.VerifyCodeService;
-import org.tuoyu.common.web.core.BaseController;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,7 +31,7 @@ import java.time.Duration;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/email")
-public class SysEmailController extends BaseController {
+public class SysEmailController {
 
     private final MailProperties mailProperties;
 
@@ -47,22 +46,22 @@ public class SysEmailController extends BaseController {
      */
     @SaIgnore
     @GetMapping("/code")
-    public R<Void> emailCode(@NotBlank(message = "{user.email.not.blank}") String email,
+    public ApiResult<Void> emailCode(@NotBlank(message = "{user.email.not.blank}") String email,
                              @NotBlank(message = "{not.null}") String code,
                              @NotBlank(message = "{not.null}") String uuid) {
         if (!mailProperties.getEnabled()) {
-            return R.fail("当前系统没有开启邮箱功能！");
+            throw new ServiceException("当前系统没有开启邮箱功能！");
         }
         if (!RegexValidator.isEmail(email)) {
-            return R.fail("请输入正确的邮箱地址！");
+            throw new ServiceException("请输入正确的邮箱地址！");
         }
         // 先校验图形验证码再限流：图形验证码错误不占用该邮箱的发送次数
         String captchaError = SendCodeGuard.checkCaptcha(verifyCodeService, code, uuid);
         if (captchaError != null) {
-            return R.fail(captchaError);
+            throw new ServiceException(captchaError);
         }
         SpringUtils.getAopProxy(this).emailCodeImpl(email);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**

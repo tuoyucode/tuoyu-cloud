@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysPostBo;
 import org.tuoyu.system.domain.vo.SysPostVo;
 
@@ -18,10 +18,10 @@ public interface ISysPostService {
      * 分页查询岗位列表
      *
      * @param post      查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 岗位分页列表
      */
-    PageResult<SysPostVo> selectPagePostList(SysPostBo post, PageQuery pageQuery);
+    PageResult<SysPostVo> selectPagePostList(SysPostBo post, PageParam pageParam);
 
     /**
      * 查询岗位信息集合
@@ -114,31 +114,27 @@ public interface ISysPostService {
      * 删除岗位信息
      *
      * @param postId 岗位ID
-     * @return 结果
      */
-    int deletePostById(Long postId);
+    void deletePostById(Long postId);
 
     /**
      * 批量删除岗位信息
      *
      * @param postIds 需要删除的岗位ID
-     * @return 结果
      */
-    int deletePostByIds(List<Long> postIds);
+    void deletePostByIds(List<Long> postIds);
 
     /**
      * 新增保存岗位信息
      *
      * @param bo 岗位信息
-     * @return 结果
      */
-    int insertPost(SysPostBo bo);
+    void insertPost(SysPostBo bo);
 
     /**
      * 修改保存岗位信息
      *
      * @param bo 岗位信息
-     * @return 结果
      */
-    int updatePost(SysPostBo bo);
+    void updatePost(SysPostBo bo);
 }

@@ -1,6 +1,7 @@
 package org.tuoyu.system.service.impl;
 
 import cn.dev33.satoken.exception.NotLoginException;
+import org.tuoyu.common.satoken.utils.LoginSessions;
 import cn.dev33.satoken.stp.StpLogic;
 import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -16,8 +17,8 @@ import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.system.api.model.LoginUser;
 import org.tuoyu.system.api.model.RoleDTO;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.system.support.CurrentUserStub;
 import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.domain.SysRoleDept;
@@ -37,19 +38,21 @@ import org.tuoyu.system.support.SystemTestSupport;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -75,12 +78,12 @@ class SysRoleServiceBusinessTest {
     private final SysTenantMapper tenantMapper = SystemTestSupport.mapper(SysTenantMapper.class);
     private final SysTenantPackageMenuMapper packageMenuMapper = SystemTestSupport.mapper(SysTenantPackageMenuMapper.class);
 
-    private MockedStatic<LoginHelper> login;
+    private CurrentUserStub login;
     private SysRoleServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        login = mockStatic(LoginHelper.class, CALLS_REAL_METHODS);
+        login = CurrentUserStub.install();
         TenantMenuScope scope = new TenantMenuScope(SystemTestSupport.tenant(false), tenantMapper, packageMenuMapper);
         service = new SysRoleServiceImpl(roleMapper, roleMenuMapper, userRoleMapper, roleDeptMapper, scope);
         SystemTestSupport.events().clear();
@@ -93,7 +96,7 @@ class SysRoleServiceBusinessTest {
     }
 
     private void loginAs(Long userId) {
-        login.when(LoginHelper::getUserId).thenReturn(userId);
+        login.userId(userId);
     }
 
     private static SysRole role(Long id, String key) {
@@ -122,8 +125,8 @@ class SysRoleServiceBusinessTest {
         bo.setRoleName("角");
         bo.setStatus("0");
 
-        PageResult<SysRoleVo> page = service.selectPageRoleList(bo, new PageQuery());
-        assertEquals("common", page.getRows().iterator().next().getRoleKey());
+        PageResult<SysRoleVo> page = service.selectPageRoleList(bo, new PageParam());
+        assertEquals("common", page.getItems().iterator().next().getRoleKey());
         assertEquals(2, service.selectRoleList(bo).size());
         service.countRoleList(bo);
 
@@ -235,21 +238,20 @@ class SysRoleServiceBusinessTest {
             inv.<SysRole>getArgument(0).setRoleId(9L);
             return 1;
         });
-        when(roleMenuMapper.insertBatch(any())).thenReturn(true);
         SysRoleBo bo = new SysRoleBo();
         bo.setRoleName("运维");
         bo.setMenuIds(new Long[]{10L, 11L});
 
-        assertEquals(2, service.insertRole(bo));
+        assertDoesNotThrow(() -> service.insertRole(bo));
         assertEquals(9L, bo.getRoleId());
         ArgumentCaptor<Collection<SysRoleMenu>> menus = ArgumentCaptor.captor();
-        verify(roleMenuMapper).insertBatch(menus.capture());
+        verify(roleMenuMapper).insert(menus.capture());
         assertThat(menus.getValue()).extracting(SysRoleMenu::getMenuId).containsExactly(10L, 11L);
         assertThat(menus.getValue()).allMatch(m -> m.getRoleId() == 9L);
 
         SysRoleBo noMenu = new SysRoleBo();
-        assertEquals(1, service.insertRole(noMenu));
-        verify(roleMenuMapper, times(1)).insertBatch(any());
+        assertDoesNotThrow(() -> service.insertRole(noMenu));
+        verify(roleMenuMapper, times(1)).insert(anyCollection());
     }
 
     @Test
@@ -262,7 +264,6 @@ class SysRoleServiceBusinessTest {
         tenant.setPackageId(7L);
         when(tenantMapper.selectById("acme")).thenReturn(tenant);
         when(packageMenuMapper.selectObjs(any())).thenReturn(List.of(10L, 11L));
-        when(roleMenuMapper.insertBatch(any())).thenReturn(true);
 
         SysRoleBo outside = new SysRoleBo();
         outside.setRoleId(9L);
@@ -276,37 +277,35 @@ class SysRoleServiceBusinessTest {
         inside.setRoleId(9L);
         inside.setMenuIds(new Long[]{10L});
         inside.setDeptIds(new Long[0]);
-        assertEquals(1, TenantHelper.dynamic("acme", () -> service.updateRolePermission(inside)));
+        assertDoesNotThrow(() -> TenantHelper.dynamic("acme", () -> service.updateRolePermission(inside)));
     }
 
     @Test
     @DisplayName("修改权限：先删后建菜单与部门；空数组表示清空")
     void updatePermission() {
-        when(roleMenuMapper.insertBatch(any())).thenReturn(true);
-        when(roleDeptMapper.insertBatch(any())).thenReturn(true);
         SysRoleBo bo = new SysRoleBo();
         bo.setRoleId(9L);
         bo.setDataScope("2");
         bo.setMenuIds(new Long[]{10L});
         bo.setDeptIds(new Long[]{100L, 101L});
 
-        assertEquals(2, service.updateRolePermission(bo));
+        assertDoesNotThrow(() -> service.updateRolePermission(bo));
 
         verify(roleMapper).updateById(any(SysRole.class));
         verify(roleMenuMapper).delete(any());
         verify(roleDeptMapper).delete(any());
         ArgumentCaptor<Collection<SysRoleDept>> depts = ArgumentCaptor.captor();
-        verify(roleDeptMapper).insertBatch(depts.capture());
+        verify(roleDeptMapper).insert(depts.capture());
         assertThat(depts.getValue()).extracting(SysRoleDept::getDeptId).containsExactly(100L, 101L);
 
         SysRoleBo clear = new SysRoleBo();
         clear.setRoleId(9L);
         clear.setMenuIds(new Long[0]);
         clear.setDeptIds(new Long[0]);
-        assertEquals(1, service.updateRolePermission(clear));
+        assertDoesNotThrow(() -> service.updateRolePermission(clear));
         verify(roleMenuMapper, times(2)).delete(any());
         verify(roleDeptMapper, times(2)).delete(any());
-        verify(roleDeptMapper, times(1)).insertBatch(any());
+        verify(roleDeptMapper, times(1)).insert(anyCollection());
     }
 
     @Test
@@ -322,8 +321,8 @@ class SysRoleServiceBusinessTest {
         when(userRoleMapper.selectCount(any())).thenReturn(0L);
         when(roleMapper.updateById(any(SysRole.class))).thenReturn(1);
         when(roleMapper.update(any(Wrapper.class))).thenReturn(1);
-        assertEquals(1, service.updateRoleBaseInfo(bo));
-        assertEquals(1, service.updateRoleStatus(9L, SystemConstants.DISABLE));
+        assertDoesNotThrow(() -> service.updateRoleBaseInfo(bo));
+        assertDoesNotThrow(() -> service.updateRoleStatus(9L, SystemConstants.DISABLE));
         assertEquals(0L, service.countUserRoleByRoleId(9L));
     }
 
@@ -342,12 +341,12 @@ class SysRoleServiceBusinessTest {
 
         when(userRoleMapper.selectCount(any())).thenReturn(0L);
         when(roleMapper.deleteByIds(List.of(9L))).thenReturn(1);
-        assertEquals(1, service.deleteRoleByIds(List.of(9L)));
+        assertDoesNotThrow(() -> service.deleteRoleByIds(List.of(9L)));
         verify(roleMenuMapper).delete(any());
         verify(roleDeptMapper).delete(any());
 
         when(roleMapper.deleteById(9L)).thenReturn(1);
-        assertEquals(1, service.deleteRoleById(9L));
+        assertDoesNotThrow(() -> service.deleteRoleById(9L));
     }
 
     @Test
@@ -365,18 +364,17 @@ class SysRoleServiceBusinessTest {
         SysUserRole other = new SysUserRole();
         other.setUserId(200L);
         other.setRoleId(9L);
-        assertEquals(1, service.deleteAuthUser(other));
-        assertEquals(1, service.deleteAuthUsers(9L, new Long[]{200L, 201L}));
-
-        when(userRoleMapper.insertBatch(any())).thenReturn(true);
-        assertEquals(2, service.insertAuthUsers(9L, new Long[]{200L, 201L}));
+        assertDoesNotThrow(() -> service.deleteAuthUser(other));
+        assertDoesNotThrow(() -> service.deleteAuthUsers(9L, new Long[]{200L, 201L}));
+        assertDoesNotThrow(() -> service.insertAuthUsers(9L, new Long[]{200L, 201L}));
 
         assertEquals(3, SystemTestSupport.events(OnlineUserCleanEvent.class).size());
 
-        // 没有删除任何关联时不发通知
+        // 没有删除任何关联时拒绝，且不发通知
         SystemTestSupport.events().clear();
         when(userRoleMapper.delete(any())).thenReturn(0);
-        assertEquals(0, service.deleteAuthUser(other));
+        assertThrows(ServiceException.class, () -> service.deleteAuthUser(other));
+        assertThrows(ServiceException.class, () -> service.deleteAuthUsers(9L, new Long[]{200L}));
         assertTrue(SystemTestSupport.events(OnlineUserCleanEvent.class).isEmpty());
     }
 
@@ -386,7 +384,8 @@ class SysRoleServiceBusinessTest {
         StpLogic original = StpUtil.stpLogic;
         StpLogic logic = mock(StpLogic.class);
         StpUtil.stpLogic = logic;
-        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
+        try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class);
+             MockedStatic<LoginSessions> sessions = mockStatic(LoginSessions.class)) {
             // 角色没有用户时直接返回
             when(userRoleMapper.selectCount(any())).thenReturn(0L);
             service.cleanOnlineUserByRole(9L);
@@ -400,7 +399,7 @@ class SysRoleServiceBusinessTest {
             RoleDTO role = new RoleDTO();
             role.setRoleId(9L);
             user.setRoles(List.of(role));
-            login.when(() -> LoginHelper.getLoginUser("abc")).thenReturn(user);
+            sessions.when(() -> LoginSessions.findLoginUser("abc")).thenReturn(Optional.of(user));
 
             service.cleanOnlineUserByRole(9L);
             stp.verify(() -> StpUtil.logoutByTokenValue("abc"));

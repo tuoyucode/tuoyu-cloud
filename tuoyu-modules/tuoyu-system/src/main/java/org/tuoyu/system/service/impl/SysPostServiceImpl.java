@@ -2,13 +2,14 @@ package org.tuoyu.system.service.impl;
 
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.core.utils.StreamUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.LambdaQueryBuilder;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysPost;
@@ -41,13 +42,12 @@ public class SysPostServiceImpl implements ISysPostService {
      * 分页查询岗位列表
      *
      * @param post      查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 岗位分页列表
      */
     @Override
-    public PageResult<SysPostVo> selectPagePostList(SysPostBo post, PageQuery pageQuery) {
-        Page<SysPostVo> page = postMapper.selectPagePostList(pageQuery.build(), buildQueryWrapper(post));
-        return PageResult.build(page.getRecords(), page.getTotal());
+    public PageResult<SysPostVo> selectPagePostList(SysPostBo post, PageParam pageParam) {
+        return PageResults.of(postMapper.selectPagePostList(pageParam.toPage(SysPost.class), buildQueryWrapper(post)), SysPostVo.class);
     }
 
     /**
@@ -58,7 +58,7 @@ public class SysPostServiceImpl implements ISysPostService {
      */
     @Override
     public List<SysPostVo> selectPostList(SysPostBo post) {
-        return postMapper.selectPostList(buildQueryWrapper(post));
+        return BeanMapper.mapList(postMapper.selectPostList(buildQueryWrapper(post)), SysPostVo.class);
     }
 
     /**
@@ -66,7 +66,7 @@ public class SysPostServiceImpl implements ISysPostService {
      */
     @Override
     public long countPostList(SysPostBo post) {
-        return postMapper.selectPagePostList(PageQuery.countOnly(), buildQueryWrapper(post)).getTotal();
+        return postMapper.selectPagePostList(PageParam.countOnly(), buildQueryWrapper(post)).getTotal();
     }
 
     /**
@@ -115,7 +115,7 @@ public class SysPostServiceImpl implements ISysPostService {
      */
     @Override
     public List<SysPostVo> selectPostAll() {
-        return postMapper.lambda().voList();
+        return BeanMapper.mapList(postMapper.selectList(Wrappers.emptyWrapper()), SysPostVo.class);
     }
 
     /**
@@ -126,7 +126,7 @@ public class SysPostServiceImpl implements ISysPostService {
      */
     @Override
     public SysPostVo selectPostById(Long postId) {
-        return postMapper.selectVoById(postId);
+        return BeanMapper.map(postMapper.selectById(postId), SysPostVo.class);
     }
 
     /**
@@ -149,7 +149,7 @@ public class SysPostServiceImpl implements ISysPostService {
      */
     @Override
     public List<SysPostVo> selectPostByIds(List<Long> postIds) {
-        return postMapper.selectPostOptions(postIds);
+        return BeanMapper.mapList(postMapper.selectPostOptions(postIds), SysPostVo.class);
     }
 
     /**
@@ -160,11 +160,11 @@ public class SysPostServiceImpl implements ISysPostService {
      */
     @Override
     public boolean checkPostNameUnique(SysPostBo post) {
-        boolean exist = postMapper.lambda()
+        boolean exist = postMapper.exists(QueryBuilder.lambda(SysPost.class)
             .eq(SysPost::getPostName, post.getPostName())
             .eq(SysPost::getDeptId, post.getDeptId())
             .neIfPresent(SysPost::getPostId, post.getPostId())
-            .exists();
+            .build());
         return !exist;
     }
 
@@ -176,10 +176,10 @@ public class SysPostServiceImpl implements ISysPostService {
      */
     @Override
     public boolean checkPostCodeUnique(SysPostBo post) {
-        boolean exist = postMapper.lambda()
+        boolean exist = postMapper.exists(QueryBuilder.lambda(SysPost.class)
             .eq(SysPost::getPostCode, post.getPostCode())
             .neIfPresent(SysPost::getPostId, post.getPostId())
-            .exists();
+            .build());
         return !exist;
     }
 
@@ -191,7 +191,7 @@ public class SysPostServiceImpl implements ISysPostService {
      */
     @Override
     public long countUserPostById(Long postId) {
-        return userPostMapper.lambda().eq(SysUserPost::getPostId, postId).count();
+        return userPostMapper.selectCount(QueryBuilder.lambda(SysUserPost.class).eq(SysUserPost::getPostId, postId).build());
     }
 
     /**
@@ -202,58 +202,58 @@ public class SysPostServiceImpl implements ISysPostService {
      */
     @Override
     public long countPostByDeptId(Long deptId) {
-        return postMapper.lambda().eq(SysPost::getDeptId, deptId).count();
+        return postMapper.selectCount(QueryBuilder.lambda(SysPost.class).eq(SysPost::getDeptId, deptId).build());
     }
 
     /**
      * 删除岗位信息
      *
      * @param postId 岗位ID
-     * @return 结果
      */
     @Override
-    public int deletePostById(Long postId) {
-        return postMapper.deleteById(postId);
+    public void deletePostById(Long postId) {
+        postMapper.deleteById(postId);
     }
 
     /**
      * 批量删除岗位信息
      *
      * @param postIds 需要删除的岗位ID
-     * @return 结果
      */
     @Override
-    public int deletePostByIds(List<Long> postIds) {
+    public void deletePostByIds(List<Long> postIds) {
         List<SysPost> list = postMapper.selectByIds(postIds);
         for (SysPost post : list) {
             if (this.countUserPostById(post.getPostId()) > 0) {
                 throw new ServiceException("{}已分配，不能删除!", post.getPostName());
             }
         }
-        return postMapper.deleteByIds(postIds);
+        if (postMapper.deleteByIds(postIds) == 0) {
+            throw new ServiceException("删除岗位失败，岗位不存在");
+        }
     }
 
     /**
      * 新增保存岗位信息
      *
      * @param bo 岗位信息
-     * @return 结果
      */
     @Override
-    public int insertPost(SysPostBo bo) {
-        SysPost post = MapstructUtils.convert(bo, SysPost.class);
-        return postMapper.insert(post);
+    public void insertPost(SysPostBo bo) {
+        SysPost post = BeanMapper.map(bo, SysPost.class);
+        postMapper.insert(post);
     }
 
     /**
      * 修改保存岗位信息
      *
      * @param bo 岗位信息
-     * @return 结果
      */
     @Override
-    public int updatePost(SysPostBo bo) {
-        SysPost post = MapstructUtils.convert(bo, SysPost.class);
-        return postMapper.updateById(post);
+    public void updatePost(SysPostBo bo) {
+        SysPost post = BeanMapper.map(bo, SysPost.class);
+        if (postMapper.updateById(post) == 0) {
+            throw new ServiceException("修改岗位'{}'失败，岗位不存在", bo.getPostName());
+        }
     }
 }

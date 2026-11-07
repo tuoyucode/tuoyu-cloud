@@ -5,12 +5,11 @@ import com.baomidou.lock.annotation.Lock4j;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.excel.utils.ExcelBuilder;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysOperLogBo;
 import org.tuoyu.system.domain.vo.SysOperLogVo;
 import org.tuoyu.system.service.ISysOperLogService;
@@ -26,7 +25,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/operlog")
-public class SysOperlogController extends BaseController {
+public class SysOperlogController {
 
     private final ISysOperLogService operLogService;
 
@@ -35,14 +34,14 @@ public class SysOperlogController extends BaseController {
      */
     @SaCheckPermission("monitor:operlog:list")
     @GetMapping("/list")
-    public R<PageResult<SysOperLogVo>> list(SysOperLogBo operLog, PageQuery pageQuery) {
-        return R.ok(operLogService.selectPageOperLogList(operLog, pageQuery));
+    public ApiResult<PageResult<SysOperLogVo>> list(SysOperLogBo operLog, PageParam pageParam) {
+        return ApiResult.ok(operLogService.selectPageOperLogList(operLog, pageParam));
     }
 
     /**
      * 导出操作日志记录列表
      */
-    @Log(title = "操作日志", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "操作日志", action = AuditAction.EXPORT)
     @SaCheckPermission("monitor:operlog:export")
     @PostMapping("/export")
     public void export(SysOperLogBo operLog, HttpServletResponse response) {
@@ -56,22 +55,23 @@ public class SysOperlogController extends BaseController {
      *
      * @param operIds 日志ids
      */
-    @Log(title = "操作日志", businessType = BusinessType.DELETE)
+    @OperationLog(module = "操作日志", action = AuditAction.DELETE)
     @SaCheckPermission("monitor:operlog:remove")
     @DeleteMapping("/{operIds}")
-    public R<Void> remove(@PathVariable Long[] operIds) {
-        return toAjax(operLogService.deleteOperLogByIds(operIds));
+    public ApiResult<Void> remove(@PathVariable Long[] operIds) {
+        operLogService.deleteOperLogByIds(operIds);
+        return ApiResult.ok();
     }
 
     /**
      * 清理操作日志记录
      */
     @SaCheckPermission("monitor:operlog:remove")
-    @Log(title = "操作日志", businessType = BusinessType.CLEAN)
+    @OperationLog(module = "操作日志", action = AuditAction.CLEAN)
     @Lock4j
     @DeleteMapping("/clean")
-    public R<Void> clean() {
+    public ApiResult<Void> clean() {
         operLogService.cleanOperLog();
-        return R.ok();
+        return ApiResult.ok();
     }
 }

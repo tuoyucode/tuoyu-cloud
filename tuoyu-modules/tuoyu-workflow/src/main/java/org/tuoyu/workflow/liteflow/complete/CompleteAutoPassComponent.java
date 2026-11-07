@@ -8,7 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.context.UserContext;
 import org.dromara.warm.flow.core.FlowEngine;
 import org.dromara.warm.flow.core.dto.FlowParams;
 import org.dromara.warm.flow.core.entity.User;
@@ -69,7 +69,7 @@ public class CompleteAutoPassComponent extends NodeComponent {
             }
             // 自动审批只处理当前登录人仍是办理人的后续任务，避免替其他候选人或并行分支误审批。
             List<User> users = StreamUtils.filter(userList,
-                e -> ObjectUtil.equals(task.getId(), e.getAssociated()) && ObjectUtil.equal(e.getProcessedBy(), LoginHelper.getUserIdStr()));
+                e -> ObjectUtil.equals(task.getId(), e.getAssociated()) && ObjectUtil.equal(e.getProcessedBy(), UserContext.userIdString()));
             if (CollUtil.isEmpty(users)) {
                 continue;
             }

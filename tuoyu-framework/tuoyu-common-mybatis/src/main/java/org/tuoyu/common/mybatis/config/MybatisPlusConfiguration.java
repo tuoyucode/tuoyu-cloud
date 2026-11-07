@@ -11,12 +11,12 @@ import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerIntercept
 import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
 import org.tuoyu.common.core.context.PermissionContext;
 import org.tuoyu.common.core.context.TenantContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.core.factory.YmlPropertySourceFactory;
 import org.tuoyu.common.core.service.DataScopeService;
 import org.tuoyu.common.mybatis.aspect.DataPermissionPointcutAdvisor;
 import org.tuoyu.common.mybatis.config.properties.SqlLogProperties;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.handler.InjectionMetaObjectHandler;
 import org.tuoyu.common.mybatis.handler.MybatisExceptionHandler;
 import org.tuoyu.common.mybatis.handler.DataPermissionSqlHandler;
@@ -57,7 +57,7 @@ public class MybatisPlusConfiguration {
 
     @Bean
     public MybatisPlusInterceptor mybatisPlusInterceptor(Environment environment,
-                                                         ObjectProvider<UserContext> userContext,
+                                                         ObjectProvider<UserContextProvider> userContext,
                                                          ObjectProvider<PermissionContext> permissionContext,
                                                          ObjectProvider<TenantLineInnerInterceptor> tenantInterceptor) {
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
@@ -67,7 +67,7 @@ public class MybatisPlusConfiguration {
         interceptor.addInnerInterceptor(new DataPermissionSqlInterceptor(new DataPermissionSqlHandler(userContext, permissionContext)));
         // 分页插件
         interceptor.addInnerInterceptor(paginationInnerInterceptor(
-            environment.getProperty(MAX_PAGE_SIZE_KEY, Integer.class, PageQuery.DEFAULT_MAX_PAGE_SIZE)));
+            environment.getProperty(MAX_PAGE_SIZE_KEY, Integer.class, PageParam.DEFAULT_MAX_PAGE_SIZE)));
         // 乐观锁插件
         interceptor.addInnerInterceptor(optimisticLockerInnerInterceptor());
         return interceptor;
@@ -97,8 +97,8 @@ public class MybatisPlusConfiguration {
         PaginationInnerInterceptor paginationInnerInterceptor = new PaginationInnerInterceptor();
         // 分页合理化
         paginationInnerInterceptor.setOverflow(true);
-        // 每页记录数上限：PageQuery 先按上限处理，此处兜底绕过 PageQuery 直接构造分页对象的代码
-        PageQuery.setMaxPageSize(maxPageSize);
+        // 每页记录数上限：PageParam 先按上限处理，此处兜底直接构造分页对象的代码
+        PageParam.setMaxPageSize(maxPageSize);
         paginationInnerInterceptor.setMaxLimit((long) maxPageSize);
         return paginationInnerInterceptor;
     }
@@ -123,7 +123,7 @@ public class MybatisPlusConfiguration {
      * 元对象字段填充控制器
      */
     @Bean
-    public MetaObjectHandler metaObjectHandler(ObjectProvider<UserContext> userContext, ObjectProvider<TenantContext> tenantContext) {
+    public MetaObjectHandler metaObjectHandler(ObjectProvider<UserContextProvider> userContext, ObjectProvider<TenantContext> tenantContext) {
         return new InjectionMetaObjectHandler(userContext, tenantContext);
     }
 

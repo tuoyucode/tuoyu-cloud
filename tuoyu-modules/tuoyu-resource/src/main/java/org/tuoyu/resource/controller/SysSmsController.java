@@ -6,13 +6,12 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.constant.Constants;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.regex.RegexValidator;
 import org.tuoyu.common.redis.annotation.RateLimiter;
 import org.tuoyu.common.redis.guard.VerifyCodeService;
-import org.tuoyu.common.web.core.BaseController;
 import org.dromara.sms4j.api.SmsBlend;
 import org.dromara.sms4j.api.entity.SmsResponse;
 import org.dromara.sms4j.core.factory.SmsFactory;
@@ -34,7 +33,7 @@ import java.util.LinkedHashMap;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/sms")
-public class SysSmsController extends BaseController {
+public class SysSmsController {
 
     private final VerifyCodeService verifyCodeService;
 
@@ -47,19 +46,19 @@ public class SysSmsController extends BaseController {
      */
     @SaIgnore
     @GetMapping("/code")
-    public R<Void> smsCaptcha(@NotBlank(message = "{user.phonenumber.not.blank}") String phoneNumber,
+    public ApiResult<Void> smsCaptcha(@NotBlank(message = "{user.phonenumber.not.blank}") String phoneNumber,
                               @NotBlank(message = "{not.null}") String code,
                               @NotBlank(message = "{not.null}") String uuid) {
         if (!RegexValidator.isMobile(phoneNumber)) {
-            return R.fail("请输入正确的手机号！");
+            throw new ServiceException("请输入正确的手机号！");
         }
         // 先校验图形验证码再限流：图形验证码错误不占用该手机号的发送次数
         String captchaError = SendCodeGuard.checkCaptcha(verifyCodeService, code, uuid);
         if (captchaError != null) {
-            return R.fail(captchaError);
+            throw new ServiceException(captchaError);
         }
         SpringUtils.getAopProxy(this).smsCodeImpl(phoneNumber);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**

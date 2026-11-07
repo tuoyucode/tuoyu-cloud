@@ -1,19 +1,19 @@
 package org.tuoyu.system.controller.system;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
+import org.tuoyu.common.core.context.UserContext;
 import cn.hutool.core.bean.BeanUtil;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.encrypt.annotation.ApiEncrypt;
 import org.tuoyu.common.encrypt.password.PasswordHasher;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
 import org.tuoyu.common.mybatis.helper.DataPermissionHelper;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.satoken.utils.LoginHelper;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.system.domain.bo.SysUserBo;
 import org.tuoyu.system.domain.bo.SysUserProfileBo;
 import org.tuoyu.system.domain.vo.ProfileUserVo;
@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @SaCheckLogin
 @RequestMapping("/user/profile")
-public class SysProfileController extends BaseController {
+public class SysProfileController {
 
     private final ISysUserService userService;
     private final PasswordHasher passwordHasher;
@@ -41,37 +41,34 @@ public class SysProfileController extends BaseController {
      * 个人信息
      */
     @GetMapping
-    public R<ProfileVo> profile() {
-        SysUserVo user = userService.selectUserById(LoginHelper.getUserId());
+    public ApiResult<ProfileVo> profile() {
+        SysUserVo user = userService.selectUserById(UserContext.userId());
         String roleGroup = userService.selectUserRoleGroup(user.getUserId());
         String postGroup = userService.selectUserPostGroup(user.getUserId());
         // 单独做一个vo专门给个人中心用 避免数据被脱敏
         ProfileUserVo profileUser = BeanUtil.toBean(user, ProfileUserVo.class);
         ProfileVo profileVo = new ProfileVo(profileUser, roleGroup, postGroup);
-        return R.ok(profileVo);
+        return ApiResult.ok(profileVo);
     }
 
     /**
      * 修改用户信息
      */
-    @RepeatSubmit
-    @Log(title = "个人信息", businessType = BusinessType.UPDATE)
+    @PreventResubmit
+    @OperationLog(module = "个人信息", action = AuditAction.UPDATE)
     @PutMapping
-    public R<Void> updateProfile(@Validated @RequestBody SysUserProfileBo profile) {
+    public ApiResult<Void> updateProfile(@Validated @RequestBody SysUserProfileBo profile) {
         SysUserBo user = BeanUtil.toBean(profile, SysUserBo.class);
-        user.setUserId(LoginHelper.getUserId());
-        String username = LoginHelper.getUsername();
+        user.setUserId(UserContext.userId());
+        String username = UserContext.require().getUserName();
         if (StringUtils.isNotEmpty(user.getPhoneNumber()) && !userService.checkPhoneUnique(user)) {
-            return R.fail("修改用户'" + username + "'失败，手机号码已存在");
+            throw new ServiceException("修改用户'" + username + "'失败，手机号码已存在");
         }
         if (StringUtils.isNotEmpty(user.getEmail()) && !userService.checkEmailUnique(user)) {
-            return R.fail("修改用户'" + username + "'失败，邮箱账号已存在");
+            throw new ServiceException("修改用户'" + username + "'失败，邮箱账号已存在");
         }
-        int rows = DataPermissionHelper.ignore(() -> userService.updateUserProfile(user));
-        if (rows > 0) {
-            return R.ok();
-        }
-        return R.fail("修改个人信息异常，请联系管理员");
+        DataPermissionHelper.ignore(() -> userService.updateUserProfile(user));
+        return ApiResult.ok();
     }
 
     /**
@@ -79,24 +76,21 @@ public class SysProfileController extends BaseController {
      *
      * @param bo 新旧密码
      */
-    @RepeatSubmit
+    @PreventResubmit
     @ApiEncrypt
-    @Log(title = "个人信息", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "个人信息", action = AuditAction.UPDATE)
     @PutMapping("/updatePwd")
-    public R<Void> updatePwd(@Validated @RequestBody SysUserPasswordBo bo) {
-        SysUserVo user = userService.selectUserById(LoginHelper.getUserId());
+    public ApiResult<Void> updatePwd(@Validated @RequestBody SysUserPasswordBo bo) {
+        SysUserVo user = userService.selectUserById(UserContext.userId());
         String password = user.getPassword();
         if (!passwordHasher.matches(bo.oldPassword(), password)) {
-            return R.fail("修改密码失败，旧密码错误");
+            throw new ServiceException("修改密码失败，旧密码错误");
         }
         if (passwordHasher.matches(bo.newPassword(), password)) {
-            return R.fail("新密码不能与旧密码相同");
+            throw new ServiceException("新密码不能与旧密码相同");
         }
-        int rows = DataPermissionHelper.ignore(() -> userService.resetUserPwd(user.getUserId(), passwordHasher.hash(bo.newPassword())));
-        if (rows > 0) {
-            return R.ok();
-        }
-        return R.fail("修改密码异常，请联系管理员");
+        DataPermissionHelper.ignore(() -> userService.resetUserPwd(user.getUserId(), passwordHasher.hash(bo.newPassword())));
+        return ApiResult.ok();
     }
 
     /**

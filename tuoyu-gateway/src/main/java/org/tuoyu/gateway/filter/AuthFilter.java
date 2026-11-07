@@ -1,18 +1,16 @@
 package org.tuoyu.gateway.filter;
 
-import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.filter.SaServletFilter;
 import cn.dev33.satoken.httpauth.basic.SaHttpBasicUtil;
-import cn.dev33.satoken.util.SaResult;
-import cn.dev33.satoken.util.SaTokenConsts;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.tuoyu.common.core.constant.HttpStatus;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.utils.ServletUtils;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.satoken.auth.RequestAuthenticator;
-import org.tuoyu.common.satoken.handler.NotLoginMessage;
+import org.tuoyu.common.satoken.handler.AuthErrors;
+import org.tuoyu.common.observability.trace.TraceContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -43,15 +41,8 @@ public class AuthFilter {
                 // 网关收到的是完整路径
                 authenticator.authenticate(request, request.getRequestURI());
             })
-            .setError(e -> {
-                HttpServletResponse response = ServletUtils.getResponse();
-                response.setContentType(SaTokenConsts.CONTENT_TYPE_APPLICATION_JSON);
-                if (e instanceof NotLoginException notLogin) {
-                    // 异常消息中带着令牌，按类型给出固定提示
-                    return SaResult.error(NotLoginMessage.of(notLogin)).setCode(HttpStatus.UNAUTHORIZED);
-                }
-                return SaResult.error("认证失败，无法访问系统资源").setCode(HttpStatus.UNAUTHORIZED);
-            });
+            // 未登录 401（提示按类型给出，不带令牌）、客户端不允许访问 403、其他认证失败 401
+            .setError(e -> AuthErrors.write(ServletUtils.getResponse(), AuthErrors.of(e), TraceContext.traceId()));
     }
 
     /**
@@ -68,11 +59,8 @@ public class AuthFilter {
             .setAuth(obj -> {
                 SaHttpBasicUtil.check(username + StringUtils.COLON + password);
             })
-            .setError(e -> {
-                HttpServletResponse response = ServletUtils.getResponse();
-                response.setContentType(SaTokenConsts.CONTENT_TYPE_APPLICATION_JSON);
-                return SaResult.error(e.getMessage()).setCode(HttpStatus.UNAUTHORIZED);
-            });
+            .setError(e -> AuthErrors.write(ServletUtils.getResponse(),
+                ApiResult.fail(HttpStatus.UNAUTHORIZED, e.getMessage()), TraceContext.traceId()));
     }
 
 }

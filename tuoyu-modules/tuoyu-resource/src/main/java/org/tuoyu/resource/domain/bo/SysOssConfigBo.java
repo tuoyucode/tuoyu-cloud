@@ -5,8 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import org.tuoyu.resource.domain.SysOssConfig;
 
 import java.io.Serial;
@@ -31,34 +31,34 @@ public class SysOssConfigBo implements Serializable {
     /**
      * 主键
      */
-    @NotNull(message = "主键不能为空", groups = {EditGroup.class})
+    @NotNull(message = "主键不能为空", groups = {OnUpdate.class})
     private Long ossConfigId;
 
     /**
      * 配置key
      */
-    @NotBlank(message = "配置key不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "配置key不能为空", groups = {OnCreate.class, OnUpdate.class})
     @Size(min = 2, max = 100, message = "configKey长度必须介于2和20 之间")
     private String configKey;
 
     /**
      * accessKey（修改时为 null 表示不修改）
      */
-    @NotBlank(message = "accessKey不能为空", groups = {AddGroup.class})
+    @NotBlank(message = "accessKey不能为空", groups = {OnCreate.class})
     @Size(min = 2, max = 100, message = "accessKey长度必须介于2和100 之间")
     private String accessKey;
 
     /**
      * 秘钥（修改时为 null 表示不修改）
      */
-    @NotBlank(message = "secretKey不能为空", groups = {AddGroup.class})
+    @NotBlank(message = "secretKey不能为空", groups = {OnCreate.class})
     @Size(min = 2, max = 100, message = "secretKey长度必须介于2和100 之间")
     private String secretKey;
 
     /**
      * 桶名称
      */
-    @NotBlank(message = "桶名称不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "桶名称不能为空", groups = {OnCreate.class, OnUpdate.class})
     @Size(min = 2, max = 100, message = "bucketName长度必须介于2和100之间")
     private String bucketName;
 
@@ -70,7 +70,7 @@ public class SysOssConfigBo implements Serializable {
     /**
      * 访问站点
      */
-    @NotBlank(message = "访问站点不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "访问站点不能为空", groups = {OnCreate.class, OnUpdate.class})
     @Size(min = 2, max = 100, message = "endpoint长度必须介于2和100之间")
     private String endpoint;
 
@@ -107,7 +107,7 @@ public class SysOssConfigBo implements Serializable {
     /**
      * 桶权限类型(0private 1public 2custom)
      */
-    @NotBlank(message = "桶权限类型不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "桶权限类型不能为空", groups = {OnCreate.class, OnUpdate.class})
     private String accessPolicy;
 
     /**

@@ -180,8 +180,7 @@ class RemoteServicesTest {
         assertThrows(UserException.class, () -> remoteUser.registerUserInfo(bo));
 
         when(userMapper.exists(any())).thenReturn(false);
-        when(userService.registerUser(any(SysUserBo.class))).thenReturn(true);
-        assertTrue(remoteUser.registerUserInfo(bo));
+        remoteUser.registerUserInfo(bo);
         ArgumentCaptor<SysUserBo> registered = ArgumentCaptor.forClass(SysUserBo.class);
         verify(userService).registerUser(registered.capture());
         assertEquals("bob", registered.getValue().getUserName());
@@ -362,7 +361,6 @@ class RemoteServicesTest {
         social.setAuthId("auth");
         when(socialService.selectByAuthId("auth")).thenReturn(List.of(social));
         when(socialService.queryList(any(SysSocialBo.class))).thenReturn(List.of(social));
-        when(socialService.deleteWithValidById(5L)).thenReturn(true);
         RemoteSocialServiceImpl remoteSocial = new RemoteSocialServiceImpl(socialService);
         assertEquals("auth", remoteSocial.selectByAuthId("auth").get(0).getAuthId());
         RemoteSocialBo socialBo = new RemoteSocialBo();
@@ -372,7 +370,8 @@ class RemoteServicesTest {
         remoteSocial.updateByBo(socialBo);
         verify(socialService).insertByBo(any(SysSocialBo.class));
         verify(socialService).updateByBo(any(SysSocialBo.class));
-        assertTrue(remoteSocial.deleteWithValidById(5L));
+        remoteSocial.deleteWithValidById(5L);
+        verify(socialService).deleteWithValidById(5L);
 
         ISysOperLogService operLogService = mock(ISysOperLogService.class);
         ISysLoginInfoService loginInfoService = mock(ISysLoginInfoService.class);
@@ -404,7 +403,7 @@ class RemoteServicesTest {
         role.setRoleId(2L);
         role.setRoleKey("common");
         role.setRoleName("普通角色");
-        when(roleService.selectPageRoleList(any(), any())).thenReturn(PageResult.build(List.of(role), 1));
+        when(roleService.selectPageRoleList(any(), any())).thenReturn(PageResult.of(List.of(role), 1));
         RemoteTaskAssigneeVo roles = assignee.selectRolesByTaskAssigneeList(query);
         assertEquals(1L, roles.getTotal());
         assertEquals("2", roles.getList().get(0).getStorageId());
@@ -413,19 +412,19 @@ class RemoteServicesTest {
         SysPostVo post = new SysPostVo();
         post.setPostId(3L);
         post.setDeptId(10L);
-        when(postService.selectPagePostList(any(), any())).thenReturn(PageResult.build(List.of(post), 1));
+        when(postService.selectPagePostList(any(), any())).thenReturn(PageResult.of(List.of(post), 1));
         assertEquals("10", assignee.selectPostsByTaskAssigneeList(query).getList().get(0).getGroupName());
 
         SysDeptVo dept = new SysDeptVo();
         dept.setDeptId(11L);
         dept.setParentId(10L);
-        when(deptService.selectPageDeptList(any(), any())).thenReturn(PageResult.build(List.of(dept), 1));
+        when(deptService.selectPageDeptList(any(), any())).thenReturn(PageResult.of(List.of(dept), 1));
         assertEquals("11", assignee.selectDeptsByTaskAssigneeList(query).getList().get(0).getStorageId());
 
         SysUserVo user = new SysUserVo();
         user.setUserId(100L);
         user.setUserName("alice");
-        when(userService.selectPageUserList(any(), any())).thenReturn(PageResult.build(List.of(user), 1));
+        when(userService.selectPageUserList(any(), any())).thenReturn(PageResult.of(List.of(user), 1));
         RemoteTaskAssigneeVo users = assignee.selectUsersByTaskAssigneeList(query);
         assertEquals("alice", users.getList().get(0).getHandlerCode());
         ArgumentCaptor<SysUserBo> bo = ArgumentCaptor.forClass(SysUserBo.class);

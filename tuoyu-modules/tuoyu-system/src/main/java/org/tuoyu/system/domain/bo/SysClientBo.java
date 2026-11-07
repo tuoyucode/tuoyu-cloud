@@ -4,8 +4,8 @@ import io.github.linpeilie.annotations.AutoMapper;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import org.tuoyu.system.domain.SysClient;
 
 import java.io.Serial;
@@ -29,7 +29,7 @@ public class SysClientBo implements Serializable {
     /**
      * id
      */
-    @NotNull(message = "id不能为空", groups = {EditGroup.class})
+    @NotNull(message = "id不能为空", groups = {OnUpdate.class})
     private Long id;
 
     /**
@@ -40,19 +40,19 @@ public class SysClientBo implements Serializable {
     /**
      * 客户端key
      */
-    @NotBlank(message = "客户端key不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "客户端key不能为空", groups = {OnCreate.class, OnUpdate.class})
     private String clientKey;
 
     /**
      * 客户端秘钥
      */
-    @NotBlank(message = "客户端秘钥不能为空", groups = {AddGroup.class})
+    @NotBlank(message = "客户端秘钥不能为空", groups = {OnCreate.class})
     private String clientSecret;
 
     /**
      * 授权类型
      */
-    @NotNull(message = "授权类型不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotNull(message = "授权类型不能为空", groups = {OnCreate.class, OnUpdate.class})
     private List<String> grantTypeList;
 
     /**

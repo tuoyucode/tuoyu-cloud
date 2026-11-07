@@ -7,13 +7,12 @@ import com.baomidou.lock.annotation.Lock4j;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.helper.DataBaseHelper;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.gen.domain.GenTable;
 import org.tuoyu.gen.domain.GenTableColumn;
 import org.tuoyu.gen.service.IGenTableService;
@@ -34,7 +33,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/gen")
-public class GenController extends BaseController {
+public class GenController {
 
     private final IGenTableService genTableService;
 
@@ -42,13 +41,13 @@ public class GenController extends BaseController {
      * 分页查询代码生成业务列表。
      *
      * @param genTable  查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 代码生成列表
      */
     @SaCheckPermission("tool:gen:list")
     @GetMapping("/list")
-    public R<PageResult<GenTable>> genList(GenTable genTable, PageQuery pageQuery) {
-        return R.ok(genTableService.selectPageGenTableList(genTable, pageQuery));
+    public ApiResult<PageResult<GenTable>> genList(GenTable genTable, PageParam pageParam) {
+        return ApiResult.ok(genTableService.selectPageGenTableList(genTable, pageParam));
     }
 
     /**
@@ -57,29 +56,28 @@ public class GenController extends BaseController {
      * @param tableId 表ID
      * @return 表与字段信息
      */
-    @RepeatSubmit()
     @SaCheckPermission("tool:gen:query")
     @GetMapping(value = "/{tableId}")
-    public R<Map<String, Object>> getInfo(@PathVariable Long tableId) {
+    public ApiResult<Map<String, Object>> getInfo(@PathVariable Long tableId) {
         GenTable table = genTableService.selectGenTableById(tableId);
         List<GenTableColumn> list = genTableService.selectGenTableColumnListByTableId(tableId);
         Map<String, Object> map = new HashMap<>(2);
         map.put("info", table);
-        map.put("rows", list);
-        return R.ok(map);
+        map.put("columns", list);
+        return ApiResult.ok(map);
     }
 
     /**
      * 分页查询数据库表列表。
      *
      * @param genTable  查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 数据库表列表
      */
     @SaCheckPermission("tool:gen:list")
     @GetMapping("/db/list")
-    public R<PageResult<GenTable>> dataList(GenTable genTable, PageQuery pageQuery) {
-        return R.ok(genTableService.selectPageDbTableList(genTable, pageQuery));
+    public ApiResult<PageResult<GenTable>> dataList(GenTable genTable, PageParam pageParam) {
+        return ApiResult.ok(genTableService.selectPageDbTableList(genTable, pageParam));
     }
 
     /**
@@ -90,9 +88,9 @@ public class GenController extends BaseController {
      */
     @SaCheckPermission("tool:gen:list")
     @GetMapping(value = "/column/{tableId}")
-    public R<PageResult<GenTableColumn>> columnList(@PathVariable("tableId") Long tableId) {
+    public ApiResult<PageResult<GenTableColumn>> columnList(@PathVariable("tableId") Long tableId) {
         List<GenTableColumn> list = genTableService.selectGenTableColumnListByTableId(tableId);
-        return R.ok(PageResult.build(list));
+        return ApiResult.ok(PageResult.of(list));
     }
 
     /**
@@ -103,16 +101,16 @@ public class GenController extends BaseController {
      * @return 操作结果
      */
     @SaCheckPermission("tool:gen:import")
-    @Log(title = "代码生成", businessType = BusinessType.IMPORT)
+    @OperationLog(module = "代码生成", action = AuditAction.IMPORT)
     @Lock4j(keys = {"#dataName"}, acquireTimeout = 10000)
-    @RepeatSubmit()
+    @PreventResubmit
     @PostMapping("/importTable")
-    public R<Void> importTableSave(String tables, String dataName) {
+    public ApiResult<Void> importTableSave(String tables, String dataName) {
         String[] tableNames = Convert.toStrArray(tables);
         // 查询表信息
         List<GenTable> tableList = genTableService.selectDbTableListByNames(tableNames, dataName);
         genTableService.importGenTable(tableList, dataName);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -122,13 +120,13 @@ public class GenController extends BaseController {
      * @return 操作结果
      */
     @SaCheckPermission("tool:gen:edit")
-    @Log(title = "代码生成", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "代码生成", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping
-    public R<Void> editSave(@Validated @RequestBody GenTable genTable) {
+    public ApiResult<Void> editSave(@Validated @RequestBody GenTable genTable) {
         genTableService.validateEdit(genTable);
         genTableService.updateGenTable(genTable);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -138,11 +136,11 @@ public class GenController extends BaseController {
      * @return 操作结果
      */
     @SaCheckPermission("tool:gen:remove")
-    @Log(title = "代码生成", businessType = BusinessType.DELETE)
+    @OperationLog(module = "代码生成", action = AuditAction.DELETE)
     @DeleteMapping("/{tableIds}")
-    public R<Void> remove(@PathVariable Long[] tableIds) {
+    public ApiResult<Void> remove(@PathVariable Long[] tableIds) {
         genTableService.deleteGenTableByIds(tableIds);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -153,9 +151,9 @@ public class GenController extends BaseController {
      */
     @SaCheckPermission("tool:gen:preview")
     @GetMapping("/preview/{tableId}")
-    public R<Map<String, String>> preview(@PathVariable("tableId") Long tableId) throws IOException {
+    public ApiResult<Map<String, String>> preview(@PathVariable("tableId") Long tableId) throws IOException {
         Map<String, String> dataMap = genTableService.previewCode(tableId);
-        return R.ok(dataMap);
+        return ApiResult.ok(dataMap);
     }
 
     /**
@@ -165,7 +163,7 @@ public class GenController extends BaseController {
      * @param tableId  表ID
      */
     @SaCheckPermission("tool:gen:code")
-    @Log(title = "代码生成", businessType = BusinessType.GENCODE)
+    @OperationLog(module = "代码生成", action = AuditAction.GENERATE_CODE)
     @GetMapping("/download/{tableId}")
     public void download(HttpServletResponse response, @PathVariable("tableId") Long tableId) throws IOException {
         byte[] data = genTableService.downloadCode(tableId);
@@ -179,12 +177,12 @@ public class GenController extends BaseController {
      * @return 操作结果
      */
     @SaCheckPermission("tool:gen:edit")
-    @Log(title = "代码生成", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "代码生成", action = AuditAction.UPDATE)
     @Lock4j(keys = {"#tableId"}, acquireTimeout = 5000)
     @GetMapping("/synchDb/{tableId}")
-    public R<Void> synchDb(@PathVariable("tableId") Long tableId) {
+    public ApiResult<Void> synchDb(@PathVariable("tableId") Long tableId) {
         genTableService.synchDb(tableId);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -194,7 +192,7 @@ public class GenController extends BaseController {
      * @param tableIdStr 表ID串
      */
     @SaCheckPermission("tool:gen:code")
-    @Log(title = "代码生成", businessType = BusinessType.GENCODE)
+    @OperationLog(module = "代码生成", action = AuditAction.GENERATE_CODE)
     @GetMapping("/batchGenCode")
     public void batchGenCode(HttpServletResponse response, String tableIdStr) throws IOException {
         String[] tableIds = Convert.toStrArray(tableIdStr);
@@ -225,7 +223,7 @@ public class GenController extends BaseController {
      */
     @SaCheckPermission("tool:gen:list")
     @GetMapping(value = "/getDataNames")
-    public R<Object> getCurrentDataSourceNameList() {
-        return R.ok(DataBaseHelper.getDataSourceNameList());
+    public ApiResult<Object> getCurrentDataSourceNameList() {
+        return ApiResult.ok(DataBaseHelper.getDataSourceNameList());
     }
 }

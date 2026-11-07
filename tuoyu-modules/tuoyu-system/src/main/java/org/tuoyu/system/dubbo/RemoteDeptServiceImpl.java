@@ -1,6 +1,8 @@
 package org.tuoyu.system.dubbo;
 
 import cn.hutool.core.bean.BeanUtil;
+import org.tuoyu.common.core.utils.BeanMapper;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import lombok.RequiredArgsConstructor;
@@ -61,10 +63,10 @@ public class RemoteDeptServiceImpl implements RemoteDeptService {
      */
     @Override
     public List<RemoteDeptVo> selectDeptsByList() {
-        List<SysDeptVo> list = deptMapper.lambda()
+        List<SysDeptVo> list = BeanMapper.mapList(deptMapper.selectList(QueryBuilder.lambda(SysDept.class)
             .select(SysDept::getDeptId, SysDept::getDeptName, SysDept::getParentId)
             .eq(SysDept::getStatus, SystemConstants.NORMAL)
-            .voList();
+            .build()), SysDeptVo.class);
         return BeanUtil.copyToList(list, RemoteDeptVo.class);
     }
 
@@ -79,10 +81,10 @@ public class RemoteDeptServiceImpl implements RemoteDeptService {
         if (CollUtil.isEmpty(deptIds)) {
             return Collections.emptyMap();
         }
-        List<SysDept> list = deptMapper.lambda()
+        List<SysDept> list = deptMapper.selectList(QueryBuilder.lambda(SysDept.class)
             .select(SysDept::getDeptId, SysDept::getDeptName)
             .in(SysDept::getDeptId, deptIds)
-            .list();
+            .build());
         return StreamUtils.toMap(list, SysDept::getDeptId, SysDept::getDeptName);
     }
 

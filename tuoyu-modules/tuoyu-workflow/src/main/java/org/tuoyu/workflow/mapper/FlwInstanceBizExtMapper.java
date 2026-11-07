@@ -1,7 +1,8 @@
 package org.tuoyu.workflow.mapper;
 
 import cn.hutool.core.util.ObjectUtil;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.workflow.domain.FlowInstanceBizExt;
 
 import java.util.Collection;
@@ -12,7 +13,7 @@ import java.util.Collection;
  * @author may
  * @date 2025-08-05
  */
-public interface FlwInstanceBizExtMapper extends BaseMapperPlus<FlowInstanceBizExt, FlowInstanceBizExt> {
+public interface FlwInstanceBizExtMapper extends BaseMapper<FlowInstanceBizExt> {
 
     /**
      * 根据 instanceId 保存或更新流程实例业务扩展
@@ -22,9 +23,9 @@ public interface FlwInstanceBizExtMapper extends BaseMapperPlus<FlowInstanceBizE
      */
     default int saveOrUpdateByInstanceId(FlowInstanceBizExt entity) {
         // 查询是否存在
-        FlowInstanceBizExt exist = this.lambda()
+        FlowInstanceBizExt exist = this.selectOne(QueryBuilder.lambda(FlowInstanceBizExt.class)
             .eq(FlowInstanceBizExt::getInstanceId, entity.getInstanceId())
-            .one();
+            .build());
 
         if (ObjectUtil.isNotNull(exist)) {
             // 存在就带上主键更新
@@ -43,7 +44,9 @@ public interface FlwInstanceBizExtMapper extends BaseMapperPlus<FlowInstanceBizE
      * @return 删除的行数
      */
     default int deleteByInstId(Long instanceId) {
-        return this.lambda().eq(FlowInstanceBizExt::getInstanceId, instanceId).deleteCount();
+        return this.delete(QueryBuilder.lambda(FlowInstanceBizExt.class)
+            .eq(FlowInstanceBizExt::getInstanceId, instanceId)
+            .build());
     }
 
     /**
@@ -53,7 +56,9 @@ public interface FlwInstanceBizExtMapper extends BaseMapperPlus<FlowInstanceBizE
      * @return 删除的行数
      */
     default int deleteByInstIds(Collection<Long> instanceIds) {
-        return this.lambda().in(FlowInstanceBizExt::getInstanceId, instanceIds).deleteCount();
+        return this.delete(QueryBuilder.lambda(FlowInstanceBizExt.class)
+            .in(FlowInstanceBizExt::getInstanceId, instanceIds)
+            .build());
     }
 
 }

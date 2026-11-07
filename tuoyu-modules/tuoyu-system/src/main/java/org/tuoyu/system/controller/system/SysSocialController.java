@@ -1,10 +1,9 @@
 package org.tuoyu.system.controller.system;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
+import org.tuoyu.common.core.context.UserContext;
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.satoken.utils.LoginHelper;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.system.domain.vo.SysSocialVo;
 import org.tuoyu.system.service.ISysSocialService;
 import org.springframework.validation.annotation.Validated;
@@ -24,7 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/social")
-public class SysSocialController extends BaseController {
+public class SysSocialController {
 
     private final ISysSocialService socialUserService;
 
@@ -33,8 +32,8 @@ public class SysSocialController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping("/list")
-    public R<List<SysSocialVo>> list() {
-        return R.ok(socialUserService.queryListByUserId(LoginHelper.getUserId()));
+    public ApiResult<List<SysSocialVo>> list() {
+        return ApiResult.ok(socialUserService.queryListByUserId(UserContext.userId()));
     }
 
 }

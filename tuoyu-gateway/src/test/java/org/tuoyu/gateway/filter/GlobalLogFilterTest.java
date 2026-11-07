@@ -140,9 +140,9 @@ class GlobalLogFilterTest {
     @DisplayName("查询参数：口令参数不写入日志；没有参数时记录“无参数”")
     void queryParameters() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/system/user/list");
-        request.setQueryString("pageNum=1&password=secret-q");
+        request.setQueryString("page=1&password=secret-q");
         filter(true).doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
-        assertThat(messages()).anyMatch(m -> m.contains("参数类型[param]") && m.contains("pageNum"));
+        assertThat(messages()).anyMatch(m -> m.contains("参数类型[param]") && m.contains("\"page\""));
         assertThat(String.join("\n", messages())).doesNotContain("secret-q");
 
         filter(true).doFilter(new MockHttpServletRequest("GET", "/system/user/list"), new MockHttpServletResponse(),

@@ -16,10 +16,11 @@ import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.liteflow.utils.LiteFlowUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.mybatis.utils.IdGeneratorUtil;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.system.api.RemoteUserService;
 import org.tuoyu.system.api.domain.vo.RemoteUserVo;
 import org.dromara.warm.flow.core.FlowEngine;
@@ -124,10 +125,9 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     @Lock4j(keys = {"#completeTaskBo.taskId"})
-    public boolean completeTask(CompleteTaskBo completeTaskBo) {
+    public void completeTask(CompleteTaskBo completeTaskBo) {
         // 办理任务的业务编排交给 LiteFlow 链路，当前方法只保留事务、锁和异常透传边界。
         LiteFlowUtils.execute(COMPLETE_TASK_CHAIN, new CompleteTaskContext(completeTaskBo));
-        return true;
     }
 
     /**
@@ -186,38 +186,38 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
      * 查询当前用户的待办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @Override
-    public PageResult<FlowTaskVo> pageByTaskWait(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        Page<FlowTaskVo> page = flwTaskMapper.getListRunTask(pageQuery.build(), flowTaskBo, categoryIds(flowTaskBo), LoginHelper.getUserIdStr());
+    public PageResult<FlowTaskVo> pageByTaskWait(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        Page<FlowTaskVo> page = flwTaskMapper.getListRunTask(pageParam.toPage(FlowTask.class, "t"), flowTaskBo, categoryIds(flowTaskBo), currentUserId());
         this.wrapAssigneeInfo(page.getRecords());
-        return PageResult.build(page.getRecords(), page.getTotal());
+        return PageResults.of(page);
     }
 
     /**
      * 查询当前用户的已办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @Override
-    public PageResult<FlowHisTaskVo> pageByTaskFinish(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        Page<FlowHisTaskVo> page = flwHisTaskMapper.getListFinishTask(pageQuery.build(), flowTaskBo, categoryIds(flowTaskBo), LoginHelper.getUserIdStr());
-        return PageResult.build(page.getRecords(), page.getTotal());
+    public PageResult<FlowHisTaskVo> pageByTaskFinish(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        Page<FlowHisTaskVo> page = flwHisTaskMapper.getListFinishTask(pageParam.toPage(FlowHisTask.class, "a"), flowTaskBo, categoryIds(flowTaskBo), currentUserId());
+        return PageResults.of(page);
     }
 
     /**
      * 查询待办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @Override
-    public PageResult<FlowTaskVo> pageByAllTaskWait(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        Page<FlowTaskVo> page = flwTaskMapper.getListRunTask(pageQuery.build(), flowTaskBo, categoryIds(flowTaskBo), null);
+    public PageResult<FlowTaskVo> pageByAllTaskWait(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        Page<FlowTaskVo> page = flwTaskMapper.getListRunTask(pageParam.toPage(FlowTask.class, "t"), flowTaskBo, categoryIds(flowTaskBo), null);
         this.wrapAssigneeInfo(page.getRecords());
-        return PageResult.build(page.getRecords(), page.getTotal());
+        return PageResults.of(page);
     }
 
     /**
@@ -242,24 +242,31 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
      * 查询已办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @Override
-    public PageResult<FlowHisTaskVo> pageByAllTaskFinish(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        Page<FlowHisTaskVo> page = flwHisTaskMapper.getListFinishTask(pageQuery.build(), flowTaskBo, categoryIds(flowTaskBo), null);
-        return PageResult.build(page.getRecords(), page.getTotal());
+    public PageResult<FlowHisTaskVo> pageByAllTaskFinish(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        Page<FlowHisTaskVo> page = flwHisTaskMapper.getListFinishTask(pageParam.toPage(FlowHisTask.class, "a"), flowTaskBo, categoryIds(flowTaskBo), null);
+        return PageResults.of(page);
     }
 
     /**
      * 查询当前用户的抄送
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @Override
-    public PageResult<FlowTaskVo> pageByTaskCopy(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        Page<FlowTaskVo> page = flwTaskMapper.getTaskCopyByPage(pageQuery.build(), flowTaskBo, categoryIds(flowTaskBo), LoginHelper.getUserIdStr());
-        return PageResult.build(page.getRecords(), page.getTotal());
+    public PageResult<FlowTaskVo> pageByTaskCopy(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        Page<FlowTaskVo> page = flwTaskMapper.getTaskCopyByPage(pageParam.toPage(FlowUser.class, "a"), flowTaskBo, categoryIds(flowTaskBo), currentUserId());
+        return PageResults.of(page);
+    }
+
+    /**
+     * 当前登录用户的 ID（字符串，与流程引擎中保存的办理人一致）；查询“我的”任务时必须有登录用户
+     */
+    private static String currentUserId() {
+        return Convert.toStr(UserContext.require().getUserId());
     }
 
     private List<String> categoryIds(FlowTaskBo flowTaskBo) {
@@ -277,7 +284,7 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean backProcess(BackProcessBo bo) {
+    public void backProcess(BackProcessBo bo) {
         Long taskId = bo.getTaskId();
         String notice = bo.getNotice();
         List<String> messageType = bo.getMessageType();
@@ -309,7 +316,6 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
             .hisStatus(TaskStatusEnum.BACK.getStatus())
             .hisTaskExt(bo.getFileId());
         taskService.skip(task.getId(), flowParams);
-        return true;
     }
 
     /**
@@ -452,7 +458,7 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean terminationTask(FlowTerminationBo bo) {
+    public void terminationTask(FlowTerminationBo bo) {
         Long taskId = bo.getTaskId();
         Task task = taskService.getById(taskId);
         if (task == null) {
@@ -467,7 +473,6 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
             .flowStatus(BusinessStatusEnum.TERMINATION.getStatus())
             .hisStatus(TaskStatusEnum.TERMINATION.getStatus());
         taskService.termination(taskId, flowParams);
-        return true;
     }
 
     /**
@@ -643,10 +648,12 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean taskOperation(TaskOperationBo bo, String taskOperation) {
+    public void taskOperation(TaskOperationBo bo, String taskOperation) {
         TaskOperationContext context = new TaskOperationContext(bo, taskOperation);
         LiteFlowUtils.execute(TASK_OPERATION_CHAIN, context);
-        return context.isResult();
+        if (!context.isResult()) {
+            throw new ServiceException(context.getOperation().getDesc() + "失败，任务未更新");
+        }
     }
 
     /**
@@ -657,9 +664,9 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean updateAssignee(List<Long> taskIdList, String userId) {
+    public void updateAssignee(List<Long> taskIdList, String userId) {
         if (CollUtil.isEmpty(taskIdList)) {
-            return false;
+            throw new ServiceException("请选择要修改办理人的任务");
         }
         List<FlowTask> flowTasks = this.selectByIdList(taskIdList);
         // 批量删除现有任务的办理人记录
@@ -674,7 +681,6 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
                 FlowEngine.userService().saveBatch(userList);
             }
         }
-        return true;
     }
 
     /**
@@ -736,12 +742,12 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
      * @param task 当前任务
      */
     private void checkTaskReadAccess(Task task) {
-        if (LoginHelper.isSuperAdmin()
+        if (UserContext.isSuperAdmin()
             || StpUtil.hasPermission("workflow:task:list")
             || StpUtil.hasPermission("workflow:task:edit")) {
             return;
         }
-        String userId = LoginHelper.getUserIdStr();
+        String userId = currentUserId();
         List<User> associatedUsers = FlowEngine.userService().getByAssociateds(List.of(task.getId()));
         boolean taskAssignee = CollUtil.isNotEmpty(associatedUsers)
             && associatedUsers.stream()
@@ -777,18 +783,17 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
      * @param bo 参数
      */
     @Override
-    public boolean urgeTask(FlowUrgeTaskBo bo) {
+    public void urgeTask(FlowUrgeTaskBo bo) {
         if (CollUtil.isEmpty(bo.getTaskIdList())) {
-            return false;
+            throw new ServiceException("请选择要催办的任务");
         }
         List<RemoteUserVo> userList = this.currentTaskAllUser(bo.getTaskIdList());
         if (CollUtil.isEmpty(userList)) {
-            return false;
+            throw new ServiceException("所选任务没有办理人，无法催办");
         }
         List<String> messageType = bo.getMessageType();
         String message = bo.getMessage();
         flwCommonService.sendMessage(messageType, message, "单据审批提醒", userList, PATH_TASK_WAITING);
-        return true;
     }
 
 }

@@ -2,8 +2,8 @@ package org.tuoyu.workflow.domain.bo;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -25,13 +25,13 @@ public class TaskOperationBo implements Serializable {
     /**
      * 委派/转办人的用户ID（必填，准对委派/转办人操作）
      */
-    @NotNull(message = "委派/转办人id不能为空", groups = {AddGroup.class})
+    @NotNull(message = "委派/转办人id不能为空", groups = {OnCreate.class})
     private String userId;
 
     /**
      * 加签/减签人的用户ID列表（必填，针对加签/减签操作）
      */
-    @NotNull(message = "加签/减签id不能为空", groups = {EditGroup.class})
+    @NotNull(message = "加签/减签id不能为空", groups = {OnUpdate.class})
     private List<String> userIds;
 
     /**

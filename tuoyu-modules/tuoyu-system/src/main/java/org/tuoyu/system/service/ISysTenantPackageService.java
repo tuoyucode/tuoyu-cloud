@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysTenantPackageBo;
 import org.tuoyu.system.domain.vo.SysTenantPackageVo;
 
@@ -15,7 +15,7 @@ import java.util.List;
  */
 public interface ISysTenantPackageService {
 
-    PageResult<SysTenantPackageVo> selectPageList(SysTenantPackageBo bo, PageQuery pageQuery);
+    PageResult<SysTenantPackageVo> selectPageList(SysTenantPackageBo bo, PageParam pageParam);
 
     /**
      * @return 套餐（含菜单）

@@ -17,7 +17,7 @@ import org.tuoyu.common.core.context.AccessRequirement;
 import org.tuoyu.common.core.context.CurrentRole;
 import org.tuoyu.common.core.context.CurrentUser;
 import org.tuoyu.common.core.context.PermissionContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.StreamUtils;
@@ -36,7 +36,7 @@ import java.util.*;
 import java.util.function.Function;
 
 /**
- * 数据权限过滤。当前用户与接口的访问要求来自 {@link UserContext}、{@link PermissionContext}，
+ * 数据权限过滤。当前用户与接口的访问要求来自 {@link UserContextProvider}、{@link PermissionContext}，
  * 本模块不依赖具体的认证框架
  *
  * @author Lion Li
@@ -55,11 +55,11 @@ public class DataPermissionSqlHandler {
      */
     private final BeanResolver beanResolver = new BeanFactoryResolver(SpringUtils.getBeanFactory());
 
-    private final ObjectProvider<UserContext> userContextProvider;
+    private final ObjectProvider<UserContextProvider> userContextProvider;
 
     private final ObjectProvider<PermissionContext> permissionContextProvider;
 
-    public DataPermissionSqlHandler(ObjectProvider<UserContext> userContextProvider,
+    public DataPermissionSqlHandler(ObjectProvider<UserContextProvider> userContextProvider,
                                      ObjectProvider<PermissionContext> permissionContextProvider) {
         this.userContextProvider = userContextProvider;
         this.permissionContextProvider = permissionContextProvider;
@@ -196,8 +196,8 @@ public class DataPermissionSqlHandler {
      * @throws ServiceException 没有当前用户时（未登录、后台任务未忽略数据权限），拒绝执行（401）
      */
     private CurrentUser currentUser() {
-        UserContext userContext = userContextProvider.getIfAvailable();
-        return Optional.ofNullable(userContext).flatMap(UserContext::currentUser)
+        UserContextProvider userContext = userContextProvider.getIfAvailable();
+        return Optional.ofNullable(userContext).flatMap(UserContextProvider::currentUser)
             .orElseThrow(() -> new ServiceException("认证失败，无法访问系统资源", HttpStatus.HTTP_UNAUTHORIZED));
     }
 

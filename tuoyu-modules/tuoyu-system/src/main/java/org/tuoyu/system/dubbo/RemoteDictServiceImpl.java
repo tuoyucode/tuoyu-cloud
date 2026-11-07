@@ -1,7 +1,7 @@
 package org.tuoyu.system.dubbo;
 
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.system.api.RemoteDictService;
 import org.tuoyu.system.api.domain.vo.RemoteDictDataVo;
 import org.tuoyu.system.api.domain.vo.RemoteDictTypeVo;
@@ -33,7 +33,7 @@ public class RemoteDictServiceImpl implements RemoteDictService {
     @Override
     public RemoteDictTypeVo selectDictTypeByType(String dictType) {
         SysDictTypeVo vo = sysDictTypeService.selectDictTypeByType(dictType);
-        return MapstructUtils.convert(vo, RemoteDictTypeVo.class);
+        return BeanMapper.map(vo, RemoteDictTypeVo.class);
     }
 
     /**
@@ -46,7 +46,7 @@ public class RemoteDictServiceImpl implements RemoteDictService {
     @Override
     public List<RemoteDictDataVo> selectDictDataByType(String dictType) {
         List<SysDictDataVo> list = sysDictTypeService.selectDictDataByType(dictType);
-        return MapstructUtils.convert(list, RemoteDictDataVo.class);
+        return BeanMapper.mapList(list, RemoteDictDataVo.class);
     }
 
 }

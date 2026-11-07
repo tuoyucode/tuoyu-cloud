@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysDictTypeBo;
 import org.tuoyu.system.domain.vo.SysDictDataVo;
 import org.tuoyu.system.domain.vo.SysDictTypeVo;
@@ -19,10 +19,10 @@ public interface ISysDictTypeService {
      * 分页查询字典类型列表
      *
      * @param dictType  查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 字典类型分页列表
      */
-    PageResult<SysDictTypeVo> selectPageDictTypeList(SysDictTypeBo dictType, PageQuery pageQuery);
+    PageResult<SysDictTypeVo> selectPageDictTypeList(SysDictTypeBo dictType, PageParam pageParam);
 
     /**
      * 根据条件分页查询字典类型

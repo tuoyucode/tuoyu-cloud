@@ -2,7 +2,7 @@ package org.tuoyu.common.security;
 
 import cn.dev33.satoken.filter.SaServletFilter;
 import cn.dev33.satoken.interceptor.SaInterceptor;
-import cn.dev33.satoken.util.SaResult;
+import cn.dev33.satoken.exception.NotPermissionException;
 import cn.hutool.extra.spring.SpringUtil;
 import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.satoken.auth.AuthWhitelistProperties;
@@ -10,7 +10,15 @@ import org.tuoyu.common.satoken.auth.RequestAuthenticator;
 import org.tuoyu.common.security.config.SecurityConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.tuoyu.common.core.web.TraceIdSource;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 
 import java.util.List;
@@ -56,13 +64,38 @@ class SecurityConfigurationTest {
     void shouldCreateGatewayCheckFilter() {
         SecurityConfiguration configuration = new SecurityConfiguration();
 
-        SaServletFilter filter = configuration.getSaServletFilter(new RequestAuthenticator(new AuthWhitelistProperties()));
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        beans.addBean("traceIdSource", (TraceIdSource) () -> "4bf92f3577b34da6a3ce929d0e0e4736");
+        SaServletFilter filter = configuration.getSaServletFilter(new RequestAuthenticator(new AuthWhitelistProperties()),
+            beans.getBeanProvider(TraceIdSource.class));
 
         assertEquals(List.of("/**"), filter.includeList);
         assertEquals(List.of("/actuator", "/actuator/**", "/error", "/favicon.ico"), filter.excludeList);
-        SaResult result = assertDoesNotThrow(() -> (SaResult) filter.error.run(new RuntimeException("认证失败")));
-        assertEquals(HttpStatus.UNAUTHORIZED, result.getCode());
-        assertEquals("认证失败，无法访问系统资源", result.getMsg());
+        MockHttpServletResponse response = bindResponse();
+        try {
+            JsonNode result = json(assertDoesNotThrow(() -> filter.error.run(new RuntimeException("认证失败"))));
+            assertEquals(HttpStatus.UNAUTHORIZED, response.getStatus());
+            assertEquals(HttpStatus.UNAUTHORIZED, result.get("code").asInt());
+            assertEquals("认证失败，无法访问系统资源", result.get("message").asString());
+            assertEquals("4bf92f3577b34da6a3ce929d0e0e4736", result.get("traceId").asString());
+
+            // 客户端不允许访问该路径：无权限 403
+            JsonNode forbidden = json(filter.error.run(new NotPermissionException("当前客户端未授权访问该接口路径")));
+            assertEquals(HttpStatus.FORBIDDEN, response.getStatus());
+            assertEquals(HttpStatus.FORBIDDEN, forbidden.get("code").asInt());
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
+    }
+
+    private static MockHttpServletResponse bindResponse() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(new MockHttpServletRequest(), response));
+        return response;
+    }
+
+    private static JsonNode json(Object body) {
+        return JsonMapper.builder().build().readTree((String) body);
     }
 
     /**
@@ -105,9 +138,15 @@ class SecurityConfigurationTest {
 
             assertEquals(List.of("/actuator", "/actuator/**"), filter.includeList);
             assertEquals(List.of(), filter.excludeList);
-            SaResult result = assertDoesNotThrow(() -> (SaResult) filter.error.run(new RuntimeException("boom")));
-            assertEquals(HttpStatus.UNAUTHORIZED, result.getCode());
-            assertEquals("boom", result.getMsg());
+            MockHttpServletResponse response = bindResponse();
+            try {
+                JsonNode result = json(assertDoesNotThrow(() -> filter.error.run(new RuntimeException("boom"))));
+                assertEquals(HttpStatus.UNAUTHORIZED, response.getStatus());
+                assertEquals(HttpStatus.UNAUTHORIZED, result.get("code").asInt());
+                assertEquals("boom", result.get("message").asString());
+            } finally {
+                RequestContextHolder.resetRequestAttributes();
+            }
         }
     }
 

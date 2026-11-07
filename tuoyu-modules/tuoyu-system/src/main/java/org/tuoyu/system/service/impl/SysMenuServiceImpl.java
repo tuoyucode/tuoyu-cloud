@@ -1,16 +1,18 @@
 package org.tuoyu.system.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
+import org.tuoyu.common.core.context.UserContext;
 import cn.hutool.core.lang.tree.Tree;
 import cn.hutool.core.util.ObjectUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.constant.Constants;
 import org.tuoyu.common.core.constant.SystemConstants;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.core.utils.TreeBuildUtils;
-import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.tuoyu.system.domain.SysMenu;
 import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.domain.SysRoleMenu;
@@ -66,8 +68,8 @@ public class SysMenuServiceImpl implements ISysMenuService {
     public List<SysMenuVo> selectMenuList(SysMenuBo menu, Long userId) {
         // 管理员显示所有菜单信息 不是管理员 按用户id过滤菜单
         List<SysMenuVo> menus;
-        if (LoginHelper.isSuperAdmin(userId)) {
-            menus = menuMapper.lambda()
+        if (UserContext.isSuperAdmin(userId)) {
+            menus = BeanMapper.mapList(menuMapper.selectList(QueryBuilder.lambda(SysMenu.class)
                 .likeIfText(SysMenu::getMenuName, menu.getMenuName())
                 .eqIfText(SysMenu::getVisible, menu.getVisible())
                 .eqIfText(SysMenu::getStatus, menu.getStatus())
@@ -75,11 +77,11 @@ public class SysMenuServiceImpl implements ISysMenuService {
                 .eqIfPresent(SysMenu::getParentId, menu.getParentId())
                 .orderByAsc(SysMenu::getParentId)
                 .orderByAsc(SysMenu::getOrderNum)
-                .voList();
+                .build()), SysMenuVo.class);
         } else {
             menus = menuMapper.selectMenuListByUserId(menu, userId);
         }
-        return scoped(menus, SysMenuVo::getMenuId, SysMenuVo::getPerms, LoginHelper.isSuperAdmin(userId));
+        return scoped(menus, SysMenuVo::getMenuId, SysMenuVo::getPerms, UserContext.isSuperAdmin(userId));
     }
 
     /**
@@ -103,14 +105,14 @@ public class SysMenuServiceImpl implements ISysMenuService {
     public Set<String> selectMenuPermsByUserId(Long userId) {
         Set<String> perms = menuMapper.selectMenuPermsByUserId(userId);
         Optional<Set<Long>> allowed = tenantMenuScope.allowedMenuIds();
-        if (allowed.isEmpty() || LoginHelper.isSuperAdmin(userId)) {
+        if (allowed.isEmpty() || UserContext.isSuperAdmin(userId)) {
             return perms;
         }
         // 租户内只保留套餐中菜单的权限码（套餐缩小后，角色里多出的权限立即失效）
-        Set<String> allowedPerms = allowed.get().isEmpty() ? Set.of() : menuMapper.lambda()
+        Set<String> allowedPerms = allowed.get().isEmpty() ? Set.of() : menuMapper.selectList(QueryBuilder.lambda(SysMenu.class)
             .select(SysMenu::getPerms)
             .in(SysMenu::getMenuId, allowed.get())
-            .list().stream()
+            .build()).stream()
             .map(SysMenu::getPerms)
             .filter(StringUtils::isNotBlank)
             .flatMap(p -> StringUtils.splitList(p).stream())
@@ -149,12 +151,12 @@ public class SysMenuServiceImpl implements ISysMenuService {
     @Override
     public List<SysMenu> selectMenuTreeByUserId(Long userId) {
         List<SysMenu> menus;
-        if (LoginHelper.isSuperAdmin(userId)) {
+        if (UserContext.isSuperAdmin(userId)) {
             menus = menuMapper.selectMenuTreeAll();
         } else {
             menus = menuMapper.selectMenuTreeByUserId(userId);
         }
-        menus = scoped(menus, SysMenu::getMenuId, SysMenu::getPerms, LoginHelper.isSuperAdmin(userId));
+        menus = scoped(menus, SysMenu::getMenuId, SysMenu::getPerms, UserContext.isSuperAdmin(userId));
         if (CollUtil.isEmpty(menus)) {
             return CollUtil.newArrayList();
         }
@@ -276,7 +278,7 @@ public class SysMenuServiceImpl implements ISysMenuService {
      */
     @Override
     public SysMenuVo selectMenuById(Long menuId) {
-        return menuMapper.selectVoById(menuId);
+        return BeanMapper.map(menuMapper.selectById(menuId), SysMenuVo.class);
     }
 
     /**
@@ -287,7 +289,7 @@ public class SysMenuServiceImpl implements ISysMenuService {
      */
     @Override
     public boolean hasChildByMenuId(Long menuId) {
-        return menuMapper.lambda().eq(SysMenu::getParentId, menuId).exists();
+        return menuMapper.exists(QueryBuilder.lambda(SysMenu.class).eq(SysMenu::getParentId, menuId).build());
     }
 
     /**
@@ -298,10 +300,10 @@ public class SysMenuServiceImpl implements ISysMenuService {
      */
     @Override
     public boolean hasChildByMenuId(Collection<Long> menuIds) {
-        return menuMapper.lambda()
+        return menuMapper.exists(QueryBuilder.lambda(SysMenu.class)
             .in(SysMenu::getParentId, menuIds)
             .notIn(SysMenu::getMenuId, menuIds)
-            .exists();
+            .build());
     }
 
     /**
@@ -312,42 +314,43 @@ public class SysMenuServiceImpl implements ISysMenuService {
      */
     @Override
     public boolean checkMenuExistRole(Long menuId) {
-        return roleMenuMapper.lambda().eq(SysRoleMenu::getMenuId, menuId).exists();
+        return roleMenuMapper.exists(QueryBuilder.lambda(SysRoleMenu.class).eq(SysRoleMenu::getMenuId, menuId).build());
     }
 
     /**
      * 新增保存菜单信息
      *
      * @param bo 菜单信息
-     * @return 结果
      */
     @Override
-    public int insertMenu(SysMenuBo bo) {
-        SysMenu menu = MapstructUtils.convert(bo, SysMenu.class);
-        return menuMapper.insert(menu);
+    public void insertMenu(SysMenuBo bo) {
+        SysMenu menu = BeanMapper.map(bo, SysMenu.class);
+        menuMapper.insert(menu);
     }
 
     /**
      * 修改保存菜单信息
      *
      * @param bo 菜单信息
-     * @return 结果
      */
     @Override
-    public int updateMenu(SysMenuBo bo) {
-        SysMenu menu = MapstructUtils.convert(bo, SysMenu.class);
-        return menuMapper.updateById(menu);
+    public void updateMenu(SysMenuBo bo) {
+        SysMenu menu = BeanMapper.map(bo, SysMenu.class);
+        if (menuMapper.updateById(menu) == 0) {
+            throw new ServiceException("修改菜单'{}'失败，菜单不存在", bo.getMenuName());
+        }
     }
 
     /**
      * 删除菜单管理信息
      *
      * @param menuId 菜单ID
-     * @return 结果
      */
     @Override
-    public int deleteMenuById(Long menuId) {
-        return menuMapper.deleteById(menuId);
+    public void deleteMenuById(Long menuId) {
+        if (menuMapper.deleteById(menuId) == 0) {
+            throw new ServiceException("删除菜单失败，菜单不存在");
+        }
     }
 
     /**
@@ -370,11 +373,11 @@ public class SysMenuServiceImpl implements ISysMenuService {
      */
     @Override
     public boolean checkMenuNameUnique(SysMenuBo menu) {
-        boolean exist = menuMapper.lambda()
+        boolean exist = menuMapper.exists(QueryBuilder.lambda(SysMenu.class)
             .eq(SysMenu::getMenuName, menu.getMenuName())
             .eq(SysMenu::getParentId, menu.getParentId())
             .neIfPresent(SysMenu::getMenuId, menu.getMenuId())
-            .exists();
+            .build());
         return !exist;
     }
 
@@ -386,7 +389,7 @@ public class SysMenuServiceImpl implements ISysMenuService {
      */
     @Override
     public boolean checkRouteConfigUnique(SysMenuBo menuBo) {
-        SysMenu menu = MapstructUtils.convert(menuBo, SysMenu.class);
+        SysMenu menu = BeanMapper.map(menuBo, SysMenu.class);
         if (SystemConstants.TYPE_BUTTON.equals(menu.getMenuType())) {
             return true;
         }
@@ -394,11 +397,12 @@ public class SysMenuServiceImpl implements ISysMenuService {
         Long parentId = menu.getParentId();
         String path = menu.getPath();
         String routeName = StringUtils.isEmpty(menu.getRouteName()) ? path : menu.getRouteName();
-        List<SysMenu> sysMenuList = menuMapper.lambda()
+        List<SysMenu> sysMenuList = menuMapper.selectList(QueryBuilder.lambda(SysMenu.class)
             .in(SysMenu::getMenuType, SystemConstants.TYPE_DIR, SystemConstants.TYPE_MENU)
             .and(w ->
                 w.eq(SysMenu::getPath, path).or().eq(SysMenu::getPath, routeName)
-            ).list();
+            )
+            .build());
         for (SysMenu sysMenu : sysMenuList) {
             if (!sysMenu.getMenuId().equals(menuId)) {
                 Long dbParentId = sysMenu.getParentId();

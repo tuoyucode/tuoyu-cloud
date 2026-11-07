@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysNoticeBo;
 import org.tuoyu.system.domain.vo.SysNoticeVo;
 
@@ -18,10 +18,10 @@ public interface ISysNoticeService {
      * 分页查询通知公告列表
      *
      * @param notice    查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 通知公告分页列表
      */
-    PageResult<SysNoticeVo> selectPageNoticeList(SysNoticeBo notice, PageQuery pageQuery);
+    PageResult<SysNoticeVo> selectPageNoticeList(SysNoticeBo notice, PageParam pageParam);
 
     /**
      * 查询公告信息
@@ -43,31 +43,27 @@ public interface ISysNoticeService {
      * 新增公告
      *
      * @param bo 公告信息
-     * @return 结果
      */
-    int insertNotice(SysNoticeBo bo);
+    void insertNotice(SysNoticeBo bo);
 
     /**
      * 修改公告
      *
      * @param bo 公告信息
-     * @return 结果
      */
-    int updateNotice(SysNoticeBo bo);
+    void updateNotice(SysNoticeBo bo);
 
     /**
      * 删除公告信息
      *
      * @param noticeId 公告ID
-     * @return 结果
      */
-    int deleteNoticeById(Long noticeId);
+    void deleteNoticeById(Long noticeId);
 
     /**
      * 批量删除公告信息
      *
      * @param noticeIds 需要删除的公告ID
-     * @return 结果
      */
-    int deleteNoticeByIds(Long[] noticeIds);
+    void deleteNoticeByIds(Long[] noticeIds);
 }

@@ -11,7 +11,7 @@ import org.tuoyu.auth.config.WaveAndCircleCaptcha;
 import org.tuoyu.auth.domain.vo.CaptchaVo;
 import org.tuoyu.auth.properties.CaptchaProperties;
 import org.tuoyu.common.core.constant.Constants;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.redis.annotation.RateLimiter;
@@ -50,14 +50,14 @@ public class CaptchaController {
      */
     @SaIgnore
     @GetMapping("/code")
-    public R<CaptchaVo> getCode(@RequestParam(name = "force", defaultValue = "false") boolean force) {
+    public ApiResult<CaptchaVo> getCode(@RequestParam(name = "force", defaultValue = "false") boolean force) {
         CaptchaVo captchaVo = new CaptchaVo();
         boolean captchaEnabled = captchaProperties.getEnabled();
         if (!captchaEnabled && !force) {
             captchaVo.setCaptchaEnabled(false);
-            return R.ok(captchaVo);
+            return ApiResult.ok(captchaVo);
         }
-        return R.ok(SpringUtils.getAopProxy(this).getCodeImpl());
+        return ApiResult.ok(SpringUtils.getAopProxy(this).getCodeImpl());
     }
 
     /**

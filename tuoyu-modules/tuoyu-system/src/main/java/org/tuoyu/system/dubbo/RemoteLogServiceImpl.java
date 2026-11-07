@@ -1,7 +1,7 @@
 package org.tuoyu.system.dubbo;
 
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.system.api.RemoteLogService;
 import org.tuoyu.system.api.domain.bo.RemoteLoginInfoBo;
 import org.tuoyu.system.api.domain.bo.RemoteOperLogBo;
@@ -32,7 +32,7 @@ public class RemoteLogServiceImpl implements RemoteLogService {
     @Async
     @Override
     public void saveLog(RemoteOperLogBo remoteOperLogBo) {
-        SysOperLogBo sysOperLogBo = MapstructUtils.convert(remoteOperLogBo, SysOperLogBo.class);
+        SysOperLogBo sysOperLogBo = BeanMapper.map(remoteOperLogBo, SysOperLogBo.class);
         operLogService.insertOperlog(sysOperLogBo);
     }
 
@@ -44,7 +44,7 @@ public class RemoteLogServiceImpl implements RemoteLogService {
     @Async
     @Override
     public void saveLoginInfo(RemoteLoginInfoBo remoteLoginInfoBo) {
-        SysLoginInfoBo sysLoginInfoBo = MapstructUtils.convert(remoteLoginInfoBo, SysLoginInfoBo.class);
+        SysLoginInfoBo sysLoginInfoBo = BeanMapper.map(remoteLoginInfoBo, SysLoginInfoBo.class);
         loginInfoService.insertLoginInfo(sysLoginInfoBo);
     }
 }

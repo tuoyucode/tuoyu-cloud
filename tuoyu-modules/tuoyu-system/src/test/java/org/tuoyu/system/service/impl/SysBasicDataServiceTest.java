@@ -11,7 +11,7 @@ import org.mockito.MockedStatic;
 import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.redis.utils.CacheUtils;
 import org.tuoyu.system.domain.SysConfig;
 import org.tuoyu.system.domain.SysDept;
@@ -34,6 +34,7 @@ import org.tuoyu.system.support.SystemTestSupport;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -105,7 +106,7 @@ class SysBasicDataServiceTest {
         @DisplayName("分页、统计、全部、详情、用户的岗位、下拉选项")
         void queries() {
             when(postMapper.selectList(any(IPage.class), any())).thenReturn(List.of(post(1L)));
-            assertEquals(1, service.selectPagePostList(new SysPostBo(), new PageQuery()).getRows().size());
+            assertEquals(1, service.selectPagePostList(new SysPostBo(), new PageParam()).getItems().size());
             service.countPostList(new SysPostBo());
             when(postMapper.selectList(any(Wrapper.class))).thenReturn(List.of(post(1L), post(2L)));
             assertEquals(2, service.selectPostAll().size());
@@ -146,9 +147,9 @@ class SysBasicDataServiceTest {
 
             when(userPostMapper.selectCount(any())).thenReturn(0L);
             when(postMapper.deleteByIds(List.of(1L))).thenReturn(1);
-            assertEquals(1, service.deletePostByIds(List.of(1L)));
+            assertDoesNotThrow(() -> service.deletePostByIds(List.of(1L)));
             when(postMapper.deleteById(1L)).thenReturn(1);
-            assertEquals(1, service.deletePostById(1L));
+            assertDoesNotThrow(() -> service.deletePostById(1L));
         }
 
         @Test
@@ -158,8 +159,8 @@ class SysBasicDataServiceTest {
             when(postMapper.updateById(any(SysPost.class))).thenReturn(1);
             SysPostBo bo = new SysPostBo();
             bo.setPostName("经理");
-            assertEquals(1, service.insertPost(bo));
-            assertEquals(1, service.updatePost(bo));
+            assertDoesNotThrow(() -> service.insertPost(bo));
+            assertDoesNotThrow(() -> service.updatePost(bo));
             ArgumentCaptor<SysPost> saved = ArgumentCaptor.forClass(SysPost.class);
             verify(postMapper).insert(saved.capture());
             assertEquals("经理", saved.getValue().getPostName());
@@ -188,7 +189,7 @@ class SysBasicDataServiceTest {
             when(typeMapper.selectList(any(IPage.class), any())).thenReturn(List.of(type(1L, "sys_yes_no")));
             SysDictTypeBo bo = new SysDictTypeBo();
             bo.setDictName("是否");
-            assertEquals(1, service.selectPageDictTypeList(bo, new PageQuery()).getRows().size());
+            assertEquals(1, service.selectPageDictTypeList(bo, new PageParam()).getItems().size());
             service.countDictTypeList(bo);
             when(typeMapper.selectList(any(Wrapper.class))).thenReturn(List.of(type(1L, "sys_yes_no")));
             assertEquals(1, service.selectDictTypeList(bo).size());
@@ -273,7 +274,7 @@ class SysBasicDataServiceTest {
             SysDictDataBo bo = new SysDictDataBo();
             bo.setDictType("sys_yes_no");
             bo.setDictLabel("是");
-            assertEquals(1, service.selectPageDictDataList(bo, new PageQuery()).getRows().size());
+            assertEquals(1, service.selectPageDictDataList(bo, new PageParam()).getItems().size());
             service.countDictDataList(bo);
             when(dataMapper.selectList(any(Wrapper.class))).thenReturn(List.of(data(1L, "Y")));
             assertEquals(1, service.selectDictDataList(bo).size());
@@ -341,7 +342,7 @@ class SysBasicDataServiceTest {
             when(configMapper.selectList(any(IPage.class), any())).thenReturn(List.of(config(1L, "k", "v", "N")));
             SysConfigBo bo = new SysConfigBo();
             bo.setConfigName("名称");
-            assertEquals(1, service.selectPageConfigList(bo, new PageQuery()).getRows().size());
+            assertEquals(1, service.selectPageConfigList(bo, new PageParam()).getItems().size());
             service.countConfigList(bo);
             when(configMapper.selectList(any(Wrapper.class))).thenReturn(List.of(config(1L, "k", "v", "N")));
             assertEquals(1, service.selectConfigList(bo).size());
@@ -369,7 +370,12 @@ class SysBasicDataServiceTest {
             cache.verify(() -> CacheUtils.evict(CacheNames.SYS_CONFIG, "sys.key"));
 
             when(configMapper.update(any(SysConfig.class), any())).thenReturn(0);
-            assertThrows(ServiceException.class, () -> service.updateConfig(byKey));
+            // 按参数键修改时没有参数名称：提示中用参数键
+            assertEquals("修改参数'sys.key'失败，参数不存在",
+                assertThrows(ServiceException.class, () -> service.updateConfig(byKey)).getMessage());
+            byKey.setConfigName("系统参数");
+            assertEquals("修改参数'系统参数'失败，参数不存在",
+                assertThrows(ServiceException.class, () -> service.updateConfig(byKey)).getMessage());
         }
 
         @Test

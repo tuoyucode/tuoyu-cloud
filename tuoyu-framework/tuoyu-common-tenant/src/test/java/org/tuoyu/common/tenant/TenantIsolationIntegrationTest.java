@@ -26,7 +26,7 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.testcontainers.DockerClientFactory;
 import org.testcontainers.mysql.MySQLContainer;
 import org.tuoyu.common.core.context.TenantContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.mybatis.core.domain.TenantEntity;
 import org.tuoyu.common.mybatis.handler.InjectionMetaObjectHandler;
@@ -77,7 +77,7 @@ class TenantIsolationIntegrationTest {
         TenantProperties properties = new TenantProperties();
         properties.setEnabled(true);
         DefaultTenantContext tenantContext = new DefaultTenantContext(properties,
-            new StaticListableBeanFactory().getBeanProvider(UserContext.class), id -> null);
+            new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), id -> null);
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("tenantContext", tenantContext);
 
@@ -85,7 +85,7 @@ class TenantIsolationIntegrationTest {
             new UnpooledDataSource(mysql.getDriverClassName(), mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword())));
         // 与服务中相同：框架的字段填充（插入时改写为当前租户、更新时不改动租户）+ 租户插件
         GlobalConfigUtils.getGlobalConfig(configuration).setMetaObjectHandler(new InjectionMetaObjectHandler(
-            new StaticListableBeanFactory().getBeanProvider(UserContext.class), beans.getBeanProvider(TenantContext.class)));
+            new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), beans.getBeanProvider(TenantContext.class)));
         MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
         interceptor.addInnerInterceptor(new TenantLineInnerInterceptor(new TuoyuTenantLineHandler()));
         configuration.addInterceptor(interceptor);

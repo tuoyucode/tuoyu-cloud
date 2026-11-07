@@ -1,7 +1,8 @@
 package org.tuoyu.common.web;
 
 import org.tuoyu.common.core.constant.HttpStatus;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.springframework.http.ResponseEntity;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.json.enhance.JsonValueEnhancer;
 import org.tuoyu.common.web.advice.ResponseEnhancementAdvice;
@@ -62,18 +63,25 @@ class WebInfrastructureTest {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
         MockHttpServletRequest request = request("POST", "/orders", null);
 
-        R<Void> forbidden = handler.handleServiceException(
+        ResponseEntity<ApiResult<Void>> forbidden = handler.handleServiceException(
             new ServiceException("forbidden", HttpStatus.FORBIDDEN), request);
-        R<Void> failed = handler.handleServiceException(new ServiceException("failed"), request);
+        ResponseEntity<ApiResult<Void>> failed = handler.handleServiceException(new ServiceException("failed"), request);
+        ResponseEntity<ApiResult<Void>> custom = handler.handleServiceException(new ServiceException("库存不足", 10001), request);
 
-        assertEquals(HttpStatus.FORBIDDEN, forbidden.getCode());
-        assertEquals("forbidden", forbidden.getMsg());
-        assertEquals(HttpStatus.ERROR, failed.getCode());
-        assertEquals("failed", failed.getMsg());
+        assertEquals(HttpStatus.FORBIDDEN, forbidden.getStatusCode().value());
+        assertEquals(HttpStatus.FORBIDDEN, forbidden.getBody().getCode());
+        assertEquals("forbidden", forbidden.getBody().getMessage());
+        // 没有错误码：400
+        assertEquals(HttpStatus.BAD_REQUEST, failed.getStatusCode().value());
+        assertEquals(HttpStatus.BAD_REQUEST, failed.getBody().getCode());
+        assertEquals("failed", failed.getBody().getMessage());
+        // 业务自定义错误码：HTTP 400，body.code 保留错误码
+        assertEquals(HttpStatus.BAD_REQUEST, custom.getStatusCode().value());
+        assertEquals(10001, custom.getBody().getCode());
     }
 
     /**
-     * 验证参数类型不匹配异常会返回包含参数名、目标类型和原始值的可诊断消息。
+     * 验证参数类型不匹配异常只提示参数名，不带 Java 类名与输入值。
      */
     @Test
     @DisplayName("映射参数类型不匹配异常")
@@ -83,11 +91,12 @@ class WebInfrastructureTest {
         doReturn(Long.class).when(exception).getRequiredType();
         when(exception.getValue()).thenReturn("abc");
 
-        R<Void> result = new GlobalExceptionHandler().handleMethodArgumentTypeMismatchException(
+        ResponseEntity<ApiResult<Void>> result = new GlobalExceptionHandler().handleMethodArgumentTypeMismatchException(
             exception, request("GET", "/users/abc", null));
 
-        assertEquals(HttpStatus.ERROR, result.getCode());
-        assertEquals("请求参数类型不匹配，参数[userId]要求类型为：'java.lang.Long'，但输入值为：'abc'", result.getMsg());
+        assertEquals(HttpStatus.BAD_REQUEST, result.getStatusCode().value());
+        assertEquals(HttpStatus.BAD_REQUEST, result.getBody().getCode());
+        assertEquals("参数[userId]格式不正确", result.getBody().getMessage());
     }
 
     /**
@@ -103,25 +112,20 @@ class WebInfrastructureTest {
         when(method.getMessage()).thenReturn("Method POST is not supported");
         NoHandlerFoundException noHandler = mock(NoHandlerFoundException.class);
 
-        R<Void> methodResult = handler.handleHttpRequestMethodNotSupported(method, request);
-        R<Void> routeResult = handler.handleNoHandlerFoundException(noHandler, request);
-        R<Void> jsonResult = handler.handleJsonParseException(mock(JsonParseException.class), request);
-        R<Void> bodyResult = handler.handleHttpMessageNotReadableException(
-            mock(HttpMessageNotReadableException.class), request);
-        R<Void> spelResult = handler.handleSpelException(new ExpressionException("bad expression"), request);
+        ApiResult<Void> methodResult = assertStatus(405, handler.handleHttpRequestMethodNotSupported(method, request));
+        ApiResult<Void> routeResult = assertStatus(404, handler.handleNoHandlerFoundException(noHandler, request));
+        ApiResult<Void> jsonResult = assertStatus(400, handler.handleJsonParseException(mock(JsonParseException.class), request));
+        ApiResult<Void> bodyResult = assertStatus(400, handler.handleHttpMessageNotReadableException(
+            mock(HttpMessageNotReadableException.class), request));
+        ApiResult<Void> spelResult = assertStatus(500, handler.handleSpelException(new ExpressionException("bad expression"), request));
 
-        assertEquals(405, methodResult.getCode());
-        assertEquals("Method POST is not supported", methodResult.getMsg());
-        assertEquals(404, routeResult.getCode());
-        assertEquals("请求地址不存在", routeResult.getMsg());
-        assertEquals(400, jsonResult.getCode());
-        assertEquals("请求数据格式错误", jsonResult.getMsg());
-        assertEquals(400, bodyResult.getCode());
-        assertEquals("请求参数格式错误", bodyResult.getMsg());
-        assertEquals(500, spelResult.getCode());
+        assertEquals("不支持该请求方式", methodResult.getMessage());
+        assertEquals("请求地址不存在", routeResult.getMessage());
+        assertEquals("请求数据格式错误", jsonResult.getMessage());
+        assertEquals("请求参数格式错误", bodyResult.getMessage());
         // 不把表达式与解析错误返回给客户端
-        assertTrue(spelResult.getMsg().startsWith("表达式解析失败，请联系管理员 [错误编号: "), spelResult.getMsg());
-        assertFalse(spelResult.getMsg().contains("bad expression"), spelResult.getMsg());
+        assertTrue(spelResult.getMessage().startsWith("表达式解析失败，请联系管理员 [错误编号: "), spelResult.getMessage());
+        assertFalse(spelResult.getMessage().contains("bad expression"), spelResult.getMessage());
     }
 
     /**
@@ -130,12 +134,20 @@ class WebInfrastructureTest {
     @Test
     @DisplayName("隐藏未知异常并生成错误编号")
     void shouldHideUnexpectedFailureBehindTraceableErrorId() {
-        R<Void> result = new GlobalExceptionHandler().handleRuntimeException(
-            new RuntimeException("database password leaked"), request("GET", "/users", null));
+        ApiResult<Void> result = assertStatus(HttpStatus.ERROR, new GlobalExceptionHandler().handleRuntimeException(
+            new RuntimeException("database password leaked"), request("GET", "/users", null)));
 
-        assertEquals(HttpStatus.ERROR, result.getCode());
-        assertTrue(result.getMsg().matches("发生未知异常，请联系管理员 \\[错误编号: \\d{8}]"));
-        assertTrue(!result.getMsg().contains("password"));
+        assertTrue(result.getMessage().matches("发生未知异常，请联系管理员 \\[错误编号: \\d{8}]"));
+        assertFalse(result.getMessage().contains("password"));
+    }
+
+    /**
+     * 断言 HTTP 状态与响应 code 相同，并返回响应体
+     */
+    static ApiResult<Void> assertStatus(int status, ResponseEntity<ApiResult<Void>> response) {
+        assertEquals(status, response.getStatusCode().value());
+        assertEquals(status, response.getBody().getCode());
+        return response.getBody();
     }
 
     /**

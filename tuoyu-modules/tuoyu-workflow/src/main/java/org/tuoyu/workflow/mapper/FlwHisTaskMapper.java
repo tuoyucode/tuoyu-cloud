@@ -2,7 +2,6 @@ package org.tuoyu.workflow.mapper;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.yulichang.base.MPJBaseMapper;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.dromara.warm.flow.core.enums.NodeType;
 import org.dromara.warm.flow.orm.entity.FlowDefinition;
@@ -19,7 +18,7 @@ import java.util.Map;
 /**
  * 历史任务查询 Mapper
  */
-public interface FlwHisTaskMapper extends BaseMapperPlus<FlowHisTask, FlowHisTaskVo>, MPJBaseMapper<FlowHisTask> {
+public interface FlwHisTaskMapper extends MPJBaseMapper<FlowHisTask> {
 
     default Page<FlowHisTaskVo> getListFinishTask(Page<FlowHisTaskVo> page,
                                                   FlowTaskBo bo,

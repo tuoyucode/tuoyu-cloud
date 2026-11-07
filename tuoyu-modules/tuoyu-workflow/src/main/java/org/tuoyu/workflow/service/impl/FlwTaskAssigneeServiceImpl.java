@@ -74,6 +74,8 @@ public class FlwTaskAssigneeServiceImpl implements IFlwTaskAssigneeService, Hand
         TaskAssigneeEnum type = TaskAssigneeEnum.fromDesc(query.getHandlerType());
         // 转换查询条件为 RemoteTaskAssigneeBo
         RemoteTaskAssigneeBo taskQuery = BeanUtil.toBean(query, RemoteTaskAssigneeBo.class);
+        // 设计器传来的页码参数名是 pageNum
+        taskQuery.setPage(query.getPageNum());
 
         // 统一查询并构建业务数据
         RemoteTaskAssigneeVo dto = fetchTaskAssigneeData(type, taskQuery);

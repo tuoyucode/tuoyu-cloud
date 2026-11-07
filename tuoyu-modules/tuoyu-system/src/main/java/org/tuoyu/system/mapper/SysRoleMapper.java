@@ -7,7 +7,7 @@ import com.github.yulichang.base.MPJBaseMapper;
 import org.apache.ibatis.annotations.Param;
 import org.tuoyu.common.mybatis.annotation.DataColumn;
 import org.tuoyu.common.mybatis.annotation.DataPermission;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.domain.SysUserRole;
@@ -21,7 +21,7 @@ import java.util.List;
  *
  * @author Lion Li
  */
-public interface SysRoleMapper extends BaseMapperPlus<SysRole, SysRoleVo>, MPJBaseMapper<SysRole> {
+public interface SysRoleMapper extends BaseMapper<SysRole>, MPJBaseMapper<SysRole> {
 
     /**
      * 分页查询角色列表
@@ -34,8 +34,8 @@ public interface SysRoleMapper extends BaseMapperPlus<SysRole, SysRoleVo>, MPJBa
         @DataColumn(key = "deptName", value = "create_dept"),
         @DataColumn(key = "userName", value = "create_by")
     })
-    default Page<SysRoleVo> selectPageRoleList(@Param("page") Page<SysRole> page, @Param(Constants.WRAPPER) Wrapper<SysRole> queryWrapper) {
-        return this.selectVoPage(page, queryWrapper);
+    default Page<SysRole> selectPageRoleList(@Param("page") Page<SysRole> page, @Param(Constants.WRAPPER) Wrapper<SysRole> queryWrapper) {
+        return this.selectPage(page, queryWrapper);
     }
 
     /**
@@ -48,8 +48,8 @@ public interface SysRoleMapper extends BaseMapperPlus<SysRole, SysRoleVo>, MPJBa
         @DataColumn(key = "deptName", value = "create_dept"),
         @DataColumn(key = "userName", value = "create_by")
     })
-    default List<SysRoleVo> selectRoleList(@Param(Constants.WRAPPER) Wrapper<SysRole> queryWrapper) {
-        return this.selectVoList(queryWrapper);
+    default List<SysRole> selectRoleList(@Param(Constants.WRAPPER) Wrapper<SysRole> queryWrapper) {
+        return this.selectList(queryWrapper);
     }
 
     /**
@@ -63,7 +63,7 @@ public interface SysRoleMapper extends BaseMapperPlus<SysRole, SysRoleVo>, MPJBa
         @DataColumn(key = "userName", value = "create_by")
     })
     default long selectRoleCount(Collection<Long> roleIds) {
-        return this.lambda().in(SysRole::getRoleId, roleIds).count();
+        return this.selectCount(QueryBuilder.lambda(SysRole.class).in(SysRole::getRoleId, roleIds).build());
     }
 
     /**
@@ -76,8 +76,8 @@ public interface SysRoleMapper extends BaseMapperPlus<SysRole, SysRoleVo>, MPJBa
         @DataColumn(key = "deptName", value = "create_dept"),
         @DataColumn(key = "userName", value = "create_by")
     })
-    default SysRoleVo selectRoleById(Long roleId) {
-        return this.selectVoById(roleId);
+    default SysRole selectRoleById(Long roleId) {
+        return this.selectById(roleId);
     }
 
     /**

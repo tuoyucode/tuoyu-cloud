@@ -1,8 +1,8 @@
 package ${packageName}.domain.bo;
 
 import ${packageName}.domain.${ClassName};
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import io.github.linpeilie.annotations.AutoMapper;
 import java.io.Serial;
 import java.io.Serializable;
@@ -29,17 +29,18 @@ public class ${ClassName}Bo implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+<#-- 主键总是保留：修改、状态、排序接口按它定位记录 -->
 <#list columns as column>
-<#if column.query || (!table.isSuperColumn(column.javaField) && (column.insert || column.edit))>
+<#if column.pk || column.query || (!table.isSuperColumn(column.javaField) && (column.insert || column.edit))>
     /**
      * ${column.columnComment}
      */
 <#if column.insert && column.edit>
-<#assign Group = "AddGroup.class, EditGroup.class">
+<#assign Group = "OnCreate.class, OnUpdate.class">
 <#elseif column.insert>
-<#assign Group = "AddGroup.class">
+<#assign Group = "OnCreate.class">
 <#elseif column.edit>
-<#assign Group = "EditGroup.class">
+<#assign Group = "OnUpdate.class">
 </#if>
 <#if column.required && !table.isSuperColumn(column.javaField) && (column.insert || column.edit)>
 <#if column.javaType == 'String'>

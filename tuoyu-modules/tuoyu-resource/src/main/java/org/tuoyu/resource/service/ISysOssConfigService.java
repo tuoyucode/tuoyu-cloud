@@ -2,7 +2,7 @@ package org.tuoyu.resource.service;
 
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.resource.domain.bo.SysOssConfigBo;
 import org.tuoyu.resource.domain.vo.SysOssConfigVo;
 
@@ -30,37 +30,37 @@ public interface ISysOssConfigService {
     /**
      * 查询列表
      */
-    PageResult<SysOssConfigVo> queryPageList(SysOssConfigBo bo, PageQuery pageQuery);
+    PageResult<SysOssConfigVo> queryPageList(SysOssConfigBo bo, PageParam pageParam);
 
 
     /**
      * 根据新增业务对象插入对象存储配置
      *
      * @param bo 对象存储配置新增业务对象
-     * @return 结果
+     * @throws org.tuoyu.common.core.exception.ServiceException 配置 key 已存在
      */
-    Boolean insertByBo(SysOssConfigBo bo);
+    void insertByBo(SysOssConfigBo bo);
 
     /**
      * 根据编辑业务对象修改对象存储配置
      *
      * @param bo 对象存储配置编辑业务对象
-     * @return 结果
+     * @throws org.tuoyu.common.core.exception.ServiceException 配置 key 已存在、配置不存在
      */
-    Boolean updateByBo(SysOssConfigBo bo);
+    void updateByBo(SysOssConfigBo bo);
 
     /**
      * 校验并删除数据
      *
      * @param ids     主键集合
      * @param isValid 是否校验,true-删除前校验,false-不校验
-     * @return 结果
+     * @throws org.tuoyu.common.core.exception.ServiceException 包含系统内置配置、配置不存在
      */
-    Boolean deleteWithValidByIds(Collection<Long> ids, Boolean isValid);
+    void deleteWithValidByIds(Collection<Long> ids, Boolean isValid);
 
     /**
      * 启用停用状态
      */
-    int updateOssConfigStatus(SysOssConfigBo bo);
+    void updateOssConfigStatus(SysOssConfigBo bo);
 
 }

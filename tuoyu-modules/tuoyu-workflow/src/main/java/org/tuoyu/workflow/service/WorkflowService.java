@@ -15,10 +15,13 @@ import java.util.Map;
 public interface WorkflowService {
 
     /**
-     * 运行中的实例 删除程实例，删除历史记录，删除业务与流程关联信息
+     * 运行中的实例 删除流程实例，删除历史记录，删除业务与流程关联信息
+     * <p>
+     * 业务数据删除时调用，业务数据不一定发起过流程，所以没有对应的流程实例不算失败，返回 false；
+     * 删除过程中出错抛出异常
      *
      * @param businessIds 业务id
-     * @return 结果
+     * @return true 删除了流程实例；false 没有对应的流程实例
      */
     boolean deleteInstance(List<String> businessIds);
 
@@ -75,24 +78,21 @@ public interface WorkflowService {
      * completeTask.getVariables().put("ignore", true);
      *
      * @param completeTask 参数
-     * @return 结果
      */
-    boolean completeTask(RemoteCompleteTask completeTask);
+    void completeTask(RemoteCompleteTask completeTask);
 
     /**
      * 办理任务
      *
      * @param taskId  任务ID
      * @param message 办理意见
-     * @return 结果
      */
-    boolean completeTask(Long taskId, String message);
+    void completeTask(Long taskId, String message);
 
     /**
      * 启动流程并办理第一个任务
      *
      * @param startProcess 参数
-     * @return 结果
      */
-    boolean startCompleteTask(RemoteStartProcess startProcess);
+    void startCompleteTask(RemoteStartProcess startProcess);
 }

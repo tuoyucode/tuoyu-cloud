@@ -1,14 +1,18 @@
 package org.tuoyu.common.mybatis.handler;
 
+import org.tuoyu.common.core.web.ExceptionHandlerOrder;
+import org.springframework.core.annotation.Order;
 import cn.hutool.core.util.RandomUtil;
-import cn.hutool.http.HttpStatus;
 import com.baomidou.dynamic.datasource.exception.CannotFindDataSourceException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.constant.HttpStatus;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.core.web.ApiErrors;
 import org.mybatis.spring.MyBatisSystemException;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -18,44 +22,42 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * @author Lion Li
  */
 @Slf4j
+@Order(ExceptionHandlerOrder.MODULE)
 @RestControllerAdvice
 public class MybatisExceptionHandler {
 
     /**
-     * 主键或UNIQUE索引，数据重复异常
+     * 主键或UNIQUE索引，数据重复异常：409
      */
     @ExceptionHandler(DuplicateKeyException.class)
-    public R<Void> handleDuplicateKeyException(DuplicateKeyException e, HttpServletRequest request) {
+    public ResponseEntity<ApiResult<Void>> handleDuplicateKeyException(DuplicateKeyException e, HttpServletRequest request) {
         String requestURI = request.getRequestURI();
         log.warn("请求地址'{}',数据库中已存在记录'{}'", requestURI, e.getMessage());
-        return R.fail(HttpStatus.HTTP_CONFLICT, "数据库中已存在该记录，请联系管理员确认");
+        return ApiErrors.response(HttpStatus.CONFLICT, "数据库中已存在该记录，请联系管理员确认");
     }
 
     /**
      * Mybatis系统异常 通用处理。
      * <p>
-     * 异常消息中可能有 SQL 语句、表名、字段与数据库的报错，不能返回给客户端：只返回通用提示与错误编号，
-     * 详细信息按错误编号记在日志中。根因是业务异常（ServiceException，例如租户校验失败）时，它的消息本来就是给用户看的，照常返回
+     * 异常消息中可能有 SQL 语句、表名、字段与数据库的报错，不能返回给客户端：只返回通用提示与错误编号（500），
+     * 详细信息按错误编号记在日志中。根因是业务异常（ServiceException，例如租户校验失败、未登录）时，它的消息本来就是给用户看的，
+     * 按业务异常的规则返回
      */
     @ExceptionHandler(MyBatisSystemException.class)
-    public R<Void> handleCannotFindDataSourceException(MyBatisSystemException e, HttpServletRequest request) {
+    public ResponseEntity<ApiResult<Void>> handleMyBatisSystemException(MyBatisSystemException e, HttpServletRequest request) {
         String requestURI = request.getRequestURI();
         Throwable root = getRootCause(e);
-        if (root instanceof ServiceException se && Integer.valueOf(HttpStatus.HTTP_UNAUTHORIZED).equals(se.getCode())) {
-            log.warn("请求地址'{}',认证失败'{}',无法访问系统资源", requestURI, root.getMessage());
-            return R.fail(HttpStatus.HTTP_UNAUTHORIZED, "认证失败，无法访问系统资源");
-        }
         if (root instanceof ServiceException se) {
             log.warn("请求地址'{}', 数据访问中的业务异常'{}'", requestURI, se.getMessage());
-            return R.fail(se.getCode() == null ? HttpStatus.HTTP_INTERNAL_ERROR : se.getCode(), se.getMessage());
+            return ApiErrors.response(se);
         }
         if (root instanceof CannotFindDataSourceException) {
             log.error("请求地址'{}', 未找到数据源", requestURI);
-            return R.fail(HttpStatus.HTTP_INTERNAL_ERROR, "未找到数据源，请联系管理员确认");
+            return ApiErrors.response(HttpStatus.ERROR, "未找到数据源，请联系管理员确认");
         }
         String errorId = RandomUtil.randomNumbers(8);
         log.error("请求地址'{}', Mybatis系统异常, 错误编号: {}", requestURI, errorId, e);
-        return R.fail(HttpStatus.HTTP_INTERNAL_ERROR, "数据访问异常，请联系管理员 [错误编号: " + errorId + "]");
+        return ApiErrors.response(HttpStatus.ERROR, "数据访问异常，请联系管理员 [错误编号: " + errorId + "]");
     }
 
     /**

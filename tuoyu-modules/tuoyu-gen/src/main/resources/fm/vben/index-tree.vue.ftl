@@ -50,7 +50,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
       ajax: {
         // 树表一次返回全部数据，由表格按上级字段组装成树
         query: async (_params, formValues) => ({
-          rows: await list${ClassName}(formValues),
+          items: await list${ClassName}(formValues),
         }),
       },
     },

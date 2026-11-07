@@ -5,7 +5,7 @@ import com.github.yulichang.base.MPJBaseMapper;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysMenu;
 import org.tuoyu.system.domain.SysRole;
@@ -22,7 +22,7 @@ import java.util.*;
  *
  * @author Lion Li
  */
-public interface SysMenuMapper extends BaseMapperPlus<SysMenu, SysMenuVo>, MPJBaseMapper<SysMenu> {
+public interface SysMenuMapper extends BaseMapper<SysMenu>, MPJBaseMapper<SysMenu> {
 
     /**
      * 根据用户ID查询权限
@@ -99,12 +99,12 @@ public interface SysMenuMapper extends BaseMapperPlus<SysMenu, SysMenuVo>, MPJBa
      * @return 菜单列表
      */
     default List<SysMenu> selectMenuTreeAll() {
-        return this.lambda()
+        return this.selectList(QueryBuilder.lambda(SysMenu.class)
             .in(SysMenu::getMenuType, SystemConstants.TYPE_DIR, SystemConstants.TYPE_MENU)
             .eq(SysMenu::getStatus, SystemConstants.NORMAL)
             .orderByAsc(SysMenu::getParentId)
             .orderByAsc(SysMenu::getOrderNum)
-            .list();
+            .build());
     }
 
     /**

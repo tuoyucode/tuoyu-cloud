@@ -59,8 +59,8 @@ public class RemoteWorkflowServiceImpl implements RemoteWorkflowService {
     }
 
     @Override
-    public boolean completeTask(RemoteCompleteTask completeTask) {
-        return workflowService.completeTask(completeTask);
+    public void completeTask(RemoteCompleteTask completeTask) {
+        workflowService.completeTask(completeTask);
     }
 
 
@@ -69,22 +69,20 @@ public class RemoteWorkflowServiceImpl implements RemoteWorkflowService {
      *
      * @param taskId  任务ID
      * @param message 办理意见
-     * @return 结果
      */
     @Override
-    public boolean completeTask(Long taskId, String message) {
-        return workflowService.completeTask(taskId, message);
+    public void completeTask(Long taskId, String message) {
+        workflowService.completeTask(taskId, message);
     }
 
     /**
      * 启动流程并办理第一个任务
      *
      * @param startProcess 参数
-     * @return 结果
      */
     @Override
-    public boolean startCompleteTask(RemoteStartProcess startProcess) {
-        return workflowService.startCompleteTask(startProcess);
+    public void startCompleteTask(RemoteStartProcess startProcess) {
+        workflowService.startCompleteTask(startProcess);
     }
 
 }

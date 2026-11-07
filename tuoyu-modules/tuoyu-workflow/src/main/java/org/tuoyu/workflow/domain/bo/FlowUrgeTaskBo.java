@@ -1,8 +1,8 @@
 package org.tuoyu.workflow.domain.bo;
 
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -22,7 +22,7 @@ public class FlowUrgeTaskBo implements Serializable {
     /**
      * 任务id
      */
-    @NotNull(message = "任务id为空", groups = AddGroup.class)
+    @NotEmpty(message = "任务id为空")
     private List<Long> taskIdList;
 
     /**
@@ -33,6 +33,6 @@ public class FlowUrgeTaskBo implements Serializable {
     /**
      * 催办内容
      */
-    @NotNull(message = "催办内容为空", groups = AddGroup.class)
+    @NotNull(message = "催办内容为空")
     private String message;
 }

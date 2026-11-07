@@ -1,14 +1,12 @@
 package org.tuoyu.system.mapper;
 
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.system.domain.SysClient;
-import org.tuoyu.system.domain.vo.SysClientVo;
-
 /**
  * 授权管理Mapper接口
  *
  * @author Michelle.Chung
  */
-public interface SysClientMapper extends BaseMapperPlus<SysClient, SysClientVo> {
+public interface SysClientMapper extends BaseMapper<SysClient> {
 
 }

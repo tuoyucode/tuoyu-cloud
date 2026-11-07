@@ -1,14 +1,14 @@
 package org.tuoyu.system.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.core.utils.MapstructUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.core.utils.BeanMapper;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.redis.utils.CacheUtils;
 import org.tuoyu.system.domain.SysDictData;
@@ -25,7 +25,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -45,14 +44,13 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
      * 分页查询字典类型列表
      *
      * @param dictType  查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 字典类型分页列表
      */
     @Override
-    public PageResult<SysDictTypeVo> selectPageDictTypeList(SysDictTypeBo dictType, PageQuery pageQuery) {
+    public PageResult<SysDictTypeVo> selectPageDictTypeList(SysDictTypeBo dictType, PageParam pageParam) {
         LambdaQueryWrapper<SysDictType> lqw = buildQueryWrapper(dictType);
-        Page<SysDictTypeVo> page = dictTypeMapper.selectVoPage(pageQuery.build(), lqw);
-        return PageResult.build(page.getRecords(), page.getTotal());
+        return PageResults.of(dictTypeMapper.selectPage(pageParam.toPage(SysDictType.class), lqw), SysDictTypeVo.class);
     }
 
     /**
@@ -64,7 +62,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
     @Override
     public List<SysDictTypeVo> selectDictTypeList(SysDictTypeBo dictType) {
         LambdaQueryWrapper<SysDictType> lqw = buildQueryWrapper(dictType);
-        return dictTypeMapper.selectVoList(lqw);
+        return BeanMapper.mapList(dictTypeMapper.selectList(lqw), SysDictTypeVo.class);
     }
 
     /**
@@ -72,7 +70,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
      */
     @Override
     public long countDictTypeList(SysDictTypeBo dictType) {
-        return dictTypeMapper.selectVoPage(PageQuery.countOnly(), buildQueryWrapper(dictType)).getTotal();
+        return dictTypeMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(dictType)).getTotal();
     }
 
     private LambdaQueryWrapper<SysDictType> buildQueryWrapper(SysDictTypeBo bo) {
@@ -92,7 +90,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
      */
     @Override
     public List<SysDictTypeVo> selectDictTypeAll() {
-        return dictTypeMapper.selectVoList();
+        return BeanMapper.mapList(dictTypeMapper.selectList(Wrappers.emptyWrapper()), SysDictTypeVo.class);
     }
 
     /**
@@ -104,8 +102,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
     @Cacheable(cacheNames = CacheNames.SYS_DICT, key = "#dictType")
     @Override
     public List<SysDictDataVo> selectDictDataByType(String dictType) {
-        List<SysDictDataVo> dictDatas = dictDataMapper.selectDictDataByType(dictType);
-        return CollUtil.isNotEmpty(dictDatas) ? dictDatas : Collections.emptyList();
+        return BeanMapper.mapList(dictDataMapper.selectDictDataByType(dictType), SysDictDataVo.class);
     }
 
     /**
@@ -116,7 +113,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
      */
     @Override
     public SysDictTypeVo selectDictTypeById(Long dictId) {
-        return dictTypeMapper.selectVoById(dictId);
+        return BeanMapper.map(dictTypeMapper.selectById(dictId), SysDictTypeVo.class);
     }
 
     /**
@@ -128,7 +125,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
     @Cacheable(cacheNames = CacheNames.SYS_DICT_TYPE, key = "#dictType")
     @Override
     public SysDictTypeVo selectDictTypeByType(String dictType) {
-        return dictTypeMapper.lambda().eq(SysDictType::getDictType, dictType).voOne();
+        return BeanMapper.map(dictTypeMapper.selectOne(QueryBuilder.lambda(SysDictType.class).eq(SysDictType::getDictType, dictType).build()), SysDictTypeVo.class);
     }
 
     /**
@@ -140,7 +137,7 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
     public void deleteDictTypeByIds(List<Long> dictIds) {
         List<SysDictType> list = dictTypeMapper.selectByIds(dictIds);
         list.forEach(x -> {
-            boolean assigned = dictDataMapper.lambda().eq(SysDictData::getDictType, x.getDictType()).exists();
+            boolean assigned = dictDataMapper.exists(QueryBuilder.lambda(SysDictData.class).eq(SysDictData::getDictType, x.getDictType()).build());
             if (assigned) {
                 throw new ServiceException("{}已分配,不能删除", x.getDictName());
             }
@@ -170,13 +167,13 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
     @CachePut(cacheNames = CacheNames.SYS_DICT, key = "#bo.dictType")
     @Override
     public List<SysDictDataVo> insertDictType(SysDictTypeBo bo) {
-        SysDictType dict = MapstructUtils.convert(bo, SysDictType.class);
+        SysDictType dict = BeanMapper.map(bo, SysDictType.class);
         int row = dictTypeMapper.insert(dict);
         if (row > 0) {
             // 新增 type 下无 data 数据 返回空防止缓存穿透
             return new ArrayList<>();
         }
-        throw new ServiceException("操作失败");
+        throw new ServiceException("新增字典'{}'失败", bo.getDictName());
     }
 
     /**
@@ -189,18 +186,17 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<SysDictDataVo> updateDictType(SysDictTypeBo bo) {
-        SysDictType dict = MapstructUtils.convert(bo, SysDictType.class);
+        SysDictType dict = BeanMapper.map(bo, SysDictType.class);
         SysDictType oldDict = dictTypeMapper.selectById(dict.getDictId());
-        dictDataMapper.lambda()
+        dictDataMapper.update(Wrappers.<SysDictData>lambdaUpdate()
             .set(SysDictData::getDictType, dict.getDictType())
-            .eq(SysDictData::getDictType, oldDict.getDictType())
-            .update();
+            .eq(SysDictData::getDictType, oldDict.getDictType()));
         int row = dictTypeMapper.updateById(dict);
         if (row > 0) {
             CacheUtils.evict(CacheNames.SYS_DICT, oldDict.getDictType());
-            return dictDataMapper.selectDictDataByType(dict.getDictType());
+            return BeanMapper.mapList(dictDataMapper.selectDictDataByType(dict.getDictType()), SysDictDataVo.class);
         }
-        throw new ServiceException("操作失败");
+        throw new ServiceException("修改字典'{}'失败，字典不存在", bo.getDictName());
     }
 
     /**
@@ -211,10 +207,10 @@ public class SysDictTypeServiceImpl implements ISysDictTypeService {
      */
     @Override
     public boolean checkDictTypeUnique(SysDictTypeBo dictType) {
-        boolean exist = dictTypeMapper.lambda()
+        boolean exist = dictTypeMapper.exists(QueryBuilder.lambda(SysDictType.class)
             .eq(SysDictType::getDictType, dictType.getDictType())
             .neIfPresent(SysDictType::getDictId, dictType.getDictId())
-            .exists();
+            .build());
         return !exist;
     }
 

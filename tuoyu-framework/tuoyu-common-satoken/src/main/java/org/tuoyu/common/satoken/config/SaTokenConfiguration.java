@@ -5,7 +5,7 @@ import cn.dev33.satoken.jwt.StpLogicJwtForSimple;
 import cn.dev33.satoken.stp.StpInterface;
 import cn.dev33.satoken.stp.StpLogic;
 import org.tuoyu.common.core.context.PermissionContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.core.factory.YmlPropertySourceFactory;
 import org.tuoyu.common.satoken.auth.AuthWhitelistProperties;
 import org.tuoyu.common.satoken.auth.RequestAuthenticator;
@@ -61,11 +61,11 @@ public class SaTokenConfiguration {
     }
 
     /**
-     * 当前用户上下文，框架模块通过它获取当前用户
+     * 当前用户的来源：业务代码通过 UserContext 获取，框架模块注入本 Bean
      */
     @Bean
-    @ConditionalOnMissingBean(UserContext.class)
-    public UserContext saTokenUserContext() {
+    @ConditionalOnMissingBean(UserContextProvider.class)
+    public UserContextProvider saTokenUserContext() {
         return new SaTokenUserContext();
     }
 

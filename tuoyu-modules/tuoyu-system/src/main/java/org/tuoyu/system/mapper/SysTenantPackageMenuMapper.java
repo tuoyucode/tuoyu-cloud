@@ -1,28 +1,32 @@
 package org.tuoyu.system.mapper;
 
 import cn.hutool.core.convert.Convert;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysTenantPackageMenu;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 租户套餐与菜单关联 数据层
  *
  * @author tuoyu
  */
-public interface SysTenantPackageMenuMapper extends BaseMapperPlus<SysTenantPackageMenu, SysTenantPackageMenu> {
+public interface SysTenantPackageMenuMapper extends BaseMapper<SysTenantPackageMenu> {
 
     /**
      * @param packageId 套餐
      * @return 套餐中的菜单
      */
     default Set<Long> selectMenuIds(Long packageId) {
-        return new HashSet<>(this.lambda()
+        List<Object> ids = this.selectObjs(QueryBuilder.lambda(SysTenantPackageMenu.class)
             .select(SysTenantPackageMenu::getMenuId)
             .eq(SysTenantPackageMenu::getPackageId, packageId)
-            .objs(Convert::toLong));
+            .build());
+        return ids.stream().map(Convert::toLong).collect(Collectors.toCollection(HashSet::new));
     }
 
     /**
@@ -30,7 +34,7 @@ public interface SysTenantPackageMenuMapper extends BaseMapperPlus<SysTenantPack
      * @return 删除的行数
      */
     default long deleteByPackageId(Long packageId) {
-        return this.lambda().eq(SysTenantPackageMenu::getPackageId, packageId).deleteCount();
+        return this.delete(QueryBuilder.lambda(SysTenantPackageMenu.class).eq(SysTenantPackageMenu::getPackageId, packageId).build());
     }
 
 }

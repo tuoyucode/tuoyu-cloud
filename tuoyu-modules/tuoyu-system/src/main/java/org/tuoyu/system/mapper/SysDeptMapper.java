@@ -6,12 +6,11 @@ import com.github.yulichang.base.MPJBaseMapper;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.mybatis.annotation.DataColumn;
 import org.tuoyu.common.mybatis.annotation.DataPermission;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysDept;
 import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.domain.SysRoleDept;
-import org.tuoyu.system.domain.vo.SysDeptVo;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -25,7 +24,7 @@ import static org.tuoyu.common.core.constant.SystemConstants.NORMAL;
  *
  * @author Lion Li
  */
-public interface SysDeptMapper extends BaseMapperPlus<SysDept, SysDeptVo>, MPJBaseMapper<SysDept> {
+public interface SysDeptMapper extends BaseMapper<SysDept>, MPJBaseMapper<SysDept> {
 
     /**
      * 查询部门管理数据
@@ -36,8 +35,8 @@ public interface SysDeptMapper extends BaseMapperPlus<SysDept, SysDeptVo>, MPJBa
     @DataPermission({
         @DataColumn(key = "deptName", value = "dept_id")
     })
-    default List<SysDeptVo> selectDeptList(Wrapper<SysDept> queryWrapper) {
-        return this.selectVoList(queryWrapper);
+    default List<SysDept> selectDeptList(Wrapper<SysDept> queryWrapper) {
+        return this.selectList(queryWrapper);
     }
 
     /**
@@ -50,8 +49,8 @@ public interface SysDeptMapper extends BaseMapperPlus<SysDept, SysDeptVo>, MPJBa
     @DataPermission({
         @DataColumn(key = "deptName", value = "dept_id"),
     })
-    default Page<SysDeptVo> selectPageDeptList(Page<SysDept> page, Wrapper<SysDept> queryWrapper) {
-        return this.selectVoPage(page, queryWrapper);
+    default Page<SysDept> selectPageDeptList(Page<SysDept> page, Wrapper<SysDept> queryWrapper) {
+        return this.selectPage(page, queryWrapper);
     }
 
     /**
@@ -64,7 +63,7 @@ public interface SysDeptMapper extends BaseMapperPlus<SysDept, SysDeptVo>, MPJBa
         @DataColumn(key = "deptName", value = "dept_id")
     })
     default long countDeptById(Long deptId) {
-        return this.lambda().eq(SysDept::getDeptId, deptId).count();
+        return this.selectCount(QueryBuilder.lambda(SysDept.class).eq(SysDept::getDeptId, deptId).build());
     }
 
     /**
@@ -74,10 +73,10 @@ public interface SysDeptMapper extends BaseMapperPlus<SysDept, SysDeptVo>, MPJBa
      * @return 包含子部门的列表
      */
     default List<SysDept> selectListByParentId(Long parentId) {
-        return this.lambda()
+        return this.selectList(QueryBuilder.lambda(SysDept.class)
             .select(SysDept::getDeptId)
-            .findInSet(parentId, SysDept::getAncestors)
-            .list();
+            .findInSet(parentId, "ancestors")
+            .build());
     }
 
     /**

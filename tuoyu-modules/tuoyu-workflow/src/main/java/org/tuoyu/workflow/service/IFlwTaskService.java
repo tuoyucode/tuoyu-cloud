@@ -1,7 +1,7 @@
 package org.tuoyu.workflow.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.api.domain.vo.RemoteUserVo;
 import org.dromara.warm.flow.core.entity.Node;
 import org.dromara.warm.flow.core.entity.Task;
@@ -34,9 +34,8 @@ public interface IFlwTaskService {
      * 办理任务
      *
      * @param completeTaskBo 办理任务参数
-     * @return 结果
      */
-    boolean completeTask(CompleteTaskBo completeTaskBo);
+    void completeTask(CompleteTaskBo completeTaskBo);
 
     /**
      * 添加抄送人
@@ -50,63 +49,61 @@ public interface IFlwTaskService {
      * 查询当前用户的待办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      * @return 结果
      */
-    PageResult<FlowTaskVo> pageByTaskWait(FlowTaskBo flowTaskBo, PageQuery pageQuery);
+    PageResult<FlowTaskVo> pageByTaskWait(FlowTaskBo flowTaskBo, PageParam pageParam);
 
     /**
      * 查询当前租户所有待办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      * @return 结果
      */
-    PageResult<FlowHisTaskVo> pageByTaskFinish(FlowTaskBo flowTaskBo, PageQuery pageQuery);
+    PageResult<FlowHisTaskVo> pageByTaskFinish(FlowTaskBo flowTaskBo, PageParam pageParam);
 
     /**
      * 查询待办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      * @return 结果
      */
-    PageResult<FlowTaskVo> pageByAllTaskWait(FlowTaskBo flowTaskBo, PageQuery pageQuery);
+    PageResult<FlowTaskVo> pageByAllTaskWait(FlowTaskBo flowTaskBo, PageParam pageParam);
 
     /**
      * 查询已办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      * @return 结果
      */
-    PageResult<FlowHisTaskVo> pageByAllTaskFinish(FlowTaskBo flowTaskBo, PageQuery pageQuery);
+    PageResult<FlowHisTaskVo> pageByAllTaskFinish(FlowTaskBo flowTaskBo, PageParam pageParam);
 
     /**
      * 查询当前用户的抄送
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      * @return 结果
      */
-    PageResult<FlowTaskVo> pageByTaskCopy(FlowTaskBo flowTaskBo, PageQuery pageQuery);
+    PageResult<FlowTaskVo> pageByTaskCopy(FlowTaskBo flowTaskBo, PageParam pageParam);
 
     /**
      * 修改任务办理人
      *
      * @param taskIdList 任务id
      * @param userId     用户id
-     * @return 结果
      */
-    boolean updateAssignee(List<Long> taskIdList, String userId);
+    void updateAssignee(List<Long> taskIdList, String userId);
 
     /**
      * 驳回审批
      *
      * @param bo 参数
-     * @return 结果
      */
-    boolean backProcess(BackProcessBo bo);
+    void backProcess(BackProcessBo bo);
 
     /**
      * 获取可驳回的前置节点
@@ -121,9 +118,8 @@ public interface IFlwTaskService {
      * 终止任务
      *
      * @param bo 参数
-     * @return 结果
      */
-    boolean terminationTask(FlowTerminationBo bo);
+    void terminationTask(FlowTerminationBo bo);
 
     /**
      * 按照任务id查询任务
@@ -186,9 +182,8 @@ public interface IFlwTaskService {
      *
      * @param bo            参数
      * @param taskOperation 操作类型，委派 delegateTask、转办 transferTask、加签 addSignature、减签 reductionSignature
-     * @return 结果
      */
-    boolean taskOperation(TaskOperationBo bo, String taskOperation);
+    void taskOperation(TaskOperationBo bo, String taskOperation);
 
     /**
      * 获取当前任务的所有办理人
@@ -222,7 +217,6 @@ public interface IFlwTaskService {
      * 催办任务
      *
      * @param bo 参数
-     * @return 结果
      */
-    boolean urgeTask(FlowUrgeTaskBo bo);
+    void urgeTask(FlowUrgeTaskBo bo);
 }

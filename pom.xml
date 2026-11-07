@@ -91,6 +91,8 @@
         <!-- Maven 构建插件版本 -->
         <maven-compiler-plugin.version>3.16.0</maven-compiler-plugin.version>
         <maven-surefire-plugin.version>3.6.0</maven-surefire-plugin.version>
+        <!-- 用于取得 mockito-core 的 jar 路径（dependency:properties），把 Mockito 作为测试 JVM 的代理加载 -->
+        <maven-dependency-plugin.version>3.9.0</maven-dependency-plugin.version>
         <flatten-maven-plugin.version>1.8.0</flatten-maven-plugin.version>
         <!-- 覆盖率：JaCoCo 0.8.14，EPL-2.0，仅构建期使用，支持 JDK 25 的类文件 -->
         <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
@@ -580,13 +582,30 @@
                 </configuration>
             </plugin>
             <!-- 单元测试使用 -->
+            <!-- 为每个模块设置 ${org.mockito:mockito-core:jar}（mockito-core 随 spring-boot-starter-test 进入所有模块） -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>${maven-dependency-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>dependency-paths</id>
+                        <goals>
+                            <goal>properties</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
-                    <!-- @{argLine} 在运行时展开为 JaCoCo 代理参数，不能写成 ${argLine} -->
-                    <argLine>@{argLine} -Dfile.encoding=UTF-8</argLine>
+                    <!--
+                        @{argLine} 在运行时展开为 JaCoCo 代理参数，不能写成 ${argLine}。
+                        Mockito 以 -javaagent 加载：较新的 JDK 将默认禁止运行时自附加（self-attach），Mockito 文档推荐以代理方式加载
+                    -->
+                    <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar} -Dfile.encoding=UTF-8</argLine>
                     <!--
                     暂不启用 groups 标签筛选，确保各模块新增的无标签单元测试默认执行。
                     需要按环境筛选 @Tag 时，可恢复下方配置并通过 -Dgroups=dev 等参数指定标签。

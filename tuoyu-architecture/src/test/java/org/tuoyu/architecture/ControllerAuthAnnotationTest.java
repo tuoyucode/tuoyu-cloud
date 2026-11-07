@@ -76,7 +76,11 @@ class ControllerAuthAnnotationTest {
      */
     private static final Map<String, String> EXEMPTIONS = Map.of(
         "org.tuoyu.modules.monitor.controller.PrometheusController",
-        "tuoyu-monitor（监控中心）不使用 Sa-Token，全部请求由 Spring Security 校验登录（WebSecurityConfigurer）");
+        "tuoyu-monitor（监控中心）不使用 Sa-Token，全部请求由 Spring Security 校验登录（WebSecurityConfigurer）",
+        "org.tuoyu.common.web.handler.ApiErrorController",
+        "错误页面只由容器的错误分派访问，各服务的登录过滤器排除了 /error；tuoyu-common-web 不依赖 Sa-Token",
+        "org.tuoyu.gateway.handler.GatewayErrorController",
+        "网关的错误页面只由容器的错误分派访问，网关的登录过滤器排除了 /error");
 
     /**
      * 业务模块的根包 → 网关路由前缀（tuoyu-gateway.yml，StripPrefix=1），用于还原前端访问的完整路径

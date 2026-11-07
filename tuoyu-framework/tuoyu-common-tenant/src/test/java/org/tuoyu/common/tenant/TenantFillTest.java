@@ -9,7 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.tuoyu.common.core.context.TenantContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.mybatis.core.domain.TenantEntity;
 import org.tuoyu.common.mybatis.handler.InjectionMetaObjectHandler;
 import org.tuoyu.common.tenant.core.DefaultTenantContext;
@@ -32,8 +32,8 @@ class TenantFillTest {
         properties.setEnabled(true);
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
         beans.addBean("tenantContext", new DefaultTenantContext(properties,
-            new StaticListableBeanFactory().getBeanProvider(UserContext.class), id -> null));
-        handler = new InjectionMetaObjectHandler(new StaticListableBeanFactory().getBeanProvider(UserContext.class),
+            new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), id -> null));
+        handler = new InjectionMetaObjectHandler(new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class),
             beans.getBeanProvider(TenantContext.class));
     }
 

@@ -114,6 +114,15 @@ class ArchitectureTest {
             .check(classes);
     }
 
+    @Test
+    @DisplayName("LoginHelper 只在 tuoyu-common-satoken 与 tuoyu-auth 中使用，其他代码通过 UserContext 取当前用户")
+    void loginHelperStaysInAuthentication() {
+        noClasses().that().resideOutsideOfPackages("org.tuoyu.common.satoken..", "org.tuoyu.auth..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("org.tuoyu.common.satoken.utils.LoginHelper")
+            .because("LoginHelper 处理登录、登出与会话，业务与其他框架代码读取当前用户用 core 的 UserContext（ADR 0008）")
+            .check(classes);
+    }
+
     private static String[] modulePackages() {
         return MODULES.stream().map(m -> "org.tuoyu." + m + "..").toArray(String[]::new);
     }

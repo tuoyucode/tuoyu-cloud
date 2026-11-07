@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.context.i18n.LocaleContextHolder;
@@ -22,7 +23,12 @@ import org.tuoyu.auth.support.AuthTestContext;
 import org.tuoyu.auth.support.SaTokenTestSupport;
 import org.tuoyu.auth.support.TenantTestSupport;
 import org.tuoyu.common.core.constant.SystemConstants;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.constant.HttpStatus;
+import org.tuoyu.common.core.context.CurrentUser;
+import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.web.ApiErrors;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.tuoyu.common.social.config.properties.SocialLoginConfigProperties;
@@ -44,6 +50,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -101,6 +108,16 @@ class TokenControllerTest {
         LocaleContextHolder.resetLocaleContext();
     }
 
+    /**
+     * 业务拒绝抛出不带错误码的 ServiceException，由全局异常处理映射为 HTTP 400（不是 401，前端不会因此走登录失效流程）
+     */
+    private static void assertBadRequest(ThrowingCallable call, String message) {
+        assertThatThrownBy(call).isInstanceOfSatisfying(ServiceException.class, e -> {
+            assertThat(e.getMessage()).isEqualTo(message);
+            assertThat(ApiErrors.of(e).httpStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+        });
+    }
+
     private static String loginBody(String grantType) {
         return "{\"clientId\":\"" + CLIENT_ID + "\",\"grantType\":\"" + grantType + "\",\"username\":\"admin\",\"password\":\"x\"}";
     }
@@ -116,20 +133,18 @@ class TokenControllerTest {
     @Test
     @DisplayName("客户端不存在、不支持该授权类型、已停用、密钥不符时拒绝，不进入登录策略")
     void rejectsInvalidClient() {
-        assertThat(controller.login(loginBody("password")).getMsg()).isEqualTo("认证权限类型错误");
+        assertBadRequest(() -> controller.login(loginBody("password")), "认证权限类型错误");
 
         when(remoteClientService.queryByClientId(CLIENT_ID)).thenReturn(client("sms,email", SystemConstants.NORMAL));
-        assertThat(controller.login(loginBody("password")).getMsg()).isEqualTo("认证权限类型错误");
+        assertBadRequest(() -> controller.login(loginBody("password")), "认证权限类型错误");
 
         when(remoteClientService.queryByClientId(CLIENT_ID)).thenReturn(client("password", SystemConstants.DISABLE));
-        assertThat(controller.login(loginBody("password")).getMsg()).isEqualTo("认证权限类型已禁用");
+        assertBadRequest(() -> controller.login(loginBody("password")), "认证权限类型已禁用");
 
         RemoteClientVo client = client("password", SystemConstants.NORMAL);
         when(remoteClientService.queryByClientId(CLIENT_ID)).thenReturn(client);
         when(sysLoginService.isClientSecretAccepted(eq(client), any())).thenReturn(false);
-        R<LoginVo> result = controller.login(loginBody("password"));
-        assertThat(R.isError(result)).isTrue();
-        assertThat(result.getMsg()).isEqualTo("客户端密钥错误");
+        assertBadRequest(() -> controller.login(loginBody("password")), "客户端密钥错误");
 
         verifyNoInteractions(passwordStrategy, scheduler);
     }
@@ -159,14 +174,14 @@ class TokenControllerTest {
         });
 
         SaTokenTestSupport.enter();
-        R<LoginVo> result;
+        ApiResult<LoginVo> result;
         try {
             result = controller.login(body);
         } finally {
             SaTokenTestSupport.exit();
         }
 
-        assertThat(R.isSuccess(result)).isTrue();
+        assertThat(result.getCode()).isEqualTo(ApiResult.SUCCESS);
         assertThat(result.getData().getAccessToken()).isEqualTo("token");
         ArgumentCaptor<Runnable> task = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).schedule(task.capture(), eq(5L), eq(TimeUnit.SECONDS));
@@ -207,7 +222,7 @@ class TokenControllerTest {
         assertThatThrownBy(() -> controller.login(loginBody("password"))).isInstanceOf(ServiceException.class)
             .hasMessage("请选择租户");
         String withTenant = loginBody("password").replace("}", ",\"tenantId\":\"acme\"}");
-        assertThat(R.isSuccess(controller.login(withTenant))).isTrue();
+        assertThat(controller.login(withTenant).getCode()).isEqualTo(ApiResult.SUCCESS);
         assertThat(tenantDuringLogin.get()).isEqualTo("acme");
     }
 
@@ -256,18 +271,18 @@ class TokenControllerTest {
     void register() {
         RegisterBody body = new RegisterBody();
         body.setUsername("newbie");
-        assertThat(controller.register(body).getMsg()).isEqualTo("当前系统没有开启注册功能！");
+        assertBadRequest(() -> controller.register(body), "当前系统没有开启注册功能！");
         verify(sysLoginService, never()).register(any());
 
         when(remoteConfigService.selectRegisterEnabled()).thenReturn(true);
-        assertThat(R.isSuccess(controller.register(body))).isTrue();
+        assertThat(controller.register(body).getCode()).isEqualTo(ApiResult.SUCCESS);
         verify(sysLoginService).register(body);
     }
 
     @Test
     @DisplayName("登录页的租户：未开启时不显示；开启时按域名返回（查询时忽略租户隔离）")
     void tenantList() {
-        R<LoginTenantVo> disabled = controller.tenantList(null);
+        ApiResult<LoginTenantVo> disabled = controller.tenantList(null);
         assertThat(disabled.getData().enabled()).isFalse();
         assertThat(disabled.getData().tenants()).isEmpty();
 
@@ -292,9 +307,9 @@ class TokenControllerTest {
     @DisplayName("第三方绑定：不支持、未填写应用 ID 与密钥的平台拒绝；支持时返回授权地址；回调失败返回原因，成功时绑定")
     void socialBinding() {
         socialProperties.setType(Map.of());
-        assertThat(controller.authBinding("gitee").getMsg()).isEqualTo("gitee平台账号暂不支持");
+        assertBadRequest(() -> controller.authBinding("gitee"), "gitee平台账号暂不支持");
         socialProperties.setType(Map.of("gitee", new SocialLoginConfigProperties()));
-        assertThat(controller.authBinding("gitee").getMsg()).isEqualTo("gitee平台账号暂不支持");
+        assertBadRequest(() -> controller.authBinding("gitee"), "gitee平台账号暂不支持");
 
         SocialLoginConfigProperties gitee = new SocialLoginConfigProperties();
         gitee.setClientId("client-id");
@@ -313,12 +328,12 @@ class TokenControllerTest {
 
             social.when(() -> SocialUtils.loginAuth("gitee", "code", "state", socialProperties))
                 .thenReturn(AuthResponse.<AuthUser>builder().code(5000).msg("授权失败").build());
-            assertThat(controller.socialCallback(body).getMsg()).isEqualTo("授权失败");
+            assertBadRequest(() -> controller.socialCallback(body), "授权失败");
             verify(sysLoginService, never()).socialRegister(any());
 
             social.when(() -> SocialUtils.loginAuth("gitee", "code", "state", socialProperties))
                 .thenReturn(AuthResponse.<AuthUser>builder().code(2000).data(authUser).build());
-            assertThat(R.isSuccess(controller.socialCallback(body))).isTrue();
+            assertThat(controller.socialCallback(body).getCode()).isEqualTo(ApiResult.SUCCESS);
             verify(sysLoginService).socialRegister(authUser);
         }
     }
@@ -346,7 +361,7 @@ class TokenControllerTest {
     }
 
     @Test
-    @DisplayName("取消授权按结果返回；退出登录委托登录服务")
+    @DisplayName("取消授权：非本人拒绝、删除失败带回原因；退出登录委托登录服务")
     void unlockAndLogout() {
         // 只能解绑本人的第三方绑定：先按当前用户查询绑定，不是本人的直接拒绝，不执行删除
         RemoteSocialVo own1 = new RemoteSocialVo();
@@ -354,21 +369,25 @@ class TokenControllerTest {
         RemoteSocialVo own2 = new RemoteSocialVo();
         own2.setId(2L);
         when(remoteSocialService.queryList(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(own1, own2));
-        when(remoteSocialService.deleteWithValidById(1L)).thenReturn(true);
-        when(remoteSocialService.deleteWithValidById(2L)).thenReturn(false);
-        try (MockedStatic<LoginHelper> login = org.mockito.Mockito.mockStatic(LoginHelper.class)) {
-            login.when(LoginHelper::getUserId).thenReturn(100L);
-
-            assertThat(R.isSuccess(controller.unlockSocial(1L))).isTrue();
-            assertThat(controller.unlockSocial(2L).getMsg()).isEqualTo("取消授权失败");
-            assertThat(controller.unlockSocial(3L).getMsg()).isEqualTo("取消授权失败");
+        org.mockito.Mockito.doThrow(new ServiceException("第三方账号绑定不存在或已解除"))
+            .when(remoteSocialService).deleteWithValidById(2L);
+        CurrentUser user = new CurrentUser();
+        user.setUserId(100L);
+        UserContextProvider previous = UserContext.setProvider(() -> Optional.of(user));
+        try {
+            assertThat(controller.unlockSocial(1L).getCode()).isEqualTo(ApiResult.SUCCESS);
+            assertBadRequest(() -> controller.unlockSocial(2L), "第三方账号绑定不存在或已解除");
+            assertBadRequest(() -> controller.unlockSocial(3L), "取消授权失败");
+        } finally {
+            UserContext.setProvider(previous);
         }
         ArgumentCaptor<RemoteSocialBo> query = ArgumentCaptor.forClass(RemoteSocialBo.class);
         verify(remoteSocialService, org.mockito.Mockito.atLeastOnce()).queryList(query.capture());
         assertThat(query.getValue().getUserId()).isEqualTo(100L);
+        verify(remoteSocialService).deleteWithValidById(1L);
         verify(remoteSocialService, org.mockito.Mockito.never()).deleteWithValidById(3L);
 
-        assertThat(R.isSuccess(controller.logout())).isTrue();
+        assertThat(controller.logout().getCode()).isEqualTo(ApiResult.SUCCESS);
         verify(sysLoginService).logout();
     }
 

@@ -7,7 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 一次请求的结果。接口统一返回 {@code {code, msg, data}}，业务错误时 HTTP 状态通常仍为 200，以 {@code code} 为准。
+ * 一次请求的结果。接口统一返回 {@code {code, message, data, traceId}}：成功时 HTTP 200、{@code code} 为 0；
+ * 失败时 HTTP 状态码表达错误类别（400、401、403、404、429、500 等），响应体结构相同，{@code code} 默认等于 HTTP 状态码。
  *
  * @param method  请求方法
  * @param path    请求路径
@@ -19,14 +20,23 @@ import java.util.List;
  */
 public record ApiResponse(String method, String path, int status, HttpHeaders headers, String raw, JsonNode body) {
 
+    /**
+     * 成功的 code
+     */
+    public static final int SUCCESS = 0;
+
     private static final int MAX_RAW_IN_MESSAGE = 2000;
 
     public int code() {
         return body.path("code").asInt(-1);
     }
 
-    public String msg() {
-        return body.path("msg").asString("");
+    public String message() {
+        return body.path("message").asString("");
+    }
+
+    public String traceId() {
+        return body.path("traceId").asString("");
     }
 
     public JsonNode data() {
@@ -34,32 +44,49 @@ public record ApiResponse(String method, String path, int status, HttpHeaders he
     }
 
     /**
-     * 断言接口成功（HTTP 200 且 code 为 200），失败时在消息中带上响应内容，便于从 CI 日志定位
+     * 断言接口成功（HTTP 200、code 为 0、带 traceId），失败时在消息中带上响应内容，便于从 CI 日志定位
      */
     public ApiResponse assertOk(String what) {
-        if (status != 200 || code() != 200) {
+        if (status != 200 || code() != SUCCESS) {
             throw new AssertionError(what + " 失败：" + this);
         }
-        return this;
-    }
-
-    /**
-     * 断言接口返回指定的 code（HTTP 状态 200 或与 code 相同都接受：网关与各服务对未登录的处理方式不同）
-     */
-    public ApiResponse assertCode(int expected, String what) {
-        if (code() != expected || (status != 200 && status != expected)) {
-            throw new AssertionError(what + "：期望 code " + expected + "，实际：" + this);
+        if (traceId().isBlank()) {
+            throw new AssertionError(what + "：响应中缺少 traceId：" + this);
         }
         return this;
     }
 
     /**
-     * 分页接口的 rows
+     * 断言接口失败，HTTP 状态与 code 都等于 {@code expected}，并带有给用户看的 message 与用于排查的 traceId
      */
-    public List<JsonNode> rows() {
-        List<JsonNode> rows = new ArrayList<>();
-        data().path("rows").forEach(rows::add);
-        return rows;
+    public ApiResponse assertError(int expected, String what) {
+        if (status != expected || code() != expected) {
+            throw new AssertionError(what + "：期望 HTTP " + expected + " 且 code " + expected + "，实际：" + this);
+        }
+        if (message().isBlank() || traceId().isBlank()) {
+            throw new AssertionError(what + "：失败响应应带 message 与 traceId：" + this);
+        }
+        return this;
+    }
+
+    /**
+     * 分页接口的 items
+     */
+    public List<JsonNode> items() {
+        List<JsonNode> items = new ArrayList<>();
+        data().path("items").forEach(items::add);
+        return items;
+    }
+
+    /**
+     * 分页接口的 total
+     */
+    public long total() {
+        JsonNode total = data().path("total");
+        if (!total.isNumber()) {
+            throw new AssertionError("分页结果中没有数字类型的 total：" + this);
+        }
+        return total.asLong();
     }
 
     /**

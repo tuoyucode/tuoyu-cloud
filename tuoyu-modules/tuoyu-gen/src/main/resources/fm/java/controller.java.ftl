@@ -1,36 +1,39 @@
 package ${packageName}.controller;
 
-import java.util.List;
-
-import lombok.RequiredArgsConstructor;
+import cn.dev33.satoken.annotation.SaCheckPermission;
 <#if enableExport>
 import jakarta.servlet.http.HttpServletResponse;
 </#if>
-import jakarta.validation.constraints.*;
-import cn.dev33.satoken.annotation.SaCheckPermission;
-import org.springframework.web.bind.annotation.*;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.web.core.BaseController;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
-import org.tuoyu.common.log.enums.BusinessType;
+import org.springframework.web.bind.annotation.*;
+import org.tuoyu.common.core.domain.ApiResult;
+<#if table.crud>
+import org.tuoyu.common.core.domain.PageResult;
+</#if>
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 <#if enableExport>
 import org.tuoyu.common.excel.utils.ExcelBuilder;
 </#if>
-import ${packageName}.domain.vo.${ClassName}Vo;
-import ${packageName}.domain.bo.${ClassName}Bo;
-import ${packageName}.service.I${ClassName}Service;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
 <#if table.crud>
-import org.tuoyu.common.core.domain.PageResult;
-<#elseif table.tree>
+import org.tuoyu.common.mybatis.core.page.PageParam;
 </#if>
+import org.tuoyu.common.redis.annotation.PreventResubmit;
+import ${packageName}.domain.bo.${ClassName}Bo;
+import ${packageName}.domain.vo.${ClassName}Vo;
+import ${packageName}.service.I${ClassName}Service;
+
+import java.util.List;
 
 /**
  * ${functionName}
+ * <p>
+ * 失败时由服务层抛出带原因的 ServiceException，全局异常处理按它返回 HTTP 状态码与提示。
  *
  * @author ${author}
  * @date ${datetime}
@@ -39,7 +42,7 @@ import org.tuoyu.common.core.domain.PageResult;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/${moduleName}/${businessName}")
-public class ${ClassName}Controller extends BaseController {
+public class ${ClassName}Controller {
 
     private final I${ClassName}Service ${className}Service;
 
@@ -49,13 +52,12 @@ public class ${ClassName}Controller extends BaseController {
     @SaCheckPermission("${permissionPrefix}:list")
     @GetMapping("/list")
 <#if table.crud>
-    public R<PageResult<${ClassName}Vo>> list(${ClassName}Bo bo, PageQuery pageQuery) {
-        return R.ok(${className}Service.queryPageList(bo, pageQuery));
+    public ApiResult<PageResult<${ClassName}Vo>> list(${ClassName}Bo bo, PageParam pageParam) {
+        return ApiResult.ok(${className}Service.queryPageList(bo, pageParam));
     }
 <#elseif table.tree>
-    public R<List<${ClassName}Vo>> list(${ClassName}Bo bo) {
-        List<${ClassName}Vo> list = ${className}Service.queryList(bo);
-        return R.ok(list);
+    public ApiResult<List<${ClassName}Vo>> list(${ClassName}Bo bo) {
+        return ApiResult.ok(${className}Service.queryList(bo));
     }
 </#if>
 
@@ -64,15 +66,15 @@ public class ${ClassName}Controller extends BaseController {
      * 导出${functionName}列表
      */
     @SaCheckPermission("${permissionPrefix}:export")
-    @Log(title = "${functionName}", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "${functionName}", action = AuditAction.EXPORT)
     @PostMapping("/export")
     public void export(${ClassName}Bo bo, HttpServletResponse response) {
         // 先统计行数，超过 tuoyu.excel.max-export-rows 时直接拒绝，不执行查询
         ExcelBuilder.query(() -> ${className}Service.countList(bo), () -> ${className}Service.queryList(bo), ${ClassName}Vo.class)
             .sheetName("${functionName}").toResponse(response);
     }
-</#if>
 
+</#if>
     /**
      * 获取${functionName}详细信息
      *
@@ -80,41 +82,33 @@ public class ${ClassName}Controller extends BaseController {
      */
     @SaCheckPermission("${permissionPrefix}:query")
     @GetMapping("/{${pkColumn.javaField}}")
-    public R<${ClassName}Vo> getInfo(@NotNull(message = "主键不能为空")
-                                     @PathVariable ${pkColumn.javaType} ${pkColumn.javaField}) {
-        return R.ok(${className}Service.queryById(${pkColumn.javaField}));
+    public ApiResult<${ClassName}Vo> getInfo(@NotNull(message = "主键不能为空")
+                                             @PathVariable ${pkColumn.javaType} ${pkColumn.javaField}) {
+        return ApiResult.ok(${className}Service.queryById(${pkColumn.javaField}));
     }
 
     /**
      * 新增${functionName}
      */
     @SaCheckPermission("${permissionPrefix}:add")
-    @Log(title = "${functionName}", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
-    @PostMapping()
-    public R<Void> add(@Validated(AddGroup.class) @RequestBody ${ClassName}Bo bo) {
-<#if enableUnique>
-        if (!${className}Service.checkUnique(bo)) {
-            return R.fail("新增${functionName}失败，组合唯一字段已存在");
-        }
-</#if>
-        return toAjax(${className}Service.insertByBo(bo));
+    @OperationLog(module = "${functionName}", action = AuditAction.CREATE)
+    @PreventResubmit
+    @PostMapping
+    public ApiResult<Void> add(@Validated(OnCreate.class) @RequestBody ${ClassName}Bo bo) {
+        ${className}Service.insertByBo(bo);
+        return ApiResult.ok();
     }
 
     /**
      * 修改${functionName}
      */
     @SaCheckPermission("${permissionPrefix}:edit")
-    @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
-    @PutMapping()
-    public R<Void> edit(@Validated(EditGroup.class) @RequestBody ${ClassName}Bo bo) {
-<#if enableUnique>
-        if (!${className}Service.checkUnique(bo)) {
-            return R.fail("修改${functionName}失败，组合唯一字段已存在");
-        }
-</#if>
-        return toAjax(${className}Service.updateByBo(bo));
+    @OperationLog(module = "${functionName}", action = AuditAction.UPDATE)
+    @PreventResubmit
+    @PutMapping
+    public ApiResult<Void> edit(@Validated(OnUpdate.class) @RequestBody ${ClassName}Bo bo) {
+        ${className}Service.updateByBo(bo);
+        return ApiResult.ok();
     }
 
 <#if enableStatus>
@@ -122,35 +116,38 @@ public class ${ClassName}Controller extends BaseController {
      * 修改${functionName}状态
      */
     @SaCheckPermission("${permissionPrefix}:edit")
-    @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "${functionName}", action = AuditAction.UPDATE)
     @PutMapping("/changeStatus")
-    public R<Void> changeStatus(@RequestBody ${ClassName}Bo bo) {
-        return toAjax(${className}Service.updateStatus(bo.get${pkColumn.capJavaField}(), bo.get${statusColumn.capJavaField}()));
+    public ApiResult<Void> changeStatus(@RequestBody ${ClassName}Bo bo) {
+        ${className}Service.updateStatus(bo.get${pkColumn.capJavaField}(), bo.get${statusColumn.capJavaField}());
+        return ApiResult.ok();
     }
-</#if>
 
+</#if>
 <#if enableSort>
     /**
      * 调整${functionName}排序
      */
     @SaCheckPermission("${permissionPrefix}:edit")
-    @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "${functionName}", action = AuditAction.UPDATE)
     @PutMapping("/updateSort")
-    public R<Void> updateSort(@RequestBody ${ClassName}Bo bo) {
-        return toAjax(${className}Service.updateSort(bo.get${pkColumn.capJavaField}(), bo.get${sortColumn.capJavaField}()));
+    public ApiResult<Void> updateSort(@RequestBody ${ClassName}Bo bo) {
+        ${className}Service.updateSort(bo.get${pkColumn.capJavaField}(), bo.get${sortColumn.capJavaField}());
+        return ApiResult.ok();
     }
-</#if>
 
+</#if>
     /**
      * 删除${functionName}
      *
      * @param ${pkColumn.javaField}s 主键串
      */
     @SaCheckPermission("${permissionPrefix}:remove")
-    @Log(title = "${functionName}", businessType = BusinessType.DELETE)
+    @OperationLog(module = "${functionName}", action = AuditAction.DELETE)
     @DeleteMapping("/{${pkColumn.javaField}s}")
-    public R<Void> remove(@NotEmpty(message = "主键不能为空")
-                          @PathVariable ${pkColumn.javaType}[] ${pkColumn.javaField}s) {
-        return toAjax(${className}Service.deleteWithValidByIds(List.of(${pkColumn.javaField}s), true));
+    public ApiResult<Void> remove(@NotEmpty(message = "主键不能为空")
+                                  @PathVariable ${pkColumn.javaType}[] ${pkColumn.javaField}s) {
+        ${className}Service.deleteWithValidByIds(List.of(${pkColumn.javaField}s), true);
+        return ApiResult.ok();
     }
 }

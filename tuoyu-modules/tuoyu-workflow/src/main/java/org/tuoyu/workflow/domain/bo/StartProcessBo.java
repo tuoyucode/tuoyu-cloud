@@ -4,7 +4,7 @@ package org.tuoyu.workflow.domain.bo;
 import cn.hutool.core.util.ObjectUtil;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
+import org.tuoyu.common.core.validate.OnCreate;
 import org.tuoyu.workflow.domain.FlowInstanceBizExt;
 
 import java.io.Serial;
@@ -27,13 +27,13 @@ public class StartProcessBo implements Serializable {
     /**
      * 业务唯一值id
      */
-    @NotBlank(message = "业务ID不能为空", groups = {AddGroup.class})
+    @NotBlank(message = "业务ID不能为空", groups = {OnCreate.class})
     private String businessId;
 
     /**
      * 流程定义编码
      */
-    @NotBlank(message = "流程定义编码不能为空", groups = {AddGroup.class})
+    @NotBlank(message = "流程定义编码不能为空", groups = {OnCreate.class})
     private String flowCode;
 
     /**

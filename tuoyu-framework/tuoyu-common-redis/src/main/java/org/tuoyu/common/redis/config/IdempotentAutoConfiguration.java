@@ -1,6 +1,6 @@
 package org.tuoyu.common.redis.config;
 
-import org.tuoyu.common.redis.aspectj.RepeatSubmitAspect;
+import org.tuoyu.common.redis.aspectj.PreventResubmitAspect;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 
@@ -13,8 +13,8 @@ import org.springframework.context.annotation.Bean;
 public class IdempotentAutoConfiguration {
 
     @Bean
-    public RepeatSubmitAspect repeatSubmitAspect() {
-        return new RepeatSubmitAspect();
+    public PreventResubmitAspect preventResubmitAspect() {
+        return new PreventResubmitAspect();
     }
 
 }

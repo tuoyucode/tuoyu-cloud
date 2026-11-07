@@ -8,8 +8,8 @@ import com.github.yulichang.wrapper.MPJLambdaWrapper;
 import org.apache.ibatis.annotations.Param;
 import org.tuoyu.common.mybatis.annotation.DataColumn;
 import org.tuoyu.common.mybatis.annotation.DataPermission;
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysDept;
 import org.tuoyu.system.domain.SysRole;
@@ -26,7 +26,7 @@ import java.util.List;
  *
  * @author Lion Li
  */
-public interface SysUserMapper extends BaseMapperPlus<SysUser, SysUserVo>, MPJBaseMapper<SysUser> {
+public interface SysUserMapper extends BaseMapper<SysUser>, MPJBaseMapper<SysUser> {
 
     /**
      * 分页查询用户列表，并进行数据权限控制
@@ -39,8 +39,8 @@ public interface SysUserMapper extends BaseMapperPlus<SysUser, SysUserVo>, MPJBa
         @DataColumn(key = "deptName", value = "dept_id"),
         @DataColumn(key = "userName", value = "create_by")
     })
-    default Page<SysUserVo> selectPageUserList(Page<SysUser> page, Wrapper<SysUser> queryWrapper) {
-        return this.selectVoPage(page, queryWrapper);
+    default Page<SysUser> selectPageUserList(Page<SysUser> page, Wrapper<SysUser> queryWrapper) {
+        return this.selectPage(page, queryWrapper);
     }
 
     /**
@@ -53,8 +53,8 @@ public interface SysUserMapper extends BaseMapperPlus<SysUser, SysUserVo>, MPJBa
         @DataColumn(key = "deptName", value = "dept_id"),
         @DataColumn(key = "userName", value = "create_by")
     })
-    default List<SysUserVo> selectUserList(Wrapper<SysUser> queryWrapper) {
-        return this.selectVoList(queryWrapper);
+    default List<SysUser> selectUserList(Wrapper<SysUser> queryWrapper) {
+        return this.selectList(queryWrapper);
     }
 
     /**
@@ -85,7 +85,7 @@ public interface SysUserMapper extends BaseMapperPlus<SysUser, SysUserVo>, MPJBa
     })
     default long countUserExportList(SysUserBo user, List<Long> deptIds) {
         // 分页插件统计行数时会去掉 ORDER BY，各数据库都能执行
-        return this.selectJoinPage(PageQuery.<SysUserExportVo>countOnly(), SysUserExportVo.class,
+        return this.selectJoinPage(PageParam.<SysUserExportVo>countOnly(), SysUserExportVo.class,
             this.buildUserExportWrapper(user, deptIds)).getTotal();
     }
 
@@ -160,7 +160,7 @@ public interface SysUserMapper extends BaseMapperPlus<SysUser, SysUserVo>, MPJBa
         @DataColumn(key = "userName", value = "create_by")
     })
     default long countUserById(Long userId) {
-        return lambda().eq(SysUser::getUserId, userId).count();
+        return this.selectCount(QueryBuilder.lambda(SysUser.class).eq(SysUser::getUserId, userId).build());
     }
 
     /**
@@ -176,6 +176,25 @@ public interface SysUserMapper extends BaseMapperPlus<SysUser, SysUserVo>, MPJBa
         @DataColumn(key = "userName", value = "create_by")
     })
     int update(@Param(Constants.ENTITY) SysUser user, @Param(Constants.WRAPPER) Wrapper<SysUser> updateWrapper);
+
+    /**
+     * 按条件更新用户数据（只有 SET 与 WHERE，没有实体）
+     * <p>
+     * 必须在这里声明并标注数据权限：数据权限由 Spring 代理在调用 Mapper 方法时设置，
+     * {@code BaseMapper} 自带的这个默认方法在 MyBatis 代理内部转调 {@link #update(SysUser, Wrapper)}，
+     * 不经过 Spring 代理，注解不会生效
+     *
+     * @param updateWrapper 更新条件封装器
+     * @return 更新操作影响的行数
+     */
+    @Override
+    @DataPermission({
+        @DataColumn(key = "deptName", value = "dept_id"),
+        @DataColumn(key = "userName", value = "create_by")
+    })
+    default int update(@Param(Constants.WRAPPER) Wrapper<SysUser> updateWrapper) {
+        return this.update(null, updateWrapper);
+    }
 
     /**
      * 根据用户ID更新用户数据

@@ -65,9 +65,10 @@ public interface RemoteUserService {
      * 注册用户信息
      *
      * @param remoteUserBo 用户信息
-     * @return 结果
+     * @throws UserException    用户名已存在、没有写入用户
+     * @throws ServiceException 系统没有开启注册
      */
-    Boolean registerUserInfo(@Valid RemoteUserBo remoteUserBo) throws UserException, ServiceException;
+    void registerUserInfo(@Valid RemoteUserBo remoteUserBo) throws UserException, ServiceException;
 
     /**
      * 通过userId查询用户账户

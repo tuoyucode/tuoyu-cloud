@@ -4,13 +4,13 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.excel.utils.ExcelBuilder;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.system.domain.bo.SysDictTypeBo;
 import org.tuoyu.system.domain.vo.SysDictTypeVo;
 import org.tuoyu.system.service.ISysDictTypeService;
@@ -29,7 +29,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/dict/type")
-public class SysDictTypeController extends BaseController {
+public class SysDictTypeController {
 
     private final ISysDictTypeService dictTypeService;
 
@@ -38,14 +38,14 @@ public class SysDictTypeController extends BaseController {
      */
     @SaCheckPermission("system:dict:list")
     @GetMapping("/list")
-    public R<PageResult<SysDictTypeVo>> list(SysDictTypeBo dictType, PageQuery pageQuery) {
-        return R.ok(dictTypeService.selectPageDictTypeList(dictType, pageQuery));
+    public ApiResult<PageResult<SysDictTypeVo>> list(SysDictTypeBo dictType, PageParam pageParam) {
+        return ApiResult.ok(dictTypeService.selectPageDictTypeList(dictType, pageParam));
     }
 
     /**
      * 导出字典类型列表
      */
-    @Log(title = "字典类型", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "字典类型", action = AuditAction.EXPORT)
     @SaCheckPermission("system:dict:export")
     @PostMapping("/export")
     public void export(SysDictTypeBo dictType, HttpServletResponse response) {
@@ -61,38 +61,38 @@ public class SysDictTypeController extends BaseController {
      */
     @SaCheckPermission("system:dict:query")
     @GetMapping(value = "/{dictId}")
-    public R<SysDictTypeVo> getInfo(@PathVariable Long dictId) {
-        return R.ok(dictTypeService.selectDictTypeById(dictId));
+    public ApiResult<SysDictTypeVo> getInfo(@PathVariable Long dictId) {
+        return ApiResult.ok(dictTypeService.selectDictTypeById(dictId));
     }
 
     /**
      * 新增字典类型
      */
     @SaCheckPermission("system:dict:add")
-    @Log(title = "字典类型", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "字典类型", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping
-    public R<Void> add(@Validated @RequestBody SysDictTypeBo dict) {
+    public ApiResult<Void> add(@Validated @RequestBody SysDictTypeBo dict) {
         if (!dictTypeService.checkDictTypeUnique(dict)) {
-            return R.fail("新增字典'" + dict.getDictName() + "'失败，字典类型已存在");
+            throw new ServiceException("新增字典'" + dict.getDictName() + "'失败，字典类型已存在");
         }
         dictTypeService.insertDictType(dict);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 修改字典类型
      */
     @SaCheckPermission("system:dict:edit")
-    @Log(title = "字典类型", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "字典类型", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping
-    public R<Void> edit(@Validated @RequestBody SysDictTypeBo dict) {
+    public ApiResult<Void> edit(@Validated @RequestBody SysDictTypeBo dict) {
         if (!dictTypeService.checkDictTypeUnique(dict)) {
-            return R.fail("修改字典'" + dict.getDictName() + "'失败，字典类型已存在");
+            throw new ServiceException("修改字典'" + dict.getDictName() + "'失败，字典类型已存在");
         }
         dictTypeService.updateDictType(dict);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -101,23 +101,23 @@ public class SysDictTypeController extends BaseController {
      * @param dictIds 字典ID串
      */
     @SaCheckPermission("system:dict:remove")
-    @Log(title = "字典类型", businessType = BusinessType.DELETE)
+    @OperationLog(module = "字典类型", action = AuditAction.DELETE)
     @DeleteMapping("/{dictIds}")
-    public R<Void> remove(@PathVariable Long[] dictIds) {
+    public ApiResult<Void> remove(@PathVariable Long[] dictIds) {
         dictTypeService.deleteDictTypeByIds(Arrays.asList(dictIds));
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 刷新字典缓存
      */
     @SaCheckPermission("system:dict:remove")
-    @Log(title = "字典类型", businessType = BusinessType.CLEAN)
-    @RepeatSubmit()
+    @OperationLog(module = "字典类型", action = AuditAction.CLEAN)
+    @PreventResubmit
     @DeleteMapping("/refreshCache")
-    public R<Void> refreshCache() {
+    public ApiResult<Void> refreshCache() {
         dictTypeService.resetDictCache();
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -125,8 +125,8 @@ public class SysDictTypeController extends BaseController {
      */
     @SaCheckPermission("system:dict:query")
     @GetMapping("/optionselect")
-    public R<List<SysDictTypeVo>> optionselect() {
+    public ApiResult<List<SysDictTypeVo>> optionselect() {
         List<SysDictTypeVo> dictTypes = dictTypeService.selectDictTypeAll();
-        return R.ok(dictTypes);
+        return ApiResult.ok(dictTypes);
     }
 }

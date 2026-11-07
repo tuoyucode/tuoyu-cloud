@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysClientBo;
 import org.tuoyu.system.domain.vo.SysClientVo;
 
@@ -28,7 +28,7 @@ public interface ISysClientService {
     /**
      * 查询客户端管理列表
      */
-    PageResult<SysClientVo> queryPageList(SysClientBo bo, PageQuery pageQuery);
+    PageResult<SysClientVo> queryPageList(SysClientBo bo, PageParam pageParam);
 
     /**
      * 查询客户端管理列表
@@ -46,22 +46,22 @@ public interface ISysClientService {
     /**
      * 新增客户端管理
      */
-    Boolean insertByBo(SysClientBo bo);
+    void insertByBo(SysClientBo bo);
 
     /**
      * 修改客户端管理
      */
-    Boolean updateByBo(SysClientBo bo);
+    void updateByBo(SysClientBo bo);
 
     /**
      * 修改状态
      */
-    int updateClientStatus(String clientId, String status);
+    void updateClientStatus(String clientId, String status);
 
     /**
      * 校验并批量删除客户端管理信息
      */
-    Boolean deleteWithValidByIds(Collection<Long> ids, Boolean isValid);
+    void deleteWithValidByIds(Collection<Long> ids, Boolean isValid);
 
     /**
      * 校验客户端key是否唯一

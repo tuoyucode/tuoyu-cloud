@@ -41,7 +41,7 @@ public class WorkflowServiceImpl implements WorkflowService {
      * 删除流程实例
      *
      * @param businessIds 业务id
-     * @return 结果
+     * @return true 删除了流程实例；false 没有对应的流程实例
      */
     @Override
     public boolean deleteInstance(List<String> businessIds) {
@@ -121,8 +121,8 @@ public class WorkflowServiceImpl implements WorkflowService {
      * @param completeTask 参数
      */
     @Override
-    public boolean completeTask(RemoteCompleteTask completeTask) {
-        return flwTaskService.completeTask(BeanUtil.toBean(completeTask, CompleteTaskBo.class));
+    public void completeTask(RemoteCompleteTask completeTask) {
+        flwTaskService.completeTask(BeanUtil.toBean(completeTask, CompleteTaskBo.class));
     }
 
     /**
@@ -132,13 +132,13 @@ public class WorkflowServiceImpl implements WorkflowService {
      * @param message 办理意见
      */
     @Override
-    public boolean completeTask(Long taskId, String message) {
+    public void completeTask(Long taskId, String message) {
         CompleteTaskBo completeTask = new CompleteTaskBo();
         completeTask.setTaskId(taskId);
         completeTask.setMessage(message);
         // 忽略权限(系统后台发起审批 无用户信息 需要忽略权限)
         completeTask.getVariables().put("ignore", true);
-        return flwTaskService.completeTask(completeTask);
+        flwTaskService.completeTask(completeTask);
     }
 
     /**
@@ -147,7 +147,7 @@ public class WorkflowServiceImpl implements WorkflowService {
      * @param startProcess 参数
      */
     @Override
-    public boolean startCompleteTask(RemoteStartProcess startProcess) {
+    public void startCompleteTask(RemoteStartProcess startProcess) {
         StartProcessBo processBo = new StartProcessBo();
         processBo.setBusinessId(startProcess.getBusinessId());
         processBo.setFlowCode(startProcess.getFlowCode());
@@ -161,6 +161,6 @@ public class WorkflowServiceImpl implements WorkflowService {
         taskBo.setMessageType(Collections.singletonList(MessageTypeEnum.SYSTEM_MESSAGE.getCode()));
         taskBo.setVariables(startProcess.getVariables());
         taskBo.setHandler(startProcess.getHandler());
-        return flwTaskService.completeTask(taskBo);
+        flwTaskService.completeTask(taskBo);
     }
 }

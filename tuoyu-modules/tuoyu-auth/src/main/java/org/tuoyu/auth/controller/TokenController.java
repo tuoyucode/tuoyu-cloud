@@ -17,7 +17,9 @@ import org.tuoyu.auth.service.IAuthStrategy;
 import org.tuoyu.auth.service.SysLoginService;
 import org.tuoyu.auth.service.TenantLoginGuard;
 import org.tuoyu.common.core.constant.SystemConstants;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.domain.model.LoginBody;
 import org.tuoyu.common.core.utils.DateUtils;
 import org.tuoyu.common.core.utils.MessageUtils;
@@ -76,7 +78,7 @@ public class TokenController {
     @SaIgnore
     @ApiEncrypt
     @PostMapping("/login")
-    public R<LoginVo> login(@RequestBody String body) {
+    public ApiResult<LoginVo> login(@RequestBody String body) {
         LoginBody loginBody = JsonUtils.parseObject(body, LoginBody.class);
         ValidatorUtils.validate(loginBody);
         // 授权类型和客户端id
@@ -87,13 +89,13 @@ public class TokenController {
         // 查询不到 client 或 client 内不包含 grantType
         if (ObjectUtil.isNull(clientVo) || !StringUtils.contains(clientVo.getGrantType(), grantType)) {
             log.info("客户端id: {} 认证类型：{} 异常!.", clientId, grantType);
-            return R.fail(MessageUtils.message("auth.grant.type.error"));
+            throw new ServiceException(MessageUtils.message("auth.grant.type.error"));
         } else if (!SystemConstants.NORMAL.equals(clientVo.getStatus())) {
-            return R.fail(MessageUtils.message("auth.grant.type.blocked"));
+            throw new ServiceException(MessageUtils.message("auth.grant.type.blocked"));
         } else if (!sysLoginService.isClientSecretAccepted(clientVo, loginBody.getClientSecret())) {
             // 仅在开启 tuoyu.auth.client.require-secret 时校验
             log.info("客户端id: {} 密钥校验未通过", clientId);
-            return R.fail(MessageUtils.message("auth.client.secret.error"));
+            throw new ServiceException(MessageUtils.message("auth.client.secret.error"));
         }
         // 登录（开启多租户时在登录的租户中执行）；记下确定的租户，欢迎消息也要在这个租户中发送
         AtomicReference<String> loginTenantId = new AtomicReference<>();
@@ -102,6 +104,7 @@ public class TokenController {
             return IAuthStrategy.login(body, clientVo, grantType);
         });
 
+        // 读取本次请求刚建立的登录会话中的用户
         Long userId = LoginHelper.getUserId();
         String tenantId = loginTenantId.get();
         // 欢迎消息只是提示：推送失败不影响登录（统一降级，单体与微服务行为一致，ADR 0007）。
@@ -109,7 +112,7 @@ public class TokenController {
         scheduledExecutorService.schedule(() -> TenantHelper.dynamic(tenantId, () -> RemoteFallback.run("resource.message.welcome",
             () -> remoteMessageService.publishMessage(List.of(userId), DateUtils.getTodayHour(new Date()) + "好，欢迎登录 TuoYu-Cloud 后台管理系统"))),
             5, TimeUnit.SECONDS);
-        return R.ok(loginVo);
+        return ApiResult.ok(loginVo);
     }
 
     /**
@@ -120,15 +123,15 @@ public class TokenController {
      */
     @SaIgnore
     @GetMapping("/binding/{source}")
-    public R<String> authBinding(@PathVariable("source") String source) {
+    public ApiResult<String> authBinding(@PathVariable("source") String source) {
         // 应用 ID、密钥未填写的平台同样不支持，否则会跳到无效的授权页
         SocialLoginConfigProperties obj = socialProperties.configured(source);
         if (ObjectUtil.isNull(obj)) {
-            return R.fail(source + "平台账号暂不支持");
+            throw new ServiceException(source + "平台账号暂不支持");
         }
         AuthRequest authRequest = SocialUtils.getAuthRequest(source, socialProperties);
         String authorizeUrl = authRequest.authorize(AuthStateUtils.createState());
-        return R.data(authorizeUrl);
+        return ApiResult.ok(authorizeUrl);
     }
 
     /**
@@ -138,8 +141,8 @@ public class TokenController {
      */
     @SaCheckLogin
     @GetMapping("/social/sources")
-    public R<List<String>> socialSources() {
-        return R.ok(socialProperties.configuredSources());
+    public ApiResult<List<String>> socialSources() {
+        return ApiResult.ok(socialProperties.configuredSources());
     }
 
     /**
@@ -152,7 +155,7 @@ public class TokenController {
      */
     @SaCheckLogin
     @PostMapping("/social/callback")
-    public R<Void> socialCallback(@RequestBody SocialLoginBody loginBody) {
+    public ApiResult<Void> socialCallback(@RequestBody SocialLoginBody loginBody) {
         // 获取第三方登录信息
         AuthResponse<AuthUser> response = SocialUtils.loginAuth(
             loginBody.getSource(), loginBody.getSocialCode(),
@@ -160,10 +163,10 @@ public class TokenController {
         AuthUser authUserData = response.getData();
         // 判断授权响应是否成功
         if (!response.ok()) {
-            return R.fail(response.getMsg());
+            throw new ServiceException(response.getMsg());
         }
         sysLoginService.socialRegister(authUserData);
-        return R.ok();
+        return ApiResult.ok();
     }
 
 
@@ -176,15 +179,15 @@ public class TokenController {
      */
     @SaCheckLogin
     @DeleteMapping(value = "/unlock/{socialId}")
-    public R<Void> unlockSocial(@PathVariable Long socialId) {
+    public ApiResult<Void> unlockSocial(@PathVariable Long socialId) {
         RemoteSocialBo params = new RemoteSocialBo();
-        params.setUserId(LoginHelper.getUserId());
+        params.setUserId(UserContext.userId());
         boolean own = remoteSocialService.queryList(params).stream().anyMatch(social -> socialId.equals(social.getId()));
         if (!own) {
-            return R.fail("取消授权失败");
+            throw new ServiceException("取消授权失败");
         }
-        Boolean rows = remoteSocialService.deleteWithValidById(socialId);
-        return rows ? R.ok() : R.fail("取消授权失败");
+        remoteSocialService.deleteWithValidById(socialId);
+        return ApiResult.ok();
     }
 
     /**
@@ -192,9 +195,9 @@ public class TokenController {
      */
     @SaIgnore
     @PostMapping("/logout")
-    public R<Void> logout() {
+    public ApiResult<Void> logout() {
         sysLoginService.logout();
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -203,16 +206,16 @@ public class TokenController {
     @SaIgnore
     @ApiEncrypt
     @PostMapping("/register")
-    public R<Void> register(@RequestBody RegisterBody registerBody) {
+    public ApiResult<Void> register(@RequestBody RegisterBody registerBody) {
         if (!remoteConfigService.selectRegisterEnabled()) {
-            return R.fail("当前系统没有开启注册功能！");
+            throw new ServiceException("当前系统没有开启注册功能！");
         }
         // 用户注册（开启多租户时注册到所选租户）
         tenantLoginGuard.within(registerBody.getTenantId(), () -> {
             sysLoginService.register(registerBody);
             return null;
         });
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -223,14 +226,14 @@ public class TokenController {
      */
     @SaIgnore
     @GetMapping("/tenant/list")
-    public R<LoginTenantVo> tenantList(@RequestParam(required = false) String domain) {
+    public ApiResult<LoginTenantVo> tenantList(@RequestParam(required = false) String domain) {
         if (!TenantHelper.isEnabled()) {
-            return R.ok(new LoginTenantVo(false, List.of()));
+            return ApiResult.ok(new LoginTenantVo(false, List.of()));
         }
         List<LoginTenantVo.Tenant> tenants = TenantHelper.ignore(() -> remoteTenantService.queryLoginTenants(domain)).stream()
             .map(t -> new LoginTenantVo.Tenant(t.getTenantId(), t.getTenantName(), t.getDomain()))
             .toList();
-        return R.ok(new LoginTenantVo(true, tenants));
+        return ApiResult.ok(new LoginTenantVo(true, tenants));
     }
 
 }

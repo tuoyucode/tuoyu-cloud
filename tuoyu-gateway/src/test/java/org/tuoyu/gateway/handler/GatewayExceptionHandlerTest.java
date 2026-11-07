@@ -1,6 +1,11 @@
 package org.tuoyu.gateway.handler;
 
 import cn.dev33.satoken.exception.NotLoginException;
+import cn.dev33.satoken.exception.NotPermissionException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.tuoyu.common.observability.trace.TraceContext;
+import org.tuoyu.common.observability.trace.TraceParent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +26,21 @@ class GatewayExceptionHandlerTest {
 
     private final GatewayExceptionHandler handler = new GatewayExceptionHandler();
 
+    private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+
     private final MockHttpServletRequest request = new MockHttpServletRequest("GET", "/system/user/list");
+
+    private TraceContext.Scope trace;
+
+    @BeforeEach
+    void enterTrace() {
+        trace = TraceContext.enter(TraceParent.parse("00-" + TRACE_ID + "-00f067aa0ba902b7-01"));
+    }
+
+    @AfterEach
+    void exitTrace() {
+        trace.close();
+    }
 
     @BeforeAll
     static void initContext() {
@@ -43,7 +62,8 @@ class GatewayExceptionHandlerTest {
         assertThat(response.getStatus()).isEqualTo(401);
         JsonNode body = body(response);
         assertThat(body.get("code").asInt()).isEqualTo(401);
-        assertThat(body.get("msg").asString()).isEqualTo("登录状态异常，请重新登录");
+        assertThat(body.get("message").asString()).isEqualTo("登录状态异常，请重新登录");
+        assertThat(body.get("traceId").asString()).isEqualTo(TRACE_ID);
         assertThat(response.getContentAsString()).doesNotContain("secret-token-value");
     }
 
@@ -56,7 +76,8 @@ class GatewayExceptionHandlerTest {
         assertThat(response.getStatus()).isEqualTo(503);
         JsonNode body = body(response);
         assertThat(body.get("code").asInt()).isEqualTo(503);
-        assertThat(body.get("msg").asString()).isEqualTo("服务暂不可用，请稍后再试");
+        assertThat(body.get("message").asString()).isEqualTo("服务暂不可用，请稍后再试");
+        assertThat(body.get("traceId").asString()).isEqualTo(TRACE_ID);
         assertThat(response.getContentAsString()).doesNotContain("tuoyu-system");
     }
 
@@ -81,6 +102,28 @@ class GatewayExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("请求错误（路径不存在等）按其状态返回")
+    void requestError() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        handler.handle(request, response, new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+        assertThat(response.getStatus()).isEqualTo(404);
+        JsonNode body = body(response);
+        assertThat(body.get("code").asInt()).isEqualTo(404);
+        assertThat(body.get("message").asString()).isEqualTo("请求地址不存在");
+    }
+
+    @Test
+    @DisplayName("无权限返回 403")
+    void forbidden() throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        handler.handleForbidden(request, response, new NotPermissionException("system:user:list"));
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(body(response).get("code").asInt()).isEqualTo(403);
+    }
+
+    @Test
     @DisplayName("其他异常返回 500“内部服务器错误”，不把异常信息返回给客户端")
     void otherErrors() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -88,7 +131,8 @@ class GatewayExceptionHandlerTest {
 
         assertThat(response.getStatus()).isEqualTo(500);
         JsonNode body = body(response);
-        assertThat(body.get("msg").asString()).isEqualTo("内部服务器错误");
+        assertThat(body.get("code").asInt()).isEqualTo(500);
+        assertThat(body.get("message").asString()).isEqualTo("内部服务器错误");
         assertThat(response.getContentAsString()).doesNotContain("jdbc");
     }
 

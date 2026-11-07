@@ -49,8 +49,12 @@ class WorkflowIT {
     @Test
     @DisplayName("Warm-Flow 自带接口按用途控制权限：设计器接口需要流程定义权限（管理员可用），内置表单办理对所有人关闭")
     void warmFlowEndpointsShouldBeGuarded() {
-        admin.get("/warm-flow/handler-type").assertOk("设计器读取办理人类型");
-        assertThat(admin.get("/warm-flow/execute/load/1").code()).as("内置表单办理接口不开放").isEqualTo(403);
+        // Warm-Flow 自带接口返回它自己的结构（成功时 code 为 200），供它自带的设计器使用
+        ApiResponse handlerType = admin.get("/warm-flow/handler-type");
+        assertThat(handlerType.status()).as("设计器读取办理人类型：" + handlerType).isEqualTo(200);
+        assertThat(handlerType.code()).as("设计器读取办理人类型：" + handlerType).isEqualTo(200);
+        // 拒绝访问由本框架的权限校验返回，是统一的错误结构
+        admin.get("/warm-flow/execute/load/1").assertError(403, "内置表单办理接口不开放");
     }
 
 }

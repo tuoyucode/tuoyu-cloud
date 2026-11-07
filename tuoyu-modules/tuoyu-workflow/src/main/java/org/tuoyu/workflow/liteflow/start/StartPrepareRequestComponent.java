@@ -6,7 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.context.CurrentUser;
+import org.tuoyu.common.core.context.UserContext;
 import org.dromara.warm.flow.orm.entity.FlowInstance;
 import org.dromara.warm.flow.orm.mapper.FlowInstanceMapper;
 import org.tuoyu.workflow.common.ConditionalOnEnable;
@@ -40,8 +41,8 @@ public class StartPrepareRequestComponent extends NodeComponent {
         context.setBizExt(context.getStartProcessBo().getBizExt());
 
         Map<String, Object> variables = context.getVariables();
-        variables.put(INITIATOR, LoginHelper.getUserIdStr());
-        variables.put(INITIATOR_DEPT_ID, LoginHelper.getDeptId());
+        variables.put(INITIATOR, UserContext.userIdString());
+        variables.put(INITIATOR_DEPT_ID, UserContext.current().map(CurrentUser::getDeptId).orElse(null));
         variables.put(BUSINESS_ID, businessId);
 
         FlowInstance flowInstance = flowInstanceMapper.selectOne(QueryBuilder.lambda(FlowInstance.class)

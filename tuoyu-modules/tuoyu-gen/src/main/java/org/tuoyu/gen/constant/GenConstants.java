@@ -81,24 +81,9 @@ public interface GenConstants {
     String SORT_FIELD = "sortField";
 
     /**
-     * Vben Admin 5 + Ant Design Vue 前端模板类型（默认），对应模板根目录下的 vben 目录。
+     * 前端模板类型：Vben Admin 5 + Ant Design Vue，对应模板根目录下的 vben 目录。代码生成只提供这一种前端模板
      */
     String FRONTEND_TYPE_VBEN = "vben";
-
-    /**
-     * 默认前端模板类型
-     */
-    String FRONTEND_TYPE_DEFAULT = FRONTEND_TYPE_VBEN;
-
-    /**
-     * Element Plus 风格的前端模板类型，对应模板根目录下的 vue 目录。
-     */
-    String FRONTEND_TYPE_VUE = "vue";
-
-    /**
-     * React 前端模板类型，对应模板根目录下的 react 目录。
-     */
-    String FRONTEND_TYPE_REACT = "react";
 
     /**
      * 树根节点值
@@ -285,8 +270,6 @@ public interface GenConstants {
     // 模板根路径与后缀
     String TEMPLATE_ROOT_PATH = "fm";
     String TEMPLATE_FILE_SUFFIX = ".ftl";
-    String TEMPLATE_RESOURCE_PREFIX = "classpath*:";
-    String TEMPLATE_PAGE_PATTERN_SUFFIX = ".*" + TEMPLATE_FILE_SUFFIX;
     // 后端源码模板
     String JAVA_TEMPLATE_ROOT_PATH = TEMPLATE_ROOT_PATH + "/java";
     String JAVA_DOMAIN_TEMPLATE_PATH = JAVA_TEMPLATE_ROOT_PATH + "/domain.java" + TEMPLATE_FILE_SUFFIX;
@@ -299,11 +282,6 @@ public interface GenConstants {
     // MyBatis MapperXML 模板
     String XML_TEMPLATE_ROOT_PATH = TEMPLATE_ROOT_PATH + "/xml";
     String XML_MAPPER_TEMPLATE_PATH = XML_TEMPLATE_ROOT_PATH + "/mapper.xml" + TEMPLATE_FILE_SUFFIX;
-    // 前端源码模板
-    String FRONTEND_API_TEMPLATE_NAME = "api.ts" + TEMPLATE_FILE_SUFFIX;
-    String FRONTEND_TYPES_TEMPLATE_NAME = "types.ts" + TEMPLATE_FILE_SUFFIX;
-    String FRONTEND_INDEX_TEMPLATE_PREFIX = "index";
-    String FRONTEND_INDEX_TREE_TEMPLATE_PREFIX = "index-tree";
     // Vben 前端模板（与新前端的页面模板约定一致：接口、查询与表单定义、列表页、抽屉、中英文文案）
     String VBEN_TEMPLATE_ROOT_PATH = TEMPLATE_ROOT_PATH + "/" + FRONTEND_TYPE_VBEN;
     String VBEN_API_TEMPLATE_PATH = VBEN_TEMPLATE_ROOT_PATH + "/api.ts" + TEMPLATE_FILE_SUFFIX;
@@ -321,7 +299,7 @@ public interface GenConstants {
     String SQL_MYSQL_TEMPLATE_PATH = SQL_TEMPLATE_ROOT_PATH + "/mysql.sql" + TEMPLATE_FILE_SUFFIX;
 
     /**
-     * 固定模板路径集合，前端模板按 frontendType 动态解析。
+     * 全部模板路径，启动时一次加载。
      */
     Set<String> TEMPLATE_PATHS = CollUtil.newHashSet(
         JAVA_DOMAIN_TEMPLATE_PATH
@@ -332,6 +310,13 @@ public interface GenConstants {
         , JAVA_SERVICE_IMPL_TEMPLATE_PATH
         , JAVA_CONTROLLER_TEMPLATE_PATH
         , XML_MAPPER_TEMPLATE_PATH
+        , VBEN_API_TEMPLATE_PATH
+        , VBEN_DATA_TEMPLATE_PATH
+        , VBEN_DRAWER_TEMPLATE_PATH
+        , VBEN_INDEX_TEMPLATE_PATH
+        , VBEN_INDEX_TREE_TEMPLATE_PATH
+        , VBEN_LOCALE_ZH_TEMPLATE_PATH
+        , VBEN_LOCALE_EN_TEMPLATE_PATH
         , SQL_ORACLE_TEMPLATE_PATH
         , SQL_POSTGRES_TEMPLATE_PATH
         , SQL_SQLSERVER_TEMPLATE_PATH

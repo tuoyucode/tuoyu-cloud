@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysLoginInfoBo;
 import org.tuoyu.system.domain.vo.SysLoginInfoVo;
 
@@ -18,10 +18,10 @@ public interface ISysLoginInfoService {
      * 分页查询登录日志列表
      *
      * @param loginInfo 查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 登录日志分页列表
      */
-    PageResult<SysLoginInfoVo> selectPageLoginInfoList(SysLoginInfoBo loginInfo, PageQuery pageQuery);
+    PageResult<SysLoginInfoVo> selectPageLoginInfoList(SysLoginInfoBo loginInfo, PageParam pageParam);
 
     /**
      * 新增系统登录日志
@@ -50,9 +50,8 @@ public interface ISysLoginInfoService {
      * 批量删除系统登录日志
      *
      * @param infoIds 需要删除的登录日志ID
-     * @return 结果
      */
-    int deleteLoginInfoByIds(Long[] infoIds);
+    void deleteLoginInfoByIds(Long[] infoIds);
 
     /**
      * 清空系统登录日志

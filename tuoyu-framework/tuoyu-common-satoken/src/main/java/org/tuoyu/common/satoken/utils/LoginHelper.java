@@ -12,6 +12,7 @@ import cn.hutool.http.useragent.UserAgentUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import org.tuoyu.common.core.constant.HeaderNames;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.enums.UserType;
 import org.tuoyu.common.core.utils.ServletUtils;
@@ -40,7 +41,7 @@ public class LoginHelper {
     public static final String DEPT_KEY = "deptId";
     public static final String DEPT_NAME_KEY = "deptName";
     public static final String DEPT_CATEGORY_KEY = "deptCategory";
-    public static final String CLIENT_KEY = "clientid";
+    public static final String CLIENT_KEY = HeaderNames.CLIENT_ID;
     public static final String CLIENT_ACCESS_PATH_KEY = "clientAccessPath";
     public static final String CLIENT_IP_WHITELIST_KEY = "clientIpWhitelist";
 

@@ -5,9 +5,9 @@ import com.yomahub.liteflow.core.NodeComponent;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.ValidatorUtils;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
+import org.tuoyu.common.core.context.UserContext;
 import org.dromara.warm.flow.core.dto.FlowParams;
 import org.tuoyu.workflow.common.ConditionalOnEnable;
 import org.tuoyu.workflow.common.enums.TaskOperationEnum;
@@ -38,12 +38,12 @@ public class TaskOpPrepareComponent extends NodeComponent {
 
         TaskOperationBo bo = context.getTaskOperationBo();
         switch (op) {
-            case DELEGATE_TASK, TRANSFER_TASK -> ValidatorUtils.validate(bo, AddGroup.class);
-            case ADD_SIGNATURE, REDUCTION_SIGNATURE -> ValidatorUtils.validate(bo, EditGroup.class);
+            case DELEGATE_TASK, TRANSFER_TASK -> ValidatorUtils.validate(bo, OnCreate.class);
+            case ADD_SIGNATURE, REDUCTION_SIGNATURE -> ValidatorUtils.validate(bo, OnUpdate.class);
         }
 
         FlowParams flowParams = FlowParams.build().message(bo.getMessage());
-        if (LoginHelper.isSuperAdmin()) {
+        if (UserContext.isSuperAdmin()) {
             flowParams.ignore(true);
         }
         switch (op) {

@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.StreamUtils;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.context.UserContext;
 import org.dromara.warm.flow.core.entity.Definition;
 import org.dromara.warm.flow.core.entity.Instance;
 import org.dromara.warm.flow.core.service.DefService;
@@ -35,9 +35,9 @@ public class InstanceDeleteEventComponent extends NodeComponent {
     @Override
     public void process() {
         InstanceDeleteContext context = getContextBean(InstanceDeleteContext.class);
-        String userId = LoginHelper.getUserIdStr();
+        String userId = UserContext.userIdString();
         context.getFlowInstances().forEach(flowInstance -> {
-            if (!LoginHelper.isSuperAdmin() && !flowInstance.getCreateBy().equals(userId)) {
+            if (!UserContext.isSuperAdmin() && !flowInstance.getCreateBy().equals(userId)) {
                 throw new ServiceException("权限不足，无法删除流程实例信息!");
             }
         });

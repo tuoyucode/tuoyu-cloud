@@ -7,15 +7,14 @@ import cn.dev33.satoken.stp.StpUtil;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.core.utils.ThreadUtils;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.common.redis.utils.RedisUtils;
-import org.tuoyu.common.web.core.BaseController;
 import org.tuoyu.system.api.domain.SysUserOnline;
 import org.tuoyu.system.domain.vo.OnlineSessionId;
 import org.tuoyu.system.domain.vo.SysUserOnlineVo;
@@ -37,7 +36,7 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/online")
-public class SysUserOnlineController extends BaseController {
+public class SysUserOnlineController {
 
     /**
      * 获取在线用户监控列表
@@ -47,7 +46,7 @@ public class SysUserOnlineController extends BaseController {
      */
     @SaCheckPermission("monitor:online:list")
     @GetMapping("/list")
-    public R<PageResult<SysUserOnlineVo>> list(String ipaddr, String userName) {
+    public ApiResult<PageResult<SysUserOnlineVo>> list(String ipaddr, String userName) {
         List<SysUserOnline> onlineList = loadOnline(onlineTokens());
         if (StringUtils.isNotEmpty(ipaddr) && StringUtils.isNotEmpty(userName)) {
             onlineList = StreamUtils.filter(onlineList, userOnline ->
@@ -63,7 +62,7 @@ public class SysUserOnlineController extends BaseController {
                 StringUtils.equals(userName, userOnline.getUserName())
             );
         }
-        return R.ok(PageResult.build(toVo(onlineList)));
+        return ApiResult.ok(PageResult.of(toVo(onlineList)));
     }
 
     /**
@@ -72,12 +71,12 @@ public class SysUserOnlineController extends BaseController {
      * @param sessionId 会话编号（令牌的 SHA-256）
      */
     @SaCheckPermission("monitor:online:forceLogout")
-    @Log(title = "在线用户", businessType = BusinessType.FORCE)
-    @RepeatSubmit()
+    @OperationLog(module = "在线用户", action = AuditAction.FORCE_LOGOUT)
+    @PreventResubmit
     @DeleteMapping("/{sessionId}")
-    public R<Void> forceLogout(@PathVariable String sessionId) {
+    public ApiResult<Void> forceLogout(@PathVariable String sessionId) {
         OnlineSessionId.findToken(onlineTokens(), sessionId).ifPresent(this::kickout);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -85,9 +84,9 @@ public class SysUserOnlineController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping()
-    public R<PageResult<SysUserOnlineVo>> getInfo() {
+    public ApiResult<PageResult<SysUserOnlineVo>> getInfo() {
         List<String> tokens = StpUtil.getTokenValueListByLoginId(StpUtil.getLoginIdAsString());
-        return R.ok(PageResult.build(toVo(loadOnline(tokens))));
+        return ApiResult.ok(PageResult.of(toVo(loadOnline(tokens))));
     }
 
     /**
@@ -96,14 +95,14 @@ public class SysUserOnlineController extends BaseController {
      * @param sessionId 会话编号（令牌的 SHA-256）
      */
     @SaCheckLogin
-    @Log(title = "在线设备", businessType = BusinessType.FORCE)
-    @RepeatSubmit()
+    @OperationLog(module = "在线设备", action = AuditAction.FORCE_LOGOUT)
+    @PreventResubmit
     @DeleteMapping("/myself/{sessionId}")
-    public R<Void> remove(@PathVariable("sessionId") String sessionId) {
+    public ApiResult<Void> remove(@PathVariable("sessionId") String sessionId) {
         // 只在本人的令牌中查找
         List<String> tokens = StpUtil.getTokenValueListByLoginId(StpUtil.getLoginIdAsString());
         OnlineSessionId.findToken(tokens, sessionId).ifPresent(this::kickout);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**

@@ -4,13 +4,12 @@ import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.system.api.domain.vo.RemoteUserVo;
 import org.dromara.warm.flow.core.entity.Node;
 import org.dromara.warm.flow.orm.entity.FlowNode;
@@ -40,7 +39,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/task")
-public class FlwTaskController extends BaseController {
+public class FlwTaskController {
 
     /**
      * 只允许内部代码设置的流程变量
@@ -55,13 +54,13 @@ public class FlwTaskController extends BaseController {
      *
      * @param startProcessBo 启动流程参数
      */
-    @Log(title = "任务管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "任务管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @SaCheckLogin
     @PostMapping("/startWorkFlow")
-    public R<RemoteStartProcessReturn> startWorkFlow(@Validated(AddGroup.class) @RequestBody StartProcessBo startProcessBo) {
+    public ApiResult<RemoteStartProcessReturn> startWorkFlow(@Validated(OnCreate.class) @RequestBody StartProcessBo startProcessBo) {
         RemoteStartProcessReturn startProcessReturn = flwTaskService.startWorkFlow(startProcessBo);
-        return R.data(startProcessReturn);
+        return ApiResult.ok(startProcessReturn);
     }
 
     /**
@@ -69,75 +68,76 @@ public class FlwTaskController extends BaseController {
      *
      * @param completeTaskBo 办理任务参数
      */
-    @Log(title = "任务管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "任务管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @SaCheckLogin
     @PostMapping("/completeTask")
-    public R<Void> completeTask(@Validated(AddGroup.class) @RequestBody CompleteTaskBo completeTaskBo) {
+    public ApiResult<Void> completeTask(@Validated(OnCreate.class) @RequestBody CompleteTaskBo completeTaskBo) {
         // ignore 等变量会跳过办理人、委派、会签校验，只允许内部代码设置（WorkflowService），不能由请求传入
         INTERNAL_VARIABLES.forEach(completeTaskBo.getVariables()::remove);
-        return toAjax(flwTaskService.completeTask(completeTaskBo));
+        flwTaskService.completeTask(completeTaskBo);
+        return ApiResult.ok();
     }
 
     /**
      * 查询当前用户的待办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @SaCheckLogin
     @GetMapping("/pageByTaskWait")
-    public R<PageResult<FlowTaskVo>> pageByTaskWait(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        return R.ok(flwTaskService.pageByTaskWait(flowTaskBo, pageQuery));
+    public ApiResult<PageResult<FlowTaskVo>> pageByTaskWait(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        return ApiResult.ok(flwTaskService.pageByTaskWait(flowTaskBo, pageParam));
     }
 
     /**
      * 查询当前用户的已办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
 
     @SaCheckLogin
     @GetMapping("/pageByTaskFinish")
-    public R<PageResult<FlowHisTaskVo>> pageByTaskFinish(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        return R.ok(flwTaskService.pageByTaskFinish(flowTaskBo, pageQuery));
+    public ApiResult<PageResult<FlowHisTaskVo>> pageByTaskFinish(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        return ApiResult.ok(flwTaskService.pageByTaskFinish(flowTaskBo, pageParam));
     }
 
     /**
      * 查询待办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @SaCheckPermission("workflow:task:list")
     @GetMapping("/pageByAllTaskWait")
-    public R<PageResult<FlowTaskVo>> pageByAllTaskWait(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        return R.ok(flwTaskService.pageByAllTaskWait(flowTaskBo, pageQuery));
+    public ApiResult<PageResult<FlowTaskVo>> pageByAllTaskWait(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        return ApiResult.ok(flwTaskService.pageByAllTaskWait(flowTaskBo, pageParam));
     }
 
     /**
      * 查询已办任务
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @SaCheckPermission("workflow:task:list")
     @GetMapping("/pageByAllTaskFinish")
-    public R<PageResult<FlowHisTaskVo>> pageByAllTaskFinish(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        return R.ok(flwTaskService.pageByAllTaskFinish(flowTaskBo, pageQuery));
+    public ApiResult<PageResult<FlowHisTaskVo>> pageByAllTaskFinish(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        return ApiResult.ok(flwTaskService.pageByAllTaskFinish(flowTaskBo, pageParam));
     }
 
     /**
      * 查询当前用户的抄送
      *
      * @param flowTaskBo 参数
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @SaCheckLogin
     @GetMapping("/pageByTaskCopy")
-    public R<PageResult<FlowTaskVo>> pageByTaskCopy(FlowTaskBo flowTaskBo, PageQuery pageQuery) {
-        return R.ok(flwTaskService.pageByTaskCopy(flowTaskBo, pageQuery));
+    public ApiResult<PageResult<FlowTaskVo>> pageByTaskCopy(FlowTaskBo flowTaskBo, PageParam pageParam) {
+        return ApiResult.ok(flwTaskService.pageByTaskCopy(flowTaskBo, pageParam));
     }
 
     /**
@@ -147,8 +147,8 @@ public class FlwTaskController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping("/getTask/{taskId}")
-    public R<FlowTaskVo> getTask(@PathVariable Long taskId) {
-        return R.ok(flwTaskService.selectById(taskId));
+    public ApiResult<FlowTaskVo> getTask(@PathVariable Long taskId) {
+        return ApiResult.ok(flwTaskService.selectById(taskId));
     }
 
     /**
@@ -158,8 +158,8 @@ public class FlwTaskController extends BaseController {
      */
     @SaCheckLogin
     @PostMapping("/getNextNodeList")
-    public R<List<FlowNode>> getNextNodeList(@RequestBody FlowNextNodeBo bo) {
-        return R.ok(flwTaskService.getNextNodeList(bo));
+    public ApiResult<List<FlowNode>> getNextNodeList(@RequestBody FlowNextNodeBo bo) {
+        return ApiResult.ok(flwTaskService.getNextNodeList(bo));
     }
 
     /**
@@ -167,12 +167,13 @@ public class FlwTaskController extends BaseController {
      *
      * @param bo 参数
      */
-    @Log(title = "任务管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "任务管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @SaCheckLogin
     @PostMapping("/terminationTask")
-    public R<Boolean> terminationTask(@RequestBody FlowTerminationBo bo) {
-        return R.ok(flwTaskService.terminationTask(bo));
+    public ApiResult<Void> terminationTask(@Validated @RequestBody FlowTerminationBo bo) {
+        flwTaskService.terminationTask(bo);
+        return ApiResult.ok();
     }
 
     /**
@@ -181,12 +182,13 @@ public class FlwTaskController extends BaseController {
      * @param bo            参数
      * @param taskOperation 操作类型，委派 delegateTask、转办 transferTask、加签 addSignature、减签 reductionSignature
      */
-    @Log(title = "任务管理", businessType = BusinessType.UPDATE)
-    @RepeatSubmit
+    @OperationLog(module = "任务管理", action = AuditAction.UPDATE)
+    @PreventResubmit
     @SaCheckLogin
     @PostMapping("/taskOperation/{taskOperation}")
-    public R<Void> taskOperation(@Validated @RequestBody TaskOperationBo bo, @PathVariable String taskOperation) {
-        return toAjax(flwTaskService.taskOperation(bo, taskOperation));
+    public ApiResult<Void> taskOperation(@Validated @RequestBody TaskOperationBo bo, @PathVariable String taskOperation) {
+        flwTaskService.taskOperation(bo, taskOperation);
+        return ApiResult.ok();
     }
 
     /**
@@ -195,12 +197,13 @@ public class FlwTaskController extends BaseController {
      * @param taskIdList 任务id
      * @param userId     办理人id
      */
-    @Log(title = "任务管理", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "任务管理", action = AuditAction.UPDATE)
+    @PreventResubmit
     @SaCheckPermission("workflow:task:edit")
     @PutMapping("/updateAssignee/{userId}")
-    public R<Void> updateAssignee(@RequestBody List<Long> taskIdList, @PathVariable String userId) {
-        return toAjax(flwTaskService.updateAssignee(taskIdList, userId));
+    public ApiResult<Void> updateAssignee(@RequestBody List<Long> taskIdList, @PathVariable String userId) {
+        flwTaskService.updateAssignee(taskIdList, userId);
+        return ApiResult.ok();
     }
 
     /**
@@ -208,12 +211,13 @@ public class FlwTaskController extends BaseController {
      *
      * @param bo 参数
      */
-    @Log(title = "任务管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "任务管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @SaCheckLogin
     @PostMapping("/backProcess")
-    public R<Void> backProcess(@Validated({AddGroup.class}) @RequestBody BackProcessBo bo) {
-        return toAjax(flwTaskService.backProcess(bo));
+    public ApiResult<Void> backProcess(@Validated({OnCreate.class}) @RequestBody BackProcessBo bo) {
+        flwTaskService.backProcess(bo);
+        return ApiResult.ok();
     }
 
     /**
@@ -224,8 +228,8 @@ public class FlwTaskController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping("/getBackTaskNode/{taskId}/{nowNodeCode}")
-    public R<List<Node>> getBackTaskNode(@PathVariable Long taskId, @PathVariable String nowNodeCode) {
-        return R.ok(flwTaskService.getBackTaskNode(taskId, nowNodeCode));
+    public ApiResult<List<Node>> getBackTaskNode(@PathVariable Long taskId, @PathVariable String nowNodeCode) {
+        return ApiResult.ok(flwTaskService.getBackTaskNode(taskId, nowNodeCode));
     }
 
     /**
@@ -235,8 +239,8 @@ public class FlwTaskController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping("/currentTaskAllUser/{taskId}")
-    public R<List<RemoteUserVo>> currentTaskAllUser(@PathVariable Long taskId) {
-        return R.ok(flwTaskService.currentTaskAllUser(List.of(taskId)));
+    public ApiResult<List<RemoteUserVo>> currentTaskAllUser(@PathVariable Long taskId) {
+        return ApiResult.ok(flwTaskService.currentTaskAllUser(List.of(taskId)));
     }
 
     /**
@@ -246,10 +250,11 @@ public class FlwTaskController extends BaseController {
      * @return 结果
      */
     @PostMapping("/urgeTask")
-    @Log(title = "任务管理", businessType = BusinessType.INSERT)
+    @OperationLog(module = "任务管理", action = AuditAction.CREATE)
     @SaCheckPermission("workflow:task:edit")
-    public R<Void> urgeTask(@RequestBody FlowUrgeTaskBo bo) {
-        return toAjax(flwTaskService.urgeTask(bo));
+    public ApiResult<Void> urgeTask(@Validated @RequestBody FlowUrgeTaskBo bo) {
+        flwTaskService.urgeTask(bo);
+        return ApiResult.ok();
     }
 
 }

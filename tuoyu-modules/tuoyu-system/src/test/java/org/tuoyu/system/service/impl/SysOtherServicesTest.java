@@ -10,8 +10,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.system.support.CurrentUserStub;
 import org.tuoyu.system.api.model.RoleDTO;
 import org.tuoyu.system.domain.SysClient;
 import org.tuoyu.system.domain.SysLoginInfo;
@@ -50,14 +50,15 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -92,7 +93,7 @@ class SysOtherServicesTest {
             bo.setAccessPath("system/**, *\n/monitor/**");
             bo.setIpWhitelistList(List.of("10.0.0.1", " "));
 
-            assertTrue(service.insertByBo(bo));
+            assertDoesNotThrow(() -> service.insertByBo(bo));
 
             ArgumentCaptor<SysClient> saved = ArgumentCaptor.forClass(SysClient.class);
             verify(mapper).insert(saved.capture());
@@ -113,7 +114,7 @@ class SysOtherServicesTest {
             bo.setGrantTypeList(List.of("password"));
             bo.setAccessPathList(List.of());
 
-            assertTrue(service.updateByBo(bo));
+            assertDoesNotThrow(() -> service.updateByBo(bo));
 
             ArgumentCaptor<SysClient> updated = ArgumentCaptor.forClass(SysClient.class);
             verify(mapper).updateById(updated.capture());
@@ -147,9 +148,9 @@ class SysOtherServicesTest {
         @DisplayName("修改状态、删除、key 唯一性")
         void others() {
             when(mapper.update(any(Wrapper.class))).thenReturn(1);
-            assertEquals(1, service.updateClientStatus("cid", "1"));
+            assertDoesNotThrow(() -> service.updateClientStatus("cid", "1"));
             when(mapper.deleteByIds(any())).thenReturn(1);
-            assertTrue(service.deleteWithValidByIds(List.of(5L), true));
+            assertDoesNotThrow(() -> service.deleteWithValidByIds(List.of(5L), true));
             when(mapper.exists(any())).thenReturn(true);
             SysClientBo bo = new SysClientBo();
             bo.setClientKey("pc");
@@ -185,7 +186,7 @@ class SysOtherServicesTest {
             verify(packageMapper).insert(saved.capture());
             assertEquals(SystemConstants.NORMAL, saved.getValue().getStatus());
             ArgumentCaptor<Collection<SysTenantPackageMenu>> menus = ArgumentCaptor.captor();
-            verify(packageMenuMapper).insertBatch(menus.capture());
+            verify(packageMenuMapper).insert(menus.capture());
             assertThat(menus.getValue()).extracting(SysTenantPackageMenu::getMenuId).containsExactly(10L, 11L);
             assertThat(menus.getValue()).allMatch(m -> m.getPackageId() == 7L);
         }
@@ -202,7 +203,7 @@ class SysOtherServicesTest {
             when(tenantService.selectTenantIdsByPackage(7L)).thenReturn(List.of("acme", "beta"));
             service.updatePackage(bo);
             verify(packageMenuMapper).delete(any());
-            verify(packageMenuMapper, never()).insertBatch(any());
+            verify(packageMenuMapper, never()).insert(anyCollection());
             verify(tenantService).syncPackage("acme");
             verify(tenantService).syncPackage("beta");
         }
@@ -233,7 +234,7 @@ class SysOtherServicesTest {
             assertNull(service.selectById(8L));
 
             when(packageMapper.selectList(any(IPage.class), any())).thenReturn(List.of(pkg));
-            assertEquals(1, service.selectPageList(new SysTenantPackageBo(), new PageQuery()).getRows().size());
+            assertEquals(1, service.selectPageList(new SysTenantPackageBo(), new PageParam()).getItems().size());
             when(packageMapper.selectList(any(Wrapper.class))).thenReturn(List.of(pkg));
             assertEquals(1, service.selectOptions().size());
         }
@@ -256,7 +257,7 @@ class SysOtherServicesTest {
             bo.setBusinessTypes(new Integer[]{1, 2});
             bo.setTitle("用户");
             bo.setBusinessType(3);
-            assertEquals(1, operLog.selectPageOperLogList(bo, new PageQuery()).getRows().size());
+            assertEquals(1, operLog.selectPageOperLogList(bo, new PageParam()).getItems().size());
             ArgumentCaptor<Wrapper> wrapper = ArgumentCaptor.forClass(Wrapper.class);
             verify(operLogMapper).selectList(any(IPage.class), wrapper.capture());
             assertThat(wrapper.getValue().getSqlSegment()).contains("business_type IN").contains("ORDER BY oper_id DESC");
@@ -279,18 +280,22 @@ class SysOtherServicesTest {
             assertTrue(saved.getValue().getOperTime() != null);
 
             when(operLogMapper.deleteByIds(List.of(1L, 2L))).thenReturn(2);
-            assertEquals(2, operLog.deleteOperLogByIds(new Long[]{1L, 2L}));
+            assertDoesNotThrow(() -> operLog.deleteOperLogByIds(new Long[]{1L, 2L}));
+            // 一条都没删掉（记录不存在）时报错，与其他删除接口一致
+            when(operLogMapper.deleteByIds(List.of(3L))).thenReturn(0);
+            assertEquals("删除操作日志失败，记录不存在",
+                assertThrows(ServiceException.class, () -> operLog.deleteOperLogByIds(new Long[]{3L})).getMessage());
             operLog.cleanOperLog();
             verify(operLogMapper).delete(any());
         }
 
         @Test
-        @DisplayName("登录日志：查询、写入、删除、清空")
+        @DisplayName("登录日志：查询、写入、删除（记录不存在时报错）、清空")
         void loginInfo() {
             when(loginInfoMapper.selectList(any(IPage.class), any())).thenReturn(List.of(new SysLoginInfo()));
             SysLoginInfoBo bo = new SysLoginInfoBo();
             bo.setUserName("alice");
-            assertEquals(1, loginInfo.selectPageLoginInfoList(bo, new PageQuery()).getRows().size());
+            assertEquals(1, loginInfo.selectPageLoginInfoList(bo, new PageParam()).getItems().size());
             when(loginInfoMapper.selectList(any(Wrapper.class))).thenReturn(List.of(new SysLoginInfo()));
             assertEquals(1, loginInfo.selectLoginInfoList(bo).size());
             loginInfo.countLoginInfoList(bo);
@@ -302,7 +307,10 @@ class SysOtherServicesTest {
             assertTrue(saved.getValue().getLoginTime() != null);
 
             when(loginInfoMapper.deleteByIds(List.of(1L))).thenReturn(1);
-            assertEquals(1, loginInfo.deleteLoginInfoByIds(new Long[]{1L}));
+            assertDoesNotThrow(() -> loginInfo.deleteLoginInfoByIds(new Long[]{1L}));
+            when(loginInfoMapper.deleteByIds(List.of(2L))).thenReturn(0);
+            assertEquals("删除登录日志失败，记录不存在",
+                assertThrows(ServiceException.class, () -> loginInfo.deleteLoginInfoByIds(new Long[]{2L})).getMessage());
             loginInfo.cleanLoginInfo();
             verify(loginInfoMapper).delete(any());
         }
@@ -339,7 +347,7 @@ class SysOtherServicesTest {
         @DisplayName("分页、详情、增删改")
         void crud() {
             when(noticeMapper.selectList(any(IPage.class), any())).thenReturn(List.of(new SysNotice()));
-            assertEquals(1, service.selectPageNoticeList(new SysNoticeBo(), new PageQuery()).getRows().size());
+            assertEquals(1, service.selectPageNoticeList(new SysNoticeBo(), new PageParam()).getItems().size());
             SysNotice notice = new SysNotice();
             notice.setNoticeTitle("标题");
             when(noticeMapper.selectById(1L)).thenReturn(notice);
@@ -351,14 +359,14 @@ class SysOtherServicesTest {
             });
             SysNoticeBo bo = new SysNoticeBo();
             bo.setNoticeTitle("新通知");
-            assertEquals(1, service.insertNotice(bo));
+            assertDoesNotThrow(() -> service.insertNotice(bo));
             assertEquals(9L, bo.getNoticeId());
             when(noticeMapper.updateById(any(SysNotice.class))).thenReturn(1);
-            assertEquals(1, service.updateNotice(bo));
+            assertDoesNotThrow(() -> service.updateNotice(bo));
             when(noticeMapper.deleteById(9L)).thenReturn(1);
-            assertEquals(1, service.deleteNoticeById(9L));
+            assertDoesNotThrow(() -> service.deleteNoticeById(9L));
             when(noticeMapper.deleteByIds(List.of(9L))).thenReturn(1);
-            assertEquals(1, service.deleteNoticeByIds(new Long[]{9L}));
+            assertDoesNotThrow(() -> service.deleteNoticeByIds(new Long[]{9L}));
         }
     }
 
@@ -392,14 +400,17 @@ class SysOtherServicesTest {
             });
             SysSocialBo bo = new SysSocialBo();
             bo.setAuthId("gitee2");
-            assertTrue(service.insertByBo(bo));
+            assertDoesNotThrow(() -> service.insertByBo(bo));
             assertEquals(2L, bo.getId());
             when(mapper.insert(any(SysSocial.class))).thenReturn(0);
-            assertFalse(service.insertByBo(new SysSocialBo()));
+            assertDoesNotThrow(() -> service.insertByBo(new SysSocialBo()));
             when(mapper.updateById(any(SysSocial.class))).thenReturn(1);
-            assertTrue(service.updateByBo(bo));
+            assertDoesNotThrow(() -> service.updateByBo(bo));
             when(mapper.deleteById(2L)).thenReturn(1);
-            assertTrue(service.deleteWithValidById(2L));
+            assertDoesNotThrow(() -> service.deleteWithValidById(2L));
+            when(mapper.deleteById(3L)).thenReturn(0);
+            ServiceException missing = assertThrows(ServiceException.class, () -> service.deleteWithValidById(3L));
+            assertEquals("第三方账号绑定不存在或已解除", missing.getMessage());
         }
     }
 
@@ -447,13 +458,10 @@ class SysOtherServicesTest {
         @DisplayName("脱敏：未登录一律脱敏；具备指定角色或权限时不脱敏；超级管理员不脱敏")
         void sensitive() {
             SysSensitiveServiceImpl sensitive = new SysSensitiveServiceImpl();
-            try (MockedStatic<LoginHelper> login = mockStatic(LoginHelper.class, CALLS_REAL_METHODS);
+            try (CurrentUserStub login = CurrentUserStub.install();
                  MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
-                login.when(LoginHelper::isLogin).thenReturn(false);
                 assertTrue(sensitive.isSensitive(new String[]{"admin"}, new String[0]));
-
-                login.when(LoginHelper::isLogin).thenReturn(true);
-                login.when(LoginHelper::getUserId).thenReturn(100L);
+                login.userId(100L);
                 String[] roles = {"admin"};
                 String[] perms = {"system:user:query"};
                 stp.when(() -> StpUtil.hasRoleOr(roles)).thenReturn(true);
@@ -466,7 +474,7 @@ class SysOtherServicesTest {
                 assertTrue(sensitive.isSensitive(roles, perms));
                 assertTrue(sensitive.isSensitive(null, null));
 
-                login.when(LoginHelper::getUserId).thenReturn(SystemConstants.SUPER_ADMIN_USER_ID);
+                login.userId(SystemConstants.SUPER_ADMIN_USER_ID);
                 assertFalse(sensitive.isSensitive(null, null));
             }
         }

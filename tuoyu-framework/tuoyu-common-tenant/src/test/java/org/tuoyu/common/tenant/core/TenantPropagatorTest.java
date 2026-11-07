@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.tuoyu.common.core.context.ContextPropagator;
 import org.tuoyu.common.core.context.ContextPropagators;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -34,7 +34,7 @@ class TenantPropagatorTest {
     void enableTenant() {
         TenantProperties properties = new TenantProperties();
         properties.setEnabled(true);
-        new DefaultTenantContext(properties, new StaticListableBeanFactory().getBeanProvider(UserContext.class), id -> null);
+        new DefaultTenantContext(properties, new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), id -> null);
     }
 
     @Test

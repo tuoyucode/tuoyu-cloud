@@ -1,6 +1,6 @@
 package org.tuoyu.system.mapper;
 
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.system.domain.SysRoleDept;
 
 /**
@@ -8,6 +8,6 @@ import org.tuoyu.system.domain.SysRoleDept;
  *
  * @author Lion Li
  */
-public interface SysRoleDeptMapper extends BaseMapperPlus<SysRoleDept, SysRoleDept> {
+public interface SysRoleDeptMapper extends BaseMapper<SysRoleDept> {
 
 }

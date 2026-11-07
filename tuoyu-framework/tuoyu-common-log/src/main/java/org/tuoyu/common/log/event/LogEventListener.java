@@ -8,10 +8,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.constant.Constants;
+import org.tuoyu.common.core.constant.HeaderNames;
 import org.tuoyu.common.core.utils.ServletUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.core.utils.ip.AddressUtils;
-import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.tuoyu.system.api.RemoteClientService;
 import org.tuoyu.system.api.RemoteLogService;
 import org.tuoyu.system.api.domain.bo.RemoteLoginInfoBo;
@@ -51,7 +51,7 @@ public class LogEventListener {
         final UserAgent userAgent = UserAgentUtil.parse(request.getHeader("User-Agent"));
         final String ip = ServletUtils.getClientIP(request);
         // 客户端信息
-        String clientId = request.getHeader(LoginHelper.CLIENT_KEY);
+        String clientId = request.getHeader(HeaderNames.CLIENT_ID);
         RemoteClientVo clientVo = null;
         if (StringUtils.isNotBlank(clientId)) {
             clientVo = remoteClientService.queryByClientId(clientId);

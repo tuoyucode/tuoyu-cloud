@@ -1,7 +1,9 @@
 package org.tuoyu.system.service.impl;
 
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.core.utils.BeanMapper;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysSocial;
 import org.tuoyu.system.domain.bo.SysSocialBo;
 import org.tuoyu.system.domain.vo.SysSocialVo;
@@ -31,7 +33,7 @@ public class SysSocialServiceImpl implements ISysSocialService {
      */
     @Override
     public SysSocialVo queryById(String id) {
-        return socialMapper.selectVoById(id);
+        return BeanMapper.map(socialMapper.selectById(id), SysSocialVo.class);
     }
 
     /**
@@ -42,11 +44,11 @@ public class SysSocialServiceImpl implements ISysSocialService {
      */
     @Override
     public List<SysSocialVo> queryList(SysSocialBo bo) {
-        return socialMapper.lambda()
+        return BeanMapper.mapList(socialMapper.selectList(QueryBuilder.lambda(SysSocial.class)
             .eqIfPresent(SysSocial::getUserId, bo.getUserId())
             .eqIfText(SysSocial::getAuthId, bo.getAuthId())
             .eqIfText(SysSocial::getSource, bo.getSource())
-            .voList();
+            .build()), SysSocialVo.class);
     }
 
     /**
@@ -57,41 +59,32 @@ public class SysSocialServiceImpl implements ISysSocialService {
      */
     @Override
     public List<SysSocialVo> queryListByUserId(Long userId) {
-        return socialMapper.lambda().eq(SysSocial::getUserId, userId).voList();
+        return BeanMapper.mapList(socialMapper.selectList(QueryBuilder.lambda(SysSocial.class).eq(SysSocial::getUserId, userId).build()), SysSocialVo.class);
     }
 
     /**
      * 新增授权关系
      *
      * @param bo 包含新增授权关系信息的SysSocialBo对象
-     * @return 返回新增操作的结果，成功返回true，失败返回false
      */
     @Override
-    public Boolean insertByBo(SysSocialBo bo) {
-        SysSocial add = MapstructUtils.convert(bo, SysSocial.class);
+    public void insertByBo(SysSocialBo bo) {
+        SysSocial add = BeanMapper.map(bo, SysSocial.class);
         validEntityBeforeSave(add);
-        boolean flag = socialMapper.insert(add) > 0;
-        if (flag) {
-            if (add != null) {
-                bo.setId(add.getId());
-            } else {
-                return false;
-            }
-        }
-        return flag;
+        socialMapper.insert(add);
+        bo.setId(add.getId());
     }
 
     /**
      * 更新社会化关系
      *
      * @param bo 包含更新信息的SysSocialBo对象
-     * @return 返回更新操作的结果，成功返回true，失败返回false
      */
     @Override
-    public Boolean updateByBo(SysSocialBo bo) {
-        SysSocial update = MapstructUtils.convert(bo, SysSocial.class);
+    public void updateByBo(SysSocialBo bo) {
+        SysSocial update = BeanMapper.map(bo, SysSocial.class);
         validEntityBeforeSave(update);
-        return socialMapper.updateById(update) > 0;
+        socialMapper.updateById(update);
     }
 
     /**
@@ -105,11 +98,12 @@ public class SysSocialServiceImpl implements ISysSocialService {
      * 删除社会化关系信息
      *
      * @param id 要删除的社会化关系的唯一标识符
-     * @return 返回删除操作的结果，成功返回true，失败返回false
      */
     @Override
-    public Boolean deleteWithValidById(Long id) {
-        return socialMapper.deleteById(id) > 0;
+    public void deleteWithValidById(Long id) {
+        if (socialMapper.deleteById(id) == 0) {
+            throw new ServiceException("第三方账号绑定不存在或已解除");
+        }
     }
 
     /**
@@ -120,7 +114,7 @@ public class SysSocialServiceImpl implements ISysSocialService {
      */
     @Override
     public List<SysSocialVo> selectByAuthId(String authId) {
-        return socialMapper.lambda().eq(SysSocial::getAuthId, authId).voList();
+        return BeanMapper.mapList(socialMapper.selectList(QueryBuilder.lambda(SysSocial.class).eq(SysSocial::getAuthId, authId).build()), SysSocialVo.class);
     }
 
 }

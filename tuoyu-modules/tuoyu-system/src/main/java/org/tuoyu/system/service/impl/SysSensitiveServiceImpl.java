@@ -1,8 +1,8 @@
 package org.tuoyu.system.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
+import org.tuoyu.common.core.context.UserContext;
 import cn.hutool.core.util.ArrayUtil;
-import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.tuoyu.common.sensitive.core.SensitiveService;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +22,7 @@ public class SysSensitiveServiceImpl implements SensitiveService {
      */
     @Override
     public boolean isSensitive(String[] roleKey, String[] perms) {
-        if (!LoginHelper.isLogin()) {
+        if (!UserContext.isLoggedIn()) {
             return true;
         }
         boolean roleExist = ArrayUtil.isNotEmpty(roleKey);
@@ -37,7 +37,7 @@ public class SysSensitiveServiceImpl implements SensitiveService {
             return false;
         }
 
-        return !LoginHelper.isSuperAdmin();
+        return !UserContext.isSuperAdmin();
     }
 
 }

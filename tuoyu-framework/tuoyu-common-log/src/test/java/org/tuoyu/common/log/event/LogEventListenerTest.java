@@ -8,7 +8,6 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.tuoyu.common.core.constant.Constants;
-import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.tuoyu.system.api.RemoteClientService;
 import org.tuoyu.system.api.RemoteLogService;
 import org.tuoyu.system.api.domain.bo.RemoteLoginInfoBo;
@@ -53,7 +52,7 @@ class LogEventListenerTest {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/auth/login");
         request.setRemoteAddr("10.0.0.9");
         request.addHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36");
-        request.addHeader(LoginHelper.CLIENT_KEY, "client-1");
+        request.addHeader("clientid", "client-1");
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
         RemoteClientVo client = new RemoteClientVo();
         client.setClientKey("pc");

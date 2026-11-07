@@ -30,6 +30,7 @@ import {
   remove${ClassName},
 } from '#/api/${moduleName}/${businessName}';
 import { $t } from '#/locales';
+import { toPageQuery } from '#/utils/page-query';
 import { hasPermission } from '#/utils/permission';
 
 <#-- 两个本地导入按路径字母顺序排列（前端 lint 规则） -->
@@ -83,8 +84,7 @@ const [Grid, gridApi] = useVbenVxeGrid({
         query: async ({ page }, formValues) => {
           selectedCount.value = 0;
           return await list${ClassName}({
-            pageNum: page.currentPage,
-            pageSize: page.pageSize,
+            ...toPageQuery(page),
             ...formValues,
           });
         },

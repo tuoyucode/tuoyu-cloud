@@ -17,9 +17,10 @@
 
     <dependencies>
 
+        <!-- 保存操作日志、登录日志与读取客户端信息的远程接口 -->
         <dependency>
             <groupId>org.tuoyu</groupId>
-            <artifactId>tuoyu-common-satoken</artifactId>
+            <artifactId>tuoyu-api-system</artifactId>
         </dependency>
 
         <dependency>

@@ -275,8 +275,15 @@ public final class E2eClient {
         if (query.isEmpty()) {
             return "";
         }
+        // 集合按同名参数重复传递，例如 sort=loginTime,desc&sort=infoId,desc
         StringJoiner joiner = new StringJoiner("&", "?", "");
-        query.forEach((name, value) -> joiner.add(encode(name) + "=" + encode(String.valueOf(value))));
+        query.forEach((name, value) -> {
+            if (value instanceof Iterable<?> values) {
+                values.forEach(item -> joiner.add(encode(name) + "=" + encode(String.valueOf(item))));
+            } else {
+                joiner.add(encode(name) + "=" + encode(String.valueOf(value)));
+            }
+        });
         return joiner.toString();
     }
 

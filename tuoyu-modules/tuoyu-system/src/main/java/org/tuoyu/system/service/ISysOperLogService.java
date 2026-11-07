@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysOperLogBo;
 import org.tuoyu.system.domain.vo.SysOperLogVo;
 
@@ -18,10 +18,10 @@ public interface ISysOperLogService {
      * 分页查询操作日志列表
      *
      * @param operLog   查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 操作日志分页列表
      */
-    PageResult<SysOperLogVo> selectPageOperLogList(SysOperLogBo operLog, PageQuery pageQuery);
+    PageResult<SysOperLogVo> selectPageOperLogList(SysOperLogBo operLog, PageParam pageParam);
 
     /**
      * 新增操作日志
@@ -50,9 +50,8 @@ public interface ISysOperLogService {
      * 批量删除系统操作日志
      *
      * @param operIds 需要删除的操作日志ID
-     * @return 结果
      */
-    int deleteOperLogByIds(Long[] operIds);
+    void deleteOperLogByIds(Long[] operIds);
 
     /**
      * 查询操作日志详细

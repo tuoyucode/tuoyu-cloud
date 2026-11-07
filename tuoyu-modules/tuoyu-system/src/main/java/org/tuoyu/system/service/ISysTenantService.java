@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysTenantBo;
 import org.tuoyu.system.domain.vo.SysTenantVo;
 
@@ -20,7 +20,7 @@ public interface ISysTenantService {
      */
     String TENANT_ADMIN_ROLE_KEY = "tenant-admin";
 
-    PageResult<SysTenantVo> selectPageList(SysTenantBo bo, PageQuery pageQuery);
+    PageResult<SysTenantVo> selectPageList(SysTenantBo bo, PageParam pageParam);
 
     SysTenantVo selectById(String tenantId);
 

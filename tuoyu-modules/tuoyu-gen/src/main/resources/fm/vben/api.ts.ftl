@@ -2,8 +2,10 @@
 <#assign pk = pkColumn.javaField>
 <#-- 生成代码中的模板字符串：${D}{x} 输出为 ${x} -->
 <#assign D = "$">
-import type { <#if table.crud>PageQuery, PageResult<#else>PageQuery</#if> } from '#/api/types';
+<#if table.crud>
+import type { PageQuery, PageResult } from '#/api/types';
 
+</#if>
 import { <#if enableExport>exportExcel, </#if>requestClient } from '#/api/request';
 
 export namespace ${ClassName}Api {
@@ -21,7 +23,7 @@ export namespace ${ClassName}Api {
   }
 
   /** 查询条件 */
-  export interface Query extends PageQuery {
+  export interface Query<#if table.crud> extends PageQuery</#if> {
 <#list columns as column>
 <#if column.query && column.queryType != 'BETWEEN'>
     ${column.javaField}?: ${column.tsType?replace("string | number", "number | string")};

@@ -1,6 +1,7 @@
 package org.tuoyu.system.listener;
 
 import cn.hutool.core.bean.BeanUtil;
+import org.tuoyu.common.core.context.UserContext;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.http.HtmlUtil;
 import jakarta.validation.ConstraintViolation;
@@ -15,7 +16,6 @@ import org.tuoyu.common.core.utils.ValidatorUtils;
 import org.tuoyu.common.encrypt.password.PasswordHasher;
 import org.tuoyu.common.excel.core.ExcelListener;
 import org.tuoyu.common.excel.core.ExcelResult;
-import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.tuoyu.system.domain.bo.SysUserBo;
 import org.tuoyu.system.domain.vo.SysUserImportVo;
 import org.tuoyu.system.domain.vo.SysUserVo;
@@ -52,7 +52,7 @@ public class SysUserImportListener extends AnalysisEventListener<SysUserImportVo
         this.userService = SpringUtils.getBean(ISysUserService.class);
         this.password = SpringUtils.getBean(PasswordHasher.class).hash(initPassword);
         this.isUpdateSupport = isUpdateSupport;
-        this.operUserId = LoginHelper.getUserId();
+        this.operUserId = UserContext.userId();
     }
 
     @Override

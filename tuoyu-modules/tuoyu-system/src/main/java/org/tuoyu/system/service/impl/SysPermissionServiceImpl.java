@@ -1,10 +1,10 @@
 package org.tuoyu.system.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
+import org.tuoyu.common.core.context.UserContext;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.utils.StreamUtils;
-import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.tuoyu.system.api.model.RoleDTO;
 import org.tuoyu.system.service.ISysMenuService;
 import org.tuoyu.system.service.ISysPermissionService;
@@ -35,7 +35,7 @@ public class SysPermissionServiceImpl implements ISysPermissionService {
     public Set<String> getRolePermission(Long userId) {
         Set<String> roles = new HashSet<>();
         // 管理员拥有所有权限
-        if (LoginHelper.isSuperAdmin(userId)) {
+        if (UserContext.isSuperAdmin(userId)) {
             roles.add(SystemConstants.SUPER_ADMIN_ROLE_KEY);
         } else {
             roles.addAll(roleService.selectRolePermissionByUserId(userId));
@@ -53,7 +53,7 @@ public class SysPermissionServiceImpl implements ISysPermissionService {
     public Set<String> getMenuPermission(Long userId) {
         Set<String> perms = new HashSet<>();
         // 管理员拥有所有权限
-        if (LoginHelper.isSuperAdmin(userId)) {
+        if (UserContext.isSuperAdmin(userId)) {
             perms.add("*:*:*");
         } else {
             perms.addAll(menuService.selectMenuPermsByUserId(userId));

@@ -1,9 +1,8 @@
 package org.tuoyu.resource.mapper;
 
 
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.resource.domain.SysOssConfig;
-import org.tuoyu.resource.domain.vo.SysOssConfigVo;
 
 /**
  * 对象存储配置Mapper接口
@@ -12,6 +11,6 @@ import org.tuoyu.resource.domain.vo.SysOssConfigVo;
  * @author 孤舟烟雨
  * @date 2021-08-13
  */
-public interface SysOssConfigMapper extends BaseMapperPlus<SysOssConfig, SysOssConfigVo> {
+public interface SysOssConfigMapper extends BaseMapper<SysOssConfig> {
 
 }

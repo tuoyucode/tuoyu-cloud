@@ -75,7 +75,24 @@ class RequestSizeLimitFilterTest {
         assertTrue(response.getContentType().startsWith("application/json"));
         String body = response.getContentAsString(StandardCharsets.UTF_8);
         assertTrue(body.contains("\"code\":413"));
+        assertTrue(body.contains("\"message\":"));
+        assertTrue(body.contains("\"traceId\":null"), "没有链路追踪时 traceId 为 null");
         assertTrue(body.contains("1KB"));
+    }
+
+    @Test
+    @DisplayName("413 响应是 ApiResult 结构，带当前请求的 traceId")
+    void shouldWriteTraceIdIntoRejection() throws Exception {
+        RequestSizeLimitFilter traced = new RequestSizeLimitFilter(BODY_LIMIT, BODY_LIMIT,
+            () -> "4bf92f3577b34da6a3ce929d0e0e4736");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        traced.doFilter(jsonRequest((int) BODY_LIMIT + 1), response, readingChain(new AtomicBoolean()));
+
+        assertEquals(413, response.getStatus());
+        String body = response.getContentAsString(StandardCharsets.UTF_8);
+        assertTrue(body.startsWith("{\"code\":413,\"message\":\"请求体超过 1KB 上限\",\"data\":null,"), body);
+        assertTrue(body.contains("\"traceId\":\"4bf92f3577b34da6a3ce929d0e0e4736\""), body);
     }
 
     @Test

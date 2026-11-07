@@ -11,16 +11,17 @@ import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.tuoyu.common.core.constant.HeaderNames;
 import org.tuoyu.common.core.constant.SystemConstants;
+import org.tuoyu.common.core.context.CurrentUser;
+import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.common.core.utils.ServletUtils;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.json.utils.JsonUtils;
-import org.tuoyu.common.log.annotation.Log;
+import org.tuoyu.common.log.annotation.OperationLog;
 import org.tuoyu.common.log.enums.BusinessStatus;
 import org.tuoyu.common.log.event.OperLogEvent;
-import org.tuoyu.common.satoken.utils.LoginHelper;
-import org.tuoyu.system.api.model.LoginUser;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.http.HttpMethod;
 import org.springframework.validation.BindingResult;
@@ -55,23 +56,23 @@ public class LogAspect {
     private static final int MAX_CONTENT_LENGTH = 3800;
 
     /**
-     * 执行目标方法并记录操作日志。
+     * 执行目标方法并记录操作日志（{@link OperationLog}）。
      *
-     * @param joinPoint     切点
-     * @param controllerLog 日志注解
+     * @param joinPoint 切点
+     * @param operationLog  日志注解
      * @return 目标方法返回值
      * @throws Throwable 目标方法异常
      */
-    @Around(value = "@annotation(controllerLog)")
-    public Object doAround(ProceedingJoinPoint joinPoint, Log controllerLog) throws Throwable {
+    @Around(value = "@annotation(operationLog)")
+    public Object doAround(ProceedingJoinPoint joinPoint, OperationLog operationLog) throws Throwable {
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         try {
             Object jsonResult = joinPoint.proceed();
-            handleLog(joinPoint, controllerLog, null, jsonResult, stopWatch);
+            handleLog(joinPoint, operationLog, null, jsonResult, stopWatch);
             return jsonResult;
         } catch (Exception e) {
-            handleLog(joinPoint, controllerLog, e, null, stopWatch);
+            handleLog(joinPoint, operationLog, e, null, stopWatch);
             throw e;
         }
     }
@@ -80,12 +81,12 @@ public class LogAspect {
      * 组装并发布操作日志事件。
      *
      * @param joinPoint     切点
-     * @param controllerLog 日志注解
+     * @param operationLog      日志注解
      * @param e             异常信息
      * @param jsonResult    返回结果
      * @param stopWatch     耗时统计
      */
-    protected void handleLog(final JoinPoint joinPoint, Log controllerLog, final Exception e, Object jsonResult, StopWatch stopWatch) {
+    private void handleLog(final JoinPoint joinPoint, OperationLog operationLog, final Exception e, Object jsonResult, StopWatch stopWatch) {
         try {
 
             // *========数据库日志=========*//
@@ -96,20 +97,8 @@ public class LogAspect {
             String ip = ServletUtils.getClientIP();
             operLog.setOperIp(ip);
             operLog.setOperUrl(limit(request.getRequestURI(), MAX_URL_LENGTH));
-            operLog.setClientKey(limit(request.getHeader(LoginHelper.CLIENT_KEY), MAX_CLIENT_KEY_LENGTH));
-            LoginUser loginUser = LoginHelper.getLoginUser();
-            if (ObjectUtil.isNotNull(loginUser)) {
-                operLog.setOperName(loginUser.getUsername());
-                operLog.setUserId(loginUser.getUserId());
-                operLog.setDeptId(loginUser.getDeptId());
-                operLog.setDeptName(loginUser.getDeptName());
-                operLog.setDeviceType(loginUser.getDeviceType());
-                operLog.setBrowser(loginUser.getBrowser());
-                operLog.setOs(loginUser.getOs());
-                if (StringUtils.isBlank(operLog.getClientKey())) {
-                    operLog.setClientKey(loginUser.getClientKey());
-                }
-            }
+            operLog.setClientKey(limit(request.getHeader(HeaderNames.CLIENT_ID), MAX_CLIENT_KEY_LENGTH));
+            UserContext.current().ifPresent(user -> fillOperator(operLog, user));
 
             if (e != null) {
                 operLog.setStatus(BusinessStatus.FAIL.ordinal());
@@ -122,7 +111,7 @@ public class LogAspect {
             // 设置请求方式
             operLog.setRequestMethod(request.getMethod());
             // 处理设置注解上的参数
-            getControllerMethodDescription(joinPoint, controllerLog, operLog, jsonResult);
+            getControllerMethodDescription(joinPoint, operationLog, operLog, jsonResult);
             // 设置消耗时间
             stopWatch.stop();
             operLog.setCostTime(stopWatch.getDuration().toMillis());
@@ -135,28 +124,47 @@ public class LogAspect {
     }
 
     /**
+     * 填写操作人信息；请求头中没有客户端标识时取登录时的客户端。
+     *
+     * @param operLog 操作日志
+     * @param user    当前用户
+     */
+    private void fillOperator(OperLogEvent operLog, CurrentUser user) {
+        operLog.setOperName(user.getUserName());
+        operLog.setUserId(user.getUserId());
+        operLog.setDeptId(user.getDeptId());
+        operLog.setDeptName(user.getDeptName());
+        operLog.setDeviceType(user.getDeviceType());
+        operLog.setBrowser(user.getBrowser());
+        operLog.setOs(user.getOs());
+        if (StringUtils.isBlank(operLog.getClientKey())) {
+            operLog.setClientKey(user.getClientKey());
+        }
+    }
+
+    /**
      * 获取注解中对方法的描述信息 用于Controller层注解
      *
      * @param joinPoint  切点
-     * @param log        日志
+     * @param operationLog   日志注解
      * @param operLog    操作日志
      * @param jsonResult 返回结果
      * @throws Exception 异常
      */
-    public void getControllerMethodDescription(JoinPoint joinPoint, Log log, OperLogEvent operLog, Object jsonResult) throws Exception {
+    void getControllerMethodDescription(JoinPoint joinPoint, OperationLog operationLog, OperLogEvent operLog, Object jsonResult) throws Exception {
         // 设置action动作
-        operLog.setBusinessType(log.businessType().ordinal());
+        operLog.setBusinessType(operationLog.action().code());
         // 设置标题
-        operLog.setTitle(log.title());
+        operLog.setTitle(operationLog.module());
         // 设置操作人类别
-        operLog.setOperatorType(log.operatorType().ordinal());
+        operLog.setOperatorType(operationLog.operatorType().ordinal());
         // 是否需要保存request，参数和值
-        if (log.isSaveRequestData()) {
+        if (operationLog.saveRequestData()) {
             // 获取参数的信息，传入到数据库中。
-            setRequestValue(joinPoint, operLog, log.excludeParamNames());
+            setRequestValue(joinPoint, operLog, operationLog.excludeParamNames());
         }
         // 是否需要保存response，参数和值
-        if (log.isSaveResponseData() && ObjectUtil.isNotNull(jsonResult)) {
+        if (operationLog.saveResponseData() && ObjectUtil.isNotNull(jsonResult)) {
             operLog.setJsonResult(limit(JsonUtils.toJsonString(jsonResult), MAX_CONTENT_LENGTH));
         }
     }

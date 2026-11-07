@@ -5,7 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.tenant.core.DefaultTenantContext;
 import org.tuoyu.common.tenant.core.TenantHelper;
@@ -42,7 +42,7 @@ class TenantAccountQuotaTest {
     private static void install(boolean enabled) {
         TenantProperties properties = new TenantProperties();
         properties.setEnabled(enabled);
-        new DefaultTenantContext(properties, new StaticListableBeanFactory().getBeanProvider(UserContext.class), id -> null);
+        new DefaultTenantContext(properties, new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), id -> null);
     }
 
     private void tenant(Integer accountCount) {

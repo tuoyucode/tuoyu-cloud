@@ -18,7 +18,7 @@ import java.util.Properties;
  */
 @Intercepts({
     @Signature(type = ResultSetHandler.class, method = "handleResultSets", args = {Statement.class}),
-    // MP 3.5.17 起 selectOne/selectVoOne 走游标，需一并拦截解密
+    // MP 3.5.17 起 selectOne 走游标，需一并拦截解密
     @Signature(type = ResultSetHandler.class, method = "handleCursorResultSets", args = {Statement.class})
 })
 @AllArgsConstructor

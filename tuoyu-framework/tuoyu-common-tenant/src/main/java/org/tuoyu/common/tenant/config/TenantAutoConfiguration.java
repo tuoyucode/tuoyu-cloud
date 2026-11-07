@@ -12,7 +12,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.tuoyu.common.core.context.TenantContext;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.tenant.cache.TenantAwareCacheManager;
 import org.tuoyu.common.tenant.core.DefaultTenantContext;
 import org.tuoyu.common.tenant.core.DynamicTenantStore;
@@ -36,7 +36,7 @@ import org.tuoyu.common.tenant.mybatis.TuoyuTenantLineHandler;
 public class TenantAutoConfiguration {
 
     @Bean
-    public TenantContext tenantContext(TenantProperties properties, ObjectProvider<UserContext> userContext) {
+    public TenantContext tenantContext(TenantProperties properties, ObjectProvider<UserContextProvider> userContext) {
         return new DefaultTenantContext(properties, userContext, DynamicTenantStore::get);
     }
 

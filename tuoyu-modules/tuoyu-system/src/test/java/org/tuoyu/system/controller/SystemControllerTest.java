@@ -1,6 +1,7 @@
 package org.tuoyu.system.controller;
 
 import cn.dev33.satoken.exception.NotLoginException;
+import org.tuoyu.common.core.context.CurrentUser;
 import cn.dev33.satoken.stp.StpLogic;
 import cn.dev33.satoken.stp.StpUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -16,14 +17,13 @@ import org.redisson.api.RKeys;
 import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.LoginFailureKeys;
 import org.tuoyu.common.encrypt.password.PasswordHasher;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.system.support.CurrentUserStub;
 import org.tuoyu.system.api.domain.SysUserOnline;
-import org.tuoyu.system.api.model.LoginUser;
 import org.tuoyu.system.controller.monitor.SysUserOnlineController;
 import org.tuoyu.system.controller.system.SysDeptController;
 import org.tuoyu.system.controller.system.SysMenuController;
@@ -56,13 +56,11 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -85,12 +83,12 @@ class SystemControllerTest {
     private final ISysDeptService deptService = mock(ISysDeptService.class);
     private final ISysMenuService menuService = mock(ISysMenuService.class);
 
-    private MockedStatic<LoginHelper> login;
+    private CurrentUserStub login;
 
     @BeforeEach
     void setUp() {
-        login = mockStatic(LoginHelper.class, CALLS_REAL_METHODS);
-        login.when(LoginHelper::getUserId).thenReturn(100L);
+        login = CurrentUserStub.install();
+        login.userId(100L);
         SystemTestSupport.events().clear();
     }
 
@@ -100,8 +98,8 @@ class SystemControllerTest {
         Mockito.reset(SystemTestSupport.redisson());
     }
 
-    private static boolean ok(R<?> r) {
-        return R.isSuccess(r);
+    private static boolean ok(ApiResult<?> r) {
+        return r.getCode() == ApiResult.SUCCESS;
     }
 
     private static SysRoleVo role(Long id) {
@@ -132,17 +130,16 @@ class SystemControllerTest {
         @DisplayName("新增：账号、手机号、邮箱重复时依次拒绝；通过后密码哈希保存")
         void add() {
             when(userService.checkUserNameUnique(any())).thenReturn(false);
-            assertThat(controller.add(user()).getMsg()).contains("登录账号已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.add(user())).getMessage()).contains("登录账号已存在");
             when(userService.checkUserNameUnique(any())).thenReturn(true);
             when(userService.checkPhoneUnique(any())).thenReturn(false);
-            assertThat(controller.add(user()).getMsg()).contains("手机号码已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.add(user())).getMessage()).contains("手机号码已存在");
             when(userService.checkPhoneUnique(any())).thenReturn(true);
             when(userService.checkEmailUnique(any())).thenReturn(false);
-            assertThat(controller.add(user()).getMsg()).contains("邮箱账号已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.add(user())).getMessage()).contains("邮箱账号已存在");
             verify(userService, never()).insertUser(any());
 
             when(userService.checkEmailUnique(any())).thenReturn(true);
-            when(userService.insertUser(any())).thenReturn(1);
             assertTrue(ok(controller.add(user())));
             ArgumentCaptor<SysUserBo> saved = ArgumentCaptor.forClass(SysUserBo.class);
             verify(userService).insertUser(saved.capture());
@@ -163,17 +160,16 @@ class SystemControllerTest {
         @DisplayName("修改：先检查是否超级管理员与数据权限，再检查唯一性")
         void edit() {
             when(userService.checkUserNameUnique(any())).thenReturn(false);
-            assertThat(controller.edit(user()).getMsg()).contains("登录账号已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(user())).getMessage()).contains("登录账号已存在");
             verify(userService).checkUserAllowed(200L);
             verify(userService).checkUserDataScope(200L);
             when(userService.checkUserNameUnique(any())).thenReturn(true);
             when(userService.checkPhoneUnique(any())).thenReturn(false);
-            assertThat(controller.edit(user()).getMsg()).contains("手机号码已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(user())).getMessage()).contains("手机号码已存在");
             when(userService.checkPhoneUnique(any())).thenReturn(true);
             when(userService.checkEmailUnique(any())).thenReturn(false);
-            assertThat(controller.edit(user()).getMsg()).contains("邮箱账号已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(user())).getMessage()).contains("邮箱账号已存在");
             when(userService.checkEmailUnique(any())).thenReturn(true);
-            when(userService.updateUser(any())).thenReturn(1);
             assertTrue(ok(controller.edit(user())));
 
             doThrow(new ServiceException("不允许操作超级管理员用户")).when(userService).checkUserAllowed(ADMIN);
@@ -185,16 +181,14 @@ class SystemControllerTest {
         @Test
         @DisplayName("删除：不能删除自己")
         void remove() {
-            assertFalse(ok(controller.remove(new Long[]{200L, 100L})));
+            assertThrows(ServiceException.class, () -> controller.remove(new Long[]{200L, 100L}));
             verify(userService, never()).deleteUserByIds(any());
-            when(userService.deleteUserByIds(any())).thenReturn(1);
             assertTrue(ok(controller.remove(new Long[]{200L})));
         }
 
         @Test
         @DisplayName("重置密码与修改状态：检查后执行，密码哈希后保存")
         void resetAndStatus() {
-            when(userService.resetUserPwd(any(), anyString())).thenReturn(1);
             assertTrue(ok(controller.resetPwd(user())));
             ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
             verify(userService).resetUserPwd(Mockito.eq(200L), hash.capture());
@@ -203,7 +197,6 @@ class SystemControllerTest {
             SysUserBo status = new SysUserBo();
             status.setUserId(200L);
             status.setStatus("1");
-            when(userService.updateUserStatus(200L, "1")).thenReturn(1);
             assertTrue(ok(controller.changeStatus(status)));
             verify(userService, Mockito.times(2)).checkUserAllowed(200L);
         }
@@ -211,7 +204,7 @@ class SystemControllerTest {
         @Test
         @DisplayName("解锁：清除账号、手机号、邮箱三种登录失败计数；用户不存在时失败")
         void unlock() {
-            assertFalse(ok(controller.unlock(200L)));
+            assertThrows(ServiceException.class, () -> controller.unlock(200L));
 
             SysUserVo vo = new SysUserVo();
             vo.setUserName("alice");
@@ -251,18 +244,16 @@ class SystemControllerTest {
 
             // 超级管理员不受数据权限限制，查询不存在的用户时返回明确的提示，不抛空指针
             when(userService.selectUserById(999L)).thenReturn(null);
-            assertEquals("用户不存在", controller.getInfo(999L).getMsg());
+            assertEquals("用户不存在", assertThrows(ServiceException.class, () -> controller.getInfo(999L)).getMessage());
         }
 
         @Test
         @DisplayName("当前用户信息：看不到自己的数据时失败；带出权限与角色")
         void currentUser() {
-            LoginUser loginUser = new LoginUser();
-            loginUser.setUserId(100L);
-            loginUser.setMenuPermission(Set.of("system:user:list"));
-            loginUser.setRolePermission(Set.of("common"));
-            login.when(LoginHelper::getLoginUser).thenReturn(loginUser);
-            assertFalse(ok(controller.getInfo()));
+            CurrentUser loginUser = login.userId(100L).current();
+            loginUser.setPermissions(Set.of("system:user:list"));
+            loginUser.setRoleKeys(Set.of("common"));
+            assertThrows(ServiceException.class, () -> controller.getInfo());
 
             SysUserVo vo = new SysUserVo();
             vo.setUserId(100L);
@@ -286,8 +277,8 @@ class SystemControllerTest {
         @Test
         @DisplayName("列表、下拉、部门树、按部门查询转发给服务")
         void lists() {
-            when(userService.selectPageUserList(any(), any())).thenReturn(PageResult.build(List.of(new SysUserVo()), 1));
-            assertEquals(1, controller.list(new SysUserBo(), new PageQuery()).getData().getTotal());
+            when(userService.selectPageUserList(any(), any())).thenReturn(PageResult.of(List.of(new SysUserVo()), 1));
+            assertEquals(1, controller.list(new SysUserBo(), new PageParam()).getData().getTotal());
             controller.optionselect(new Long[0], 10L);
             verify(userService).selectUserByIds(null, 10L);
             controller.optionselect(new Long[]{1L}, null);
@@ -317,14 +308,13 @@ class SystemControllerTest {
         @DisplayName("新增与修改：名称、权限字符重复时拒绝")
         void addAndEdit() {
             when(roleService.checkRoleNameUnique(any())).thenReturn(false);
-            assertThat(controller.add(bo()).getMsg()).contains("角色名称已存在");
-            assertThat(controller.edit(bo()).getMsg()).contains("角色名称已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.add(bo())).getMessage()).contains("角色名称已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(bo())).getMessage()).contains("角色名称已存在");
             when(roleService.checkRoleNameUnique(any())).thenReturn(true);
             when(roleService.checkRoleKeyUnique(any())).thenReturn(false);
-            assertThat(controller.add(bo()).getMsg()).contains("角色权限已存在");
-            assertThat(controller.edit(bo()).getMsg()).contains("角色权限已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.add(bo())).getMessage()).contains("角色权限已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(bo())).getMessage()).contains("角色权限已存在");
             when(roleService.checkRoleKeyUnique(any())).thenReturn(true);
-            when(roleService.insertRole(any())).thenReturn(1);
             assertTrue(ok(controller.add(bo())));
         }
 
@@ -333,9 +323,6 @@ class SystemControllerTest {
         void changesNotifyOnlineClean() {
             when(roleService.checkRoleNameUnique(any())).thenReturn(true);
             when(roleService.checkRoleKeyUnique(any())).thenReturn(true);
-            when(roleService.updateRoleBaseInfo(any())).thenReturn(1);
-            when(roleService.updateRolePermission(any())).thenReturn(1);
-            when(roleService.updateRoleStatus(any(), any())).thenReturn(1);
             assertTrue(ok(controller.edit(bo())));
             assertTrue(ok(controller.editPermission(bo())));
             assertTrue(ok(controller.changeStatus(bo())));
@@ -344,12 +331,12 @@ class SystemControllerTest {
             assertThat(events).allMatch(e -> e.roleId() == 9L);
             verify(roleService, Mockito.times(3)).checkRoleDataScope(9L);
 
-            when(roleService.updateRoleBaseInfo(any())).thenReturn(0);
-            when(roleService.updateRolePermission(any())).thenReturn(0);
-            when(roleService.updateRoleStatus(any(), any())).thenReturn(0);
-            assertFalse(ok(controller.edit(bo())));
-            assertFalse(ok(controller.editPermission(bo())));
-            assertFalse(ok(controller.changeStatus(bo())));
+            doThrow(new ServiceException("失败")).when(roleService).updateRoleBaseInfo(any());
+            doThrow(new ServiceException("失败")).when(roleService).updateRolePermission(any());
+            doThrow(new ServiceException("失败")).when(roleService).updateRoleStatus(any(), any());
+            assertThrows(ServiceException.class, () -> controller.edit(bo()));
+            assertThrows(ServiceException.class, () -> controller.editPermission(bo()));
+            assertThrows(ServiceException.class, () -> controller.changeStatus(bo()));
         }
 
         @Test
@@ -363,23 +350,19 @@ class SystemControllerTest {
         @Test
         @DisplayName("授权用户、详情、列表、下拉、部门树转发给服务")
         void delegates() {
-            when(roleService.insertAuthUsers(9L, new Long[]{1L})).thenReturn(1);
             assertTrue(ok(controller.selectAuthUserAll(9L, new Long[]{1L})));
             verify(roleService).checkRoleDataScope(9L);
-            when(roleService.deleteAuthUsers(9L, new Long[]{1L})).thenReturn(1);
             assertTrue(ok(controller.cancelAuthUserAll(9L, new Long[]{1L})));
-            when(roleService.deleteAuthUser(any(SysUserRole.class))).thenReturn(1);
             assertTrue(ok(controller.cancelAuthUser(new SysUserRole())));
-            when(roleService.deleteRoleByIds(List.of(9L))).thenReturn(1);
             assertTrue(ok(controller.remove(new Long[]{9L})));
 
             when(roleService.selectRoleById(9L)).thenReturn(role(9L));
             assertEquals(9L, controller.getInfo(9L).getData().getRoleId());
-            controller.list(new SysRoleBo(), new PageQuery());
+            controller.list(new SysRoleBo(), new PageParam());
             controller.optionselect(null);
             verify(roleService).selectRoleByIds(null);
-            controller.allocatedList(new SysUserBo(), new PageQuery());
-            controller.unallocatedList(new SysUserBo(), new PageQuery());
+            controller.allocatedList(new SysUserBo(), new PageParam());
+            controller.unallocatedList(new SysUserBo(), new PageParam());
             when(deptService.selectDeptListByRoleId(9L)).thenReturn(List.of(10L));
             assertEquals(List.of(10L), controller.roleDeptTreeselect(9L).getData().checkedKeys());
         }
@@ -405,26 +388,24 @@ class SystemControllerTest {
         @DisplayName("新增与修改：名称重复、外链地址不是 http(s)、上级选自己、路由冲突时拒绝")
         void validate() {
             when(menuService.checkMenuNameUnique(any())).thenReturn(false);
-            assertThat(controller.add(bo()).getMsg()).contains("菜单名称已存在");
-            assertThat(controller.edit(bo()).getMsg()).contains("菜单名称已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.add(bo())).getMessage()).contains("菜单名称已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(bo())).getMessage()).contains("菜单名称已存在");
 
             when(menuService.checkMenuNameUnique(any())).thenReturn(true);
             SysMenuBo frame = bo();
             frame.setIsFrame(SystemConstants.YES);
-            assertThat(controller.add(frame).getMsg()).contains("http(s)://");
-            assertThat(controller.edit(frame).getMsg()).contains("http(s)://");
+            assertThat(assertThrows(ServiceException.class, () -> controller.add(frame)).getMessage()).contains("http(s)://");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(frame)).getMessage()).contains("http(s)://");
 
             SysMenuBo self = bo();
             self.setParentId(11L);
-            assertThat(controller.edit(self).getMsg()).contains("上级菜单不能选择自己");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(self)).getMessage()).contains("上级菜单不能选择自己");
 
             when(menuService.checkRouteConfigUnique(any())).thenReturn(false);
-            assertThat(controller.add(bo()).getMsg()).contains("路由名称或地址已存在");
-            assertThat(controller.edit(bo()).getMsg()).contains("路由名称或地址已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.add(bo())).getMessage()).contains("路由名称或地址已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(bo())).getMessage()).contains("路由名称或地址已存在");
 
             when(menuService.checkRouteConfigUnique(any())).thenReturn(true);
-            when(menuService.insertMenu(any())).thenReturn(1);
-            when(menuService.updateMenu(any())).thenReturn(1);
             assertTrue(ok(controller.add(bo())));
             assertTrue(ok(controller.edit(bo())));
         }
@@ -433,16 +414,15 @@ class SystemControllerTest {
         @DisplayName("删除：有子菜单或已分配给角色时不允许")
         void remove() {
             when(menuService.hasChildByMenuId(10L)).thenReturn(true);
-            assertFalse(ok(controller.remove(10L)));
+            assertThrows(ServiceException.class, () -> controller.remove(10L));
             when(menuService.hasChildByMenuId(10L)).thenReturn(false);
             when(menuService.checkMenuExistRole(10L)).thenReturn(true);
-            assertFalse(ok(controller.remove(10L)));
+            assertThrows(ServiceException.class, () -> controller.remove(10L));
             when(menuService.checkMenuExistRole(10L)).thenReturn(false);
-            when(menuService.deleteMenuById(10L)).thenReturn(1);
             assertTrue(ok(controller.remove(10L)));
 
             when(menuService.hasChildByMenuId(List.of(10L, 11L))).thenReturn(true);
-            assertFalse(ok(controller.remove(new Long[]{10L, 11L})));
+            assertThrows(ServiceException.class, () -> controller.remove(new Long[]{10L, 11L}));
             when(menuService.hasChildByMenuId(List.of(10L, 11L))).thenReturn(false);
             assertTrue(ok(controller.remove(new Long[]{10L, 11L})));
             verify(menuService).deleteMenuById(List.of(10L, 11L));
@@ -483,24 +463,22 @@ class SystemControllerTest {
         @DisplayName("修改：名称重复、上级是自己、停用时仍有正常子部门或用户时拒绝")
         void edit() {
             when(deptService.checkDeptNameUnique(any())).thenReturn(false);
-            assertThat(controller.add(bo()).getMsg()).contains("部门名称已存在");
-            assertThat(controller.edit(bo()).getMsg()).contains("部门名称已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.add(bo())).getMessage()).contains("部门名称已存在");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(bo())).getMessage()).contains("部门名称已存在");
 
             when(deptService.checkDeptNameUnique(any())).thenReturn(true);
             SysDeptBo self = bo();
             self.setParentId(11L);
-            assertThat(controller.edit(self).getMsg()).contains("上级部门不能是自己");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(self)).getMessage()).contains("上级部门不能是自己");
 
             SysDeptBo disable = bo();
             disable.setStatus(SystemConstants.DISABLE);
             when(deptService.selectNormalChildrenDeptById(11L)).thenReturn(1L);
-            assertThat(controller.edit(disable).getMsg()).contains("未停用的子部门");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(disable)).getMessage()).contains("未停用的子部门");
             when(deptService.selectNormalChildrenDeptById(11L)).thenReturn(0L);
             when(deptService.checkDeptExistUser(11L)).thenReturn(true);
-            assertThat(controller.edit(disable).getMsg()).contains("已分配用户");
+            assertThat(assertThrows(ServiceException.class, () -> controller.edit(disable)).getMessage()).contains("已分配用户");
 
-            when(deptService.updateDept(any())).thenReturn(1);
-            when(deptService.insertDept(any())).thenReturn(1);
             assertTrue(ok(controller.edit(bo())));
             assertTrue(ok(controller.add(bo())));
             verify(deptService, Mockito.atLeastOnce()).checkDeptDataScope(11L);
@@ -509,17 +487,16 @@ class SystemControllerTest {
         @Test
         @DisplayName("删除：根部门、有下级、有用户、有岗位时不允许")
         void remove() {
-            assertFalse(ok(controller.remove(0L)));
+            assertThrows(ServiceException.class, () -> controller.remove(0L));
             when(deptService.hasChildByDeptId(11L)).thenReturn(true);
-            assertFalse(ok(controller.remove(11L)));
+            assertThrows(ServiceException.class, () -> controller.remove(11L));
             when(deptService.hasChildByDeptId(11L)).thenReturn(false);
             when(deptService.checkDeptExistUser(11L)).thenReturn(true);
-            assertFalse(ok(controller.remove(11L)));
+            assertThrows(ServiceException.class, () -> controller.remove(11L));
             when(deptService.checkDeptExistUser(11L)).thenReturn(false);
             when(postService.countPostByDeptId(11L)).thenReturn(1L);
-            assertFalse(ok(controller.remove(11L)));
+            assertThrows(ServiceException.class, () -> controller.remove(11L));
             when(postService.countPostByDeptId(11L)).thenReturn(0L);
-            when(deptService.deleteDeptById(11L)).thenReturn(1);
             assertTrue(ok(controller.remove(11L)));
             verify(deptService).checkDeptDataScope(11L);
         }
@@ -586,7 +563,7 @@ class SystemControllerTest {
             try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
                 stp.when(StpUtil::getTokenValue).thenReturn("a-token");
 
-                List<SysUserOnlineVo> all = new ArrayList<>(controller.list(null, null).getData().getRows());
+                List<SysUserOnlineVo> all = new ArrayList<>(controller.list(null, null).getData().getItems());
                 assertEquals(2, all.size());
                 assertThat(all).extracting(SysUserOnlineVo::getSessionId)
                     .containsExactlyInAnyOrder(OnlineSessionId.of("a-token"), OnlineSessionId.of("b-token"))
@@ -594,9 +571,9 @@ class SystemControllerTest {
                 assertThat(all).filteredOn(SysUserOnlineVo::isCurrent).extracting(SysUserOnlineVo::getUserName)
                     .containsExactly("alice");
 
-                assertEquals(1, controller.list("10.0.0.2", null).getData().getRows().size());
-                assertEquals(1, controller.list(null, "alice").getData().getRows().size());
-                assertEquals(0, controller.list("10.0.0.2", "alice").getData().getRows().size());
+                assertEquals(1, controller.list("10.0.0.2", null).getData().getItems().size());
+                assertEquals(1, controller.list(null, "alice").getData().getItems().size());
+                assertEquals(0, controller.list("10.0.0.2", "alice").getData().getItems().size());
             }
         }
 
@@ -607,7 +584,7 @@ class SystemControllerTest {
             when(logic.getTokenActiveTimeoutByToken("a-token")).thenReturn(-2L);
             try (MockedStatic<StpUtil> stp = mockStatic(StpUtil.class)) {
                 stp.when(StpUtil::getTokenValue).thenThrow(new IllegalStateException("未登录"));
-                assertTrue(controller.list(null, null).getData().getRows().isEmpty());
+                assertTrue(controller.list(null, null).getData().getItems().isEmpty());
             }
         }
 
@@ -631,7 +608,7 @@ class SystemControllerTest {
                 controller.remove(OnlineSessionId.of("b-token"));
                 stp.verify(() -> StpUtil.kickoutByTokenValue("b-token"), Mockito.times(1));
 
-                assertEquals(1, controller.getInfo().getData().getRows().size());
+                assertEquals(1, controller.getInfo().getData().getItems().size());
             }
         }
     }

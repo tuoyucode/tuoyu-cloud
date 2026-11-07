@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import org.tuoyu.common.core.utils.ObjectUtils;
 import org.tuoyu.common.json.enhance.JsonValueEnhancer;
+import org.tuoyu.common.web.advice.ApiResultAdvice;
 import org.tuoyu.common.web.advice.ResponseEnhancementAdvice;
 import org.tuoyu.common.web.handler.GlobalExceptionHandler;
 import org.tuoyu.common.web.xss.RichTextJsonFieldProcessor;
@@ -59,6 +60,14 @@ public class ResourcesConfig implements WebMvcConfigurer {
     @Bean
     public GlobalExceptionHandler globalExceptionHandler() {
         return new GlobalExceptionHandler();
+    }
+
+    /**
+     * 写出 ApiResult 前填入 traceId、按失败的 code 设置 HTTP 状态
+     */
+    @Bean
+    public ApiResultAdvice apiResultAdvice() {
+        return new ApiResultAdvice();
     }
 
     /**

@@ -241,7 +241,7 @@ cmd_wait_health() {
 cmd_wait_ready() {
   local name="$1" url="$2" timeout="${3:-300}"
   wait_until "$name" "$timeout" \
-    "curl -sS -m 5 '$url/auth/crypto/public-key' 2>/dev/null | grep -q '\"code\":200'"
+    "curl -fsS -m 5 '$url/auth/crypto/public-key' 2>/dev/null | grep -Eq '\"code\":0[,}]'"
 }
 
 cmd_collect_logs() {

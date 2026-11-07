@@ -32,13 +32,25 @@ public class RequestSizeLimitFilter extends OncePerRequestFilter {
 
     private final long maxMultipartBytes;
 
+    private final TraceIdSource traceIdSource;
+
     /**
      * @param maxBodyBytes      非文件请求（JSON 等）的请求体上限，负数表示不限制
      * @param maxMultipartBytes 文件上传请求的上限，负数表示不限制
      */
     public RequestSizeLimitFilter(long maxBodyBytes, long maxMultipartBytes) {
+        this(maxBodyBytes, maxMultipartBytes, TraceIdSource.NONE);
+    }
+
+    /**
+     * @param maxBodyBytes      非文件请求（JSON 等）的请求体上限，负数表示不限制
+     * @param maxMultipartBytes 文件上传请求的上限，负数表示不限制
+     * @param traceIdSource     写进 413 响应的 traceId
+     */
+    public RequestSizeLimitFilter(long maxBodyBytes, long maxMultipartBytes, TraceIdSource traceIdSource) {
         this.maxBodyBytes = maxBodyBytes;
         this.maxMultipartBytes = maxMultipartBytes;
+        this.traceIdSource = traceIdSource == null ? TraceIdSource.NONE : traceIdSource;
     }
 
     @Override
@@ -86,13 +98,13 @@ public class RequestSizeLimitFilter extends OncePerRequestFilter {
         return false;
     }
 
-    private static void reject(HttpServletResponse response, long limit, boolean multipart) throws IOException {
+    private void reject(HttpServletResponse response, long limit, boolean multipart) throws IOException {
         String message = (multipart ? "上传内容超过 " : "请求体超过 ") + formatSize(limit) + " 上限";
         response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write("{\"code\":" + HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE
-            + ",\"msg\":\"" + message + "\",\"data\":null}");
+        response.getWriter().write(ApiErrors.toJson(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, message,
+            traceIdSource.currentTraceId()));
     }
 
     static String formatSize(long bytes) {

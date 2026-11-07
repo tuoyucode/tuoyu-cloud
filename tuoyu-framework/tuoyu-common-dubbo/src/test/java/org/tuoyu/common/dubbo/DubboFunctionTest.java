@@ -8,7 +8,8 @@ import org.apache.dubbo.rpc.RpcContext;
 import org.apache.dubbo.rpc.RpcException;
 import org.apache.dubbo.rpc.RpcServiceContext;
 import org.tuoyu.common.core.constant.HttpStatus;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.springframework.http.ResponseEntity;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.dubbo.enumd.RequestLogEnum;
 import org.tuoyu.common.dubbo.filter.DubboRequestFilter;
@@ -49,10 +50,11 @@ class DubboFunctionTest {
     @Test
     @DisplayName("转换 RPC 异常为统一响应")
     void shouldConvertRpcExceptionToFailResponse() {
-        R<Void> response = new DubboExceptionHandler().handleDubboException(new RpcException("timeout"));
+        ResponseEntity<ApiResult<Void>> response = new DubboExceptionHandler().handleDubboException(new RpcException("timeout"));
 
-        assertEquals(HttpStatus.ERROR, response.getCode());
-        assertEquals("RPC异常，请联系管理员确认", response.getMsg());
+        assertEquals(HttpStatus.ERROR, response.getStatusCode().value());
+        assertEquals(HttpStatus.ERROR, response.getBody().getCode());
+        assertEquals("RPC异常，请联系管理员确认", response.getBody().getMessage());
     }
 
     /**

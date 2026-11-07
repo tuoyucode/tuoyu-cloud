@@ -6,13 +6,13 @@ import cn.hutool.core.util.ObjectUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.excel.utils.ExcelBuilder;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.system.domain.bo.SysDictDataBo;
 import org.tuoyu.system.domain.vo.SysDictDataVo;
 import org.tuoyu.system.service.ISysDictDataService;
@@ -33,7 +33,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/dict/data")
-public class SysDictDataController extends BaseController {
+public class SysDictDataController {
 
     private final ISysDictDataService dictDataService;
     private final ISysDictTypeService dictTypeService;
@@ -43,14 +43,14 @@ public class SysDictDataController extends BaseController {
      */
     @SaCheckPermission("system:dict:list")
     @GetMapping("/list")
-    public R<PageResult<SysDictDataVo>> list(SysDictDataBo dictData, PageQuery pageQuery) {
-        return R.ok(dictDataService.selectPageDictDataList(dictData, pageQuery));
+    public ApiResult<PageResult<SysDictDataVo>> list(SysDictDataBo dictData, PageParam pageParam) {
+        return ApiResult.ok(dictDataService.selectPageDictDataList(dictData, pageParam));
     }
 
     /**
      * 导出字典数据列表
      */
-    @Log(title = "字典数据", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "字典数据", action = AuditAction.EXPORT)
     @SaCheckPermission("system:dict:export")
     @PostMapping("/export")
     public void export(SysDictDataBo dictData, HttpServletResponse response) {
@@ -66,8 +66,8 @@ public class SysDictDataController extends BaseController {
      */
     @SaCheckPermission("system:dict:query")
     @GetMapping(value = "/{dictCode}")
-    public R<SysDictDataVo> getInfo(@PathVariable Long dictCode) {
-        return R.ok(dictDataService.selectDictDataById(dictCode));
+    public ApiResult<SysDictDataVo> getInfo(@PathVariable Long dictCode) {
+        return ApiResult.ok(dictDataService.selectDictDataById(dictCode));
     }
 
     /**
@@ -77,42 +77,42 @@ public class SysDictDataController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping(value = "/type/{dictType}")
-    public R<List<SysDictDataVo>> dictType(@PathVariable String dictType) {
+    public ApiResult<List<SysDictDataVo>> dictType(@PathVariable String dictType) {
         List<SysDictDataVo> data = dictTypeService.selectDictDataByType(dictType);
         if (ObjectUtil.isNull(data)) {
             data = new ArrayList<>();
         }
-        return R.ok(data);
+        return ApiResult.ok(data);
     }
 
     /**
      * 新增字典数据
      */
     @SaCheckPermission("system:dict:add")
-    @Log(title = "字典数据", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "字典数据", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping
-    public R<Void> add(@Validated @RequestBody SysDictDataBo dict) {
+    public ApiResult<Void> add(@Validated @RequestBody SysDictDataBo dict) {
         if (!dictDataService.checkDictDataUnique(dict)) {
-            return R.fail("新增字典数据'" + dict.getDictValue() + "'失败，字典键值已存在");
+            throw new ServiceException("新增字典数据'" + dict.getDictValue() + "'失败，字典键值已存在");
         }
         dictDataService.insertDictData(dict);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
      * 修改保存字典数据
      */
     @SaCheckPermission("system:dict:edit")
-    @Log(title = "字典数据", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "字典数据", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping
-    public R<Void> edit(@Validated @RequestBody SysDictDataBo dict) {
+    public ApiResult<Void> edit(@Validated @RequestBody SysDictDataBo dict) {
         if (!dictDataService.checkDictDataUnique(dict)) {
-            return R.fail("修改字典数据'" + dict.getDictValue() + "'失败，字典键值已存在");
+            throw new ServiceException("修改字典数据'" + dict.getDictValue() + "'失败，字典键值已存在");
         }
         dictDataService.updateDictData(dict);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -121,10 +121,10 @@ public class SysDictDataController extends BaseController {
      * @param dictCodes 字典code串
      */
     @SaCheckPermission("system:dict:remove")
-    @Log(title = "字典数据", businessType = BusinessType.DELETE)
+    @OperationLog(module = "字典数据", action = AuditAction.DELETE)
     @DeleteMapping("/{dictCodes}")
-    public R<Void> remove(@PathVariable Long[] dictCodes) {
+    public ApiResult<Void> remove(@PathVariable Long[] dictCodes) {
         dictDataService.deleteDictDataByIds(Arrays.asList(dictCodes));
-        return R.ok();
+        return ApiResult.ok();
     }
 }

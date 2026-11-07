@@ -4,19 +4,16 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.dromara.warm.flow.core.entity.Definition;
-import org.dromara.warm.flow.core.service.DefService;
 import org.dromara.warm.flow.orm.entity.FlowDefinition;
 import org.tuoyu.workflow.common.ConditionalOnEnable;
 import org.tuoyu.workflow.domain.vo.FlowDefinitionVo;
 import org.tuoyu.workflow.service.IFlwDefinitionService;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,33 +31,32 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/definition")
-public class FlwDefinitionController extends BaseController {
+public class FlwDefinitionController {
 
-    private final DefService defService;
     private final IFlwDefinitionService flwDefinitionService;
 
     /**
      * 查询流程定义列表
      *
      * @param flowDefinition 参数
-     * @param pageQuery      分页
+     * @param pageParam      分页
      */
     @GetMapping("/list")
     @SaCheckPermission("workflow:definition:list")
-    public R<PageResult<FlowDefinitionVo>> list(FlowDefinition flowDefinition, PageQuery pageQuery) {
-        return R.ok(flwDefinitionService.queryList(flowDefinition, pageQuery));
+    public ApiResult<PageResult<FlowDefinitionVo>> list(FlowDefinition flowDefinition, PageParam pageParam) {
+        return ApiResult.ok(flwDefinitionService.queryList(flowDefinition, pageParam));
     }
 
     /**
      * 查询未发布的流程定义列表
      *
      * @param flowDefinition 参数
-     * @param pageQuery      分页
+     * @param pageParam      分页
      */
     @GetMapping("/unPublishList")
     @SaCheckPermission("workflow:definition:list")
-    public R<PageResult<FlowDefinitionVo>> unPublishList(FlowDefinition flowDefinition, PageQuery pageQuery) {
-        return R.ok(flwDefinitionService.unPublishList(flowDefinition, pageQuery));
+    public ApiResult<PageResult<FlowDefinitionVo>> unPublishList(FlowDefinition flowDefinition, PageParam pageParam) {
+        return ApiResult.ok(flwDefinitionService.unPublishList(flowDefinition, pageParam));
     }
 
     /**
@@ -70,8 +66,8 @@ public class FlwDefinitionController extends BaseController {
      */
     @GetMapping(value = "/{id}")
     @SaCheckPermission("workflow:definition:query")
-    public R<Definition> getInfo(@PathVariable Long id) {
-        return R.ok(defService.getById(id));
+    public ApiResult<Definition> getInfo(@PathVariable Long id) {
+        return ApiResult.ok(flwDefinitionService.getById(id));
     }
 
     /**
@@ -79,13 +75,13 @@ public class FlwDefinitionController extends BaseController {
      *
      * @param flowDefinition 参数
      */
-    @Log(title = "流程定义", businessType = BusinessType.INSERT)
+    @OperationLog(module = "流程定义", action = AuditAction.CREATE)
     @PostMapping
-    @RepeatSubmit()
-    @Transactional(rollbackFor = Exception.class)
+    @PreventResubmit
     @SaCheckPermission("workflow:definition:add")
-    public R<Boolean> add(@RequestBody FlowDefinition flowDefinition) {
-        return R.ok(defService.checkAndSave(flowDefinition));
+    public ApiResult<Void> add(@RequestBody FlowDefinition flowDefinition) {
+        flwDefinitionService.insertDefinition(flowDefinition);
+        return ApiResult.ok();
     }
 
     /**
@@ -93,13 +89,13 @@ public class FlwDefinitionController extends BaseController {
      *
      * @param flowDefinition 参数
      */
-    @Log(title = "流程定义", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "流程定义", action = AuditAction.UPDATE)
     @PutMapping
-    @RepeatSubmit()
-    @Transactional(rollbackFor = Exception.class)
+    @PreventResubmit
     @SaCheckPermission("workflow:definition:edit")
-    public R<Boolean> edit(@RequestBody FlowDefinition flowDefinition) {
-        return R.ok(defService.updateById(flowDefinition));
+    public ApiResult<Void> edit(@RequestBody FlowDefinition flowDefinition) {
+        flwDefinitionService.updateDefinition(flowDefinition);
+        return ApiResult.ok();
     }
 
     /**
@@ -107,12 +103,13 @@ public class FlwDefinitionController extends BaseController {
      *
      * @param id 流程定义id
      */
-    @Log(title = "流程定义", businessType = BusinessType.INSERT)
+    @OperationLog(module = "流程定义", action = AuditAction.CREATE)
     @PutMapping("/publish/{id}")
-    @RepeatSubmit()
+    @PreventResubmit
     @SaCheckPermission("workflow:definition:publish")
-    public R<Boolean> publish(@PathVariable Long id) {
-        return R.ok(flwDefinitionService.publish(id));
+    public ApiResult<Void> publish(@PathVariable Long id) {
+        flwDefinitionService.publish(id);
+        return ApiResult.ok();
     }
 
     /**
@@ -120,23 +117,24 @@ public class FlwDefinitionController extends BaseController {
      *
      * @param id 流程定义id
      */
-    @Log(title = "流程定义", businessType = BusinessType.INSERT)
+    @OperationLog(module = "流程定义", action = AuditAction.CREATE)
     @PutMapping("/unPublish/{id}")
-    @RepeatSubmit()
-    @Transactional(rollbackFor = Exception.class)
+    @PreventResubmit
     @SaCheckPermission("workflow:definition:publish")
-    public R<Boolean> unPublish(@PathVariable Long id) {
-        return R.ok(defService.unPublish(id));
+    public ApiResult<Void> unPublish(@PathVariable Long id) {
+        flwDefinitionService.unPublish(id);
+        return ApiResult.ok();
     }
 
     /**
      * 删除流程定义
      */
-    @Log(title = "流程定义", businessType = BusinessType.DELETE)
+    @OperationLog(module = "流程定义", action = AuditAction.DELETE)
     @DeleteMapping("/{ids}")
     @SaCheckPermission("workflow:definition:remove")
-    public R<Void> remove(@PathVariable List<Long> ids) {
-        return toAjax(flwDefinitionService.removeDef(ids));
+    public ApiResult<Void> remove(@PathVariable List<Long> ids) {
+        flwDefinitionService.removeDef(ids);
+        return ApiResult.ok();
     }
 
     /**
@@ -144,13 +142,13 @@ public class FlwDefinitionController extends BaseController {
      *
      * @param id 流程定义id
      */
-    @Log(title = "流程定义", businessType = BusinessType.INSERT)
+    @OperationLog(module = "流程定义", action = AuditAction.CREATE)
     @PostMapping("/copy/{id}")
-    @RepeatSubmit()
-    @Transactional(rollbackFor = Exception.class)
+    @PreventResubmit
     @SaCheckPermission("workflow:definition:copy")
-    public R<Boolean> copy(@PathVariable Long id) {
-        return R.ok(defService.copyDef(id));
+    public ApiResult<Void> copy(@PathVariable Long id) {
+        flwDefinitionService.copyDef(id);
+        return ApiResult.ok();
     }
 
     /**
@@ -159,11 +157,12 @@ public class FlwDefinitionController extends BaseController {
      * @param file     文件
      * @param category 分类
      */
-    @Log(title = "流程定义", businessType = BusinessType.IMPORT)
+    @OperationLog(module = "流程定义", action = AuditAction.IMPORT)
     @PostMapping("/importDef")
     @SaCheckPermission("workflow:definition:import")
-    public R<Boolean> importDef(MultipartFile file, String category) {
-        return R.ok(flwDefinitionService.importJson(file, category));
+    public ApiResult<Void> importDef(MultipartFile file, String category) {
+        flwDefinitionService.importJson(file, category);
+        return ApiResult.ok();
     }
 
     /**
@@ -173,7 +172,7 @@ public class FlwDefinitionController extends BaseController {
      * @param response 响应
      * @throws IOException 异常
      */
-    @Log(title = "流程定义", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "流程定义", action = AuditAction.EXPORT)
     @PostMapping("/exportDef/{id}")
     @SaCheckPermission("workflow:definition:export")
     public void exportDef(@PathVariable Long id, HttpServletResponse response) throws IOException {
@@ -187,8 +186,8 @@ public class FlwDefinitionController extends BaseController {
      */
     @GetMapping("/xmlString/{id}")
     @SaCheckPermission("workflow:definition:query")
-    public R<String> xmlString(@PathVariable Long id) {
-        return R.data(defService.exportJson(id));
+    public ApiResult<String> xmlString(@PathVariable Long id) {
+        return ApiResult.ok(flwDefinitionService.exportJson(id));
     }
 
     /**
@@ -197,13 +196,13 @@ public class FlwDefinitionController extends BaseController {
      * @param id     流程定义id
      * @param active 激活/挂起
      */
-    @RepeatSubmit()
+    @PreventResubmit
     @PutMapping("/active/{id}")
-    @Transactional(rollbackFor = Exception.class)
-    @Log(title = "流程定义", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "流程定义", action = AuditAction.UPDATE)
     @SaCheckPermission("workflow:definition:active")
-    public R<Boolean> active(@PathVariable Long id, @RequestParam boolean active) {
-        return R.ok(active ? defService.active(id) : defService.unActive(id));
+    public ApiResult<Void> active(@PathVariable Long id, @RequestParam boolean active) {
+        flwDefinitionService.active(id, active);
+        return ApiResult.ok();
     }
 
 }

@@ -5,8 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import org.tuoyu.system.domain.SysSocial;
 
 import java.io.Serial;
@@ -30,25 +30,25 @@ public class SysSocialBo implements Serializable {
     /**
      * 主键
      */
-    @NotNull(message = "主键不能为空", groups = {EditGroup.class})
+    @NotNull(message = "主键不能为空", groups = {OnUpdate.class})
     private Long id;
 
     /**
      * 认证唯一ID
      */
-    @NotBlank(message = "的唯一ID不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "的唯一ID不能为空", groups = {OnCreate.class, OnUpdate.class})
     private String authId;
 
     /**
      * 用户来源
      */
-    @NotBlank(message = "用户来源不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "用户来源不能为空", groups = {OnCreate.class, OnUpdate.class})
     private String source;
 
     /**
      * 用户的授权令牌
      */
-    @NotBlank(message = "用户的授权令牌不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "用户的授权令牌不能为空", groups = {OnCreate.class, OnUpdate.class})
     private String accessToken;
 
     /**
@@ -69,7 +69,7 @@ public class SysSocialBo implements Serializable {
     /**
      * 用户的 ID
      */
-    @NotBlank(message = "用户的 ID不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "用户的 ID不能为空", groups = {OnCreate.class, OnUpdate.class})
     private Long userId;
 
     /**

@@ -14,7 +14,7 @@ TuoYu-Cloud 是一个通用的 Java 微服务框架，**同一套代码既可以
 
 1. **新模块原创编写。** `tuoyu-common-rpc`、`tuoyu-common-tenant`、`tuoyu-common-selfcheck`、`tuoyu-common-observability` 与 `tuoyu-boot-*` 必须自己写，不得复制其他开源框架的代码。
 2. **改写已有模块要独立实现。** 按新设计重新写，不要对照原有代码逐行改。改写前先补测试。
-3. **协议合规。** 不删除、不修改 `THIRD-PARTY-NOTICES.md` 和第三方文件头（例如 Apache 协议头）。
+3. **协议合规。** 不删除、不修改 `LICENSE` 中的版权声明和第三方文件头（例如 Apache 协议头）。随仓库分发或打进发布包、协议不是 MIT 的第三方组件，在 README 的“许可证”一节列出。
 4. **第三方包名保持原样。** `org.dromara.warm`、`org.dromara.sms4j`、`org.dromara.mica`、`org.dromara.easyes` 及其 groupId 不改。
 5. **默认安全。** 仓库里不放明文密钥，不新增默认口令；配置中的敏感值一律用环境变量占位。
 6. **提交与测试。**
@@ -24,7 +24,7 @@ TuoYu-Cloud 是一个通用的 Java 微服务框架，**同一套代码既可以
 7. **依赖协议。**
    - 仓库内不分发 GPL、AGPL、LGPL 协议的文件（jar、插件、源码等）。
    - 新增依赖前先确认协议，不引入 GPL、AGPL 依赖。带 FOSS 例外条款的数据库驱动（例如 MySQL Connector/J）可以作为 Maven 依赖使用，但不放进仓库。
-   - LGPL 依赖默认不引入。确实无法避免时（例如被必须使用的组件直接依赖、排除后功能失效），只允许未修改、作为 Maven 依赖使用，并且要先经维护者确认、登记在 `tools/ci/license-exceptions.txt` 并写明原因（CI 的协议检查据此放行，未登记的一律阻断）、在 `THIRD-PARTY-NOTICES.md` 中列出库名、协议与源码地址。能排除的先排除。
+   - LGPL 依赖默认不引入。确实无法避免时（例如被必须使用的组件直接依赖、排除后功能失效），只允许未修改、作为 Maven 依赖使用，并且要先经维护者确认、登记在 `tools/ci/license-exceptions.txt` 并写明原因（CI 的协议检查据此放行，未登记的一律阻断）、在 README 的“许可证”一节列出库名、协议与源码地址。能排除的先排除。
    - 目前的 LGPL 例外：`aviator`（SnailJob 服务端的条件表达式引擎）、`simple-http`（JustAuth 的 HTTP 请求层，第三方登录使用）。
 
 ## 构建与检查
@@ -119,7 +119,21 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 - **管理接口不下发密钥**：密钥类字段（含第三方平台的令牌，例如 `SysSocialVo`）在 Vo 中标注 `@JsonIgnore`，另加“是否已设置”的布尔字段（例如 `SysOssConfigVo.accessKeySet`），导出时不带出。修改接口中该字段为空表示不修改。
 - **会话标识**：在线用户接口只返回令牌的 SHA-256（`sessionId`），按它定位会话。
 - **先删后建的接口**要校验参数是否齐全，不能把 null 当作“清空”。例如角色权限接口要求 `menuIds`、`deptIds` 都不能为 null，空数组才表示清空。
-- **Excel 行数上限**：导出最多 `tuoyu.excel.max-export-rows`（默认 50000），导入最多 `tuoyu.excel.max-import-rows`（默认 5000），超限时拒绝。导出用 `ExcelBuilder.query(count, list, Vo.class)`，统计用 `PageQuery.countOnly()`，服务方法命名为 `countList`；导入传 `MultipartFile`（`ExcelBuilder.read(file, ...)`）。
+- **Excel 行数上限**：导出最多 `tuoyu.excel.max-export-rows`（默认 50000），导入最多 `tuoyu.excel.max-import-rows`（默认 5000），超限时拒绝。导出用 `ExcelBuilder.query(() -> service.countList(bo), () -> service.queryList(bo), Vo.class)`，先统计、超限时不执行查询；统计写成 `mapper.selectPage(PageParam.countOnly(), wrapper).getTotal()`（分页插件统计时去掉 ORDER BY，不要直接 `selectCount`，带 ORDER BY 的 COUNT 在 PostgreSQL 上报错），服务方法命名为 `countList`；导入传 `MultipartFile`（`ExcelBuilder.read(file, ...)`）。
+
+## 框架对外 API
+
+设计见 `docs/adr/0008-框架对外API.md`。代码生成输出的后端代码就是按这些约定写的，可以作为参考。
+
+- **响应**：Controller 返回 `ApiResult<T>`（`{ code, message, data, traceId }`，成功为 HTTP 200、`code` 0），不继承任何基类。注意 `ApiResult.ok("文字")` 中的文字是 data，只带提示时写 `ApiResult.ok("提示", null)`。Controller 不返回失败的 `ApiResult`。
+- **失败**：抛 `ServiceException`，消息写清具体原因（例如“岗位编码已存在”，而不是“操作失败”）。全局异常处理按类别设置 HTTP 状态码：参数校验与业务规则 400、未登录或令牌失效 401、无权限 403、不存在 404、数据重复 409、请求过大 413、重复提交与限流 429、未预期的异常 500（只返回错误编号）。`ServiceException` 带的错误码在 400 ~ 599 之间时作为 HTTP 状态，否则为 400。401 只用于令牌缺失或失效，登录失败（密码错误、验证码错误、账号锁定等）是 400。模块自己的 `@RestControllerAdvice` 用 `ApiErrors` 生成响应，并标 `@Order(ExceptionHandlerOrder.MODULE)`，保证排在全局异常处理之前；提示中不要带异常的原始消息。
+- **写操作**：服务方法返回 `void`，失败时抛带原因的 `ServiceException`（例如按 ID 更新影响 0 行时“…不存在”）；不要用 boolean / int 表示成败，Controller 直接返回 `ApiResult.ok()`。
+- **分页**：Controller 参数用 `PageParam`（请求参数 `page` 从 1 开始、`pageSize`、可重复的 `sort=属性名,asc|desc`）。单表查询用 `pageParam.toPage(实体.class)`，排序属性按实体映射为列名，不在实体中的返回 400；联表 SQL 用 `toPage(实体.class, "表别名")`；结果不是实体的用 `toPage()`（不支持排序）或 `toPage(Map)` 显式列出可排序的列。可排序的属性不含敏感字段（`select = false`、实体或对应 Vo 中标注 `@JsonIgnore`、`@EncryptField`、`@Sensitive` 的字段，以及名称含 password、secret、token、accessKey 等口令密钥类的字段），否则可借排序结果推出看不到的值；需要更严格时（例如只要求登录的接口）用 `toPage(Map)` 显式白名单。默认排序只在没有传 `sort` 时加（`if (!pageParam.hasSort())`），否则会排在用户的排序前面。结果为 `PageResult<T>`（`items`、`total`），从 MyBatis-Plus 分页转换用 `PageResults.of(page, Vo.class)`。
+- **当前用户**：业务代码只用 core 的 `UserContext`（`current()`、`require()`、`userId()`、`isSuperAdmin()` 等）。`LoginHelper` 只在 `tuoyu-common-satoken` 与 `tuoyu-auth` 中处理登录、登出与会话，其他模块不能引用（ArchUnit 检查）；查询其他会话的登录用户用 `LoginSessions`。单元测试中用 `UserContext.setProvider(...)` 替换当前用户，结束时恢复原来的提供者。
+- **Mapper 与转换**：Mapper 直接继承 MyBatis-Plus 的 `BaseMapper<实体>`，只处理实体；转换为 Vo 在服务层完成（`BeanMapper.map` / `mapList`，空值安全）。条件用 `QueryBuilder.lambda(实体.class)` 构造后调用 Mapper；批量写入用 `BaseMapper` 自带的 `insert(Collection)`、`updateById(Collection)`。手写 SQL 中返回 Vo 的查询可以保留在 Mapper 中。
+- **数据权限**：`@DataPermission` 标在 Mapper 的方法上，只对调用这个方法时执行的 SQL 生效（由 Spring 代理在调用时设置）。MyBatis-Plus `BaseMapper` 的默认方法会在 MyBatis 代理内部转调其他方法，不经过 Spring 代理：例如 `update(Wrapper)` 转调 `update(实体, Wrapper)`，只给后者加注解时前者不受约束。所以带 `@DataPermission` 的 Mapper 要把业务会调用的默认方法也覆盖并加上注解（参考 `SysUserMapper` 的两个 `update`），并用测试确认数据权限生效（参考 `SysUserMapperDataPermissionTest`）。
+- **注解**：校验分组 `OnCreate` / `OnUpdate`（不继承 `Default`，没有分组的约束在指定分组时不执行）；操作日志 `@OperationLog(module = "岗位管理", action = AuditAction.CREATE)`（`AuditAction` 的存储值与操作日志表、前端字典一致）；防重复提交 `@PreventResubmit`（重复时 429），只加在写接口上。
+- 请求头名等框架约定的常量在 core 的 `HeaderNames` 中，不要另写字符串。
 
 ## 跨模块调用
 
@@ -129,7 +143,7 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 - 提供方是普通的 `@Service`，由 `tuoyu-common-dubbo` 统一导出。业务模块与 api 中不能出现 Dubbo（`@DubboReference`、`@DubboService`、`@EnableDubbo`、mock、stub），ArchUnit 检查。
 - 语义：跨模块调用不参与调用方事务；异常原样到达调用方（Dubbo 中框架异常连同错误码传回，调用方没有的异常只传回错误编号，不带原消息）；参数校验由提供方负责（实现类 `@Validated`、接口参数 `@Valid`）；参数与返回值按值语义使用，不修改对方的对象。
 - 结果可有可无的调用（例如推送提示消息、翻译文件地址）用 `RemoteFallback.call` / `run` 降级，名称写成 `提供方模块.用途`。权限、租户、登录、写入数据等调用不能降级。Dubbo 超时为 `TUOYU_DUBBO_TIMEOUT`（默认 3000 毫秒），远程引用固定不重试。
-- 当前用户、权限要求、租户分别来自 core 中的 `UserContext`、`PermissionContext`、`TenantContext`。需要跨线程、跨服务传递的上下文实现 `ContextPropagator`（只传字符串），`@Async` 与 `ThreadUtils` 的虚拟线程会自动恢复。
+- 当前用户、权限要求、租户分别来自 core 中的 `UserContext`（实现方提供 `UserContextProvider`）、`PermissionContext`、`TenantContext`。需要跨线程、跨服务传递的上下文实现 `ContextPropagator`（只传字符串），`@Async` 与 `ThreadUtils` 的虚拟线程会自动恢复。
 - `tuoyu-common-mybatis` 只依赖 core；数据权限 SpEL 中的 `#user` 是 `CurrentUser`。
 - 网关与各服务共用 `RequestAuthenticator` 校验登录；免登录白名单只在 `application-common.yml` 的 `security.ignore.whites` 中维护（写完整路径）。只有 same-token 校验开启（请求来自网关）时才采信 `X-Forwarded-Prefix`；单体不校验 same-token，也不采信这个头。
 - **接口权限**：每个 Controller 接口必须带 `@SaCheckPermission`、`@SaCheckRole`、`@SaCheckLogin`、`@SaIgnore` 之一（`ControllerAuthAnnotationTest`）。只要求登录的接口标 `@SaCheckLogin` 并在注释中写明原因；免登录接口标 `@SaIgnore`，同时在 `security.ignore.whites` 中写完整路径；`@SaCheckPermission` 的权限码必须在菜单种子数据中，缺少时写迁移脚本补充按钮菜单。
@@ -175,8 +189,8 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 
 ## 前端
 
-前端基于官方 Vben Admin 5 + Ant Design Vue，只使用框架层，业务页面全部原创，接口契约以本仓库的后端代码为准。代码生成器默认输出 Vben 风格的页面，目录与前端仓库 `apps/web-antd/src/` 一一对应。菜单种子数据中的 `component` 填前端 `views` 下的页面路径，图标用 Iconify 名称（例如 `lucide:user`）。
+前端基于官方 Vben Admin 5 + Ant Design Vue，只使用框架层，业务页面全部原创，接口契约以本仓库的后端代码为准。代码生成器只输出 Vben 风格的页面，目录与前端仓库 `apps/web-antd/src/` 一一对应。菜单种子数据中的 `component` 填前端 `views` 下的页面路径，图标用 Iconify 名称（例如 `lucide:user`）。
 
 ## 命名
 
-新写的类按作用命名，不加 `Plus`、`Tuoyu` 之类的前缀（包名 `org.tuoyu` 已经说明归属），也不要与依赖库中的类同名。
+新写的类按作用命名，不加 `Plus`、`Tuoyu` 之类的前缀（包名 `org.tuoyu` 已经说明归属），也不要与依赖库中的类同名。确实无法避免、且不会同时使用的重名，登记在 ADR 0008 第 9 节。

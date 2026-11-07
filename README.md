@@ -154,4 +154,15 @@ java tools/nacos/ImportNacosConfig.java --apply --overwrite  # 导入，并覆�
 
 ## 许可证
 
-本项目基于 [MIT License](LICENSE) 开源。项目中包含的第三方代码和文件，其协议说明见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
+本项目基于 [MIT License](LICENSE) 开源。
+
+以下第三方组件使用其他协议，未经修改：
+
+| 组件 | 协议 | 位置与用途 |
+|---|---|---|
+| [ip2region](https://github.com/lionsoul2014/ip2region) 离线 IP 地址库 | Apache-2.0 | `tuoyu-common-web` 中的 `ip2region_v4.xdb`，随仓库分发 |
+| [RabbitMQ 延迟消息插件](https://github.com/rabbitmq/rabbitmq-delayed-message-exchange) | MPL-2.0 | `deploy/docker/rabbitmq`，随仓库分发，可选组件 |
+| [aviator](https://github.com/killme2008/aviator) | LGPL | SnailJob 服务端的条件表达式引擎，作为依赖打进可执行 jar 与镜像，可按 LGPL 替换 |
+| [simple-http](https://github.com/xkcoding/simple-http) | LGPL-3.0 | 第三方登录的 HTTP 请求层，作为依赖打进可执行 jar 与镜像，可按 LGPL 替换 |
+
+少量源文件改自其他开源项目（Apache-2.0），文件头中保留了原始的版权与协议声明。其他通过 Maven 引入的依赖，协议见各自的发布包。

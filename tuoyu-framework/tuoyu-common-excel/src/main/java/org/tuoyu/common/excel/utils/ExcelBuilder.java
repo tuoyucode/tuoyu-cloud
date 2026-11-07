@@ -498,8 +498,8 @@ public final class ExcelBuilder<T> {
 
             try (ZipOutputStream zipOut = ZipUtil.getZipOutputStream(response.getOutputStream(), CharsetUtil.CHARSET_UTF_8)) {
                 for (int i = 0; i < pageList.size(); i++) {
-                    int pageNum = i + 1;
-                    String exportSheetName = sheetName + "_第" + pageNum + "页";
+                    int part = i + 1;
+                    String exportSheetName = sheetName + "_第" + part + "页";
                     byte[] bytes = buildZipEntry(pageList.get(i), exportSheetName);
                     zipOut.putNextEntry(new ZipEntry(exportSheetName + ".xlsx"));
                     zipOut.write(bytes);

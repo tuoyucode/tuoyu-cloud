@@ -72,9 +72,19 @@ public interface HttpStatus {
     int CONFLICT = 409;
 
     /**
+     * 请求内容过大
+     */
+    int PAYLOAD_TOO_LARGE = 413;
+
+    /**
      * 不支持的数据，媒体类型
      */
     int UNSUPPORTED_TYPE = 415;
+
+    /**
+     * 请求过于频繁（限流、重复提交）
+     */
+    int TOO_MANY_REQUESTS = 429;
 
     /**
      * 系统内部错误

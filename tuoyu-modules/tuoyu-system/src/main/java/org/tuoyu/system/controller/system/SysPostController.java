@@ -7,13 +7,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.excel.utils.ExcelBuilder;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.system.domain.bo.SysDeptBo;
 import org.tuoyu.system.domain.bo.SysPostBo;
 import org.tuoyu.system.domain.vo.SysPostVo;
@@ -35,7 +35,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/post")
-public class SysPostController extends BaseController {
+public class SysPostController {
 
     private final ISysPostService postService;
     private final ISysDeptService deptService;
@@ -45,14 +45,14 @@ public class SysPostController extends BaseController {
      */
     @SaCheckPermission("system:post:list")
     @GetMapping("/list")
-    public R<PageResult<SysPostVo>> list(SysPostBo post, PageQuery pageQuery) {
-        return R.ok(postService.selectPagePostList(post, pageQuery));
+    public ApiResult<PageResult<SysPostVo>> list(SysPostBo post, PageParam pageParam) {
+        return ApiResult.ok(postService.selectPagePostList(post, pageParam));
     }
 
     /**
      * 导出岗位列表
      */
-    @Log(title = "岗位管理", businessType = BusinessType.EXPORT)
+    @OperationLog(module = "岗位管理", action = AuditAction.EXPORT)
     @SaCheckPermission("system:post:export")
     @PostMapping("/export")
     public void export(SysPostBo post, HttpServletResponse response) {
@@ -67,43 +67,45 @@ public class SysPostController extends BaseController {
      */
     @SaCheckPermission("system:post:query")
     @GetMapping(value = "/{postId}")
-    public R<SysPostVo> getInfo(@PathVariable Long postId) {
-        return R.ok(postService.selectPostById(postId));
+    public ApiResult<SysPostVo> getInfo(@PathVariable Long postId) {
+        return ApiResult.ok(postService.selectPostById(postId));
     }
 
     /**
      * 新增岗位
      */
     @SaCheckPermission("system:post:add")
-    @Log(title = "岗位管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "岗位管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping
-    public R<Void> add(@Validated @RequestBody SysPostBo post) {
+    public ApiResult<Void> add(@Validated @RequestBody SysPostBo post) {
         if (!postService.checkPostNameUnique(post)) {
-            return R.fail("新增岗位'" + post.getPostName() + "'失败，岗位名称已存在");
+            throw new ServiceException("新增岗位'" + post.getPostName() + "'失败，岗位名称已存在");
         } else if (!postService.checkPostCodeUnique(post)) {
-            return R.fail("新增岗位'" + post.getPostName() + "'失败，岗位编码已存在");
+            throw new ServiceException("新增岗位'" + post.getPostName() + "'失败，岗位编码已存在");
         }
-        return toAjax(postService.insertPost(post));
+        postService.insertPost(post);
+        return ApiResult.ok();
     }
 
     /**
      * 修改岗位
      */
     @SaCheckPermission("system:post:edit")
-    @Log(title = "岗位管理", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "岗位管理", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping
-    public R<Void> edit(@Validated @RequestBody SysPostBo post) {
+    public ApiResult<Void> edit(@Validated @RequestBody SysPostBo post) {
         if (!postService.checkPostNameUnique(post)) {
-            return R.fail("修改岗位'" + post.getPostName() + "'失败，岗位名称已存在");
+            throw new ServiceException("修改岗位'" + post.getPostName() + "'失败，岗位名称已存在");
         } else if (!postService.checkPostCodeUnique(post)) {
-            return R.fail("修改岗位'" + post.getPostName() + "'失败，岗位编码已存在");
+            throw new ServiceException("修改岗位'" + post.getPostName() + "'失败，岗位编码已存在");
         } else if (SystemConstants.DISABLE.equals(post.getStatus())
             && postService.countUserPostById(post.getPostId()) > 0) {
-            return R.fail("该岗位下存在已分配用户，不能禁用!");
+            throw new ServiceException("该岗位下存在已分配用户，不能禁用!");
         }
-        return toAjax(postService.updatePost(post));
+        postService.updatePost(post);
+        return ApiResult.ok();
     }
 
     /**
@@ -112,10 +114,11 @@ public class SysPostController extends BaseController {
      * @param postIds 岗位ID串
      */
     @SaCheckPermission("system:post:remove")
-    @Log(title = "岗位管理", businessType = BusinessType.DELETE)
+    @OperationLog(module = "岗位管理", action = AuditAction.DELETE)
     @DeleteMapping("/{postIds}")
-    public R<Void> remove(@PathVariable Long[] postIds) {
-        return toAjax(postService.deletePostByIds(Arrays.asList(postIds)));
+    public ApiResult<Void> remove(@PathVariable Long[] postIds) {
+        postService.deletePostByIds(Arrays.asList(postIds));
+        return ApiResult.ok();
     }
 
     /**
@@ -126,7 +129,7 @@ public class SysPostController extends BaseController {
      */
     @SaCheckPermission("system:post:query")
     @GetMapping("/optionselect")
-    public R<List<SysPostVo>> optionselect(@RequestParam(required = false) Long[] postIds, @RequestParam(required = false) Long deptId) {
+    public ApiResult<List<SysPostVo>> optionselect(@RequestParam(required = false) Long[] postIds, @RequestParam(required = false) Long deptId) {
         List<SysPostVo> list = new ArrayList<>();
         if (ObjectUtil.isNotNull(deptId)) {
             SysPostBo post = new SysPostBo();
@@ -135,7 +138,7 @@ public class SysPostController extends BaseController {
         } else if (postIds != null) {
             list = postService.selectPostByIds(List.of(postIds));
         }
-        return R.ok(list);
+        return ApiResult.ok(list);
     }
 
     /**
@@ -143,8 +146,8 @@ public class SysPostController extends BaseController {
      */
     @SaCheckPermission("system:post:list")
     @GetMapping("/deptTree")
-    public R<List<Tree<Long>>> deptTree(SysDeptBo dept) {
-        return R.ok(deptService.selectDeptTreeList(dept));
+    public ApiResult<List<Tree<Long>>> deptTree(SysDeptBo dept) {
+        return ApiResult.ok(deptService.selectDeptTreeList(dept));
     }
 
 }

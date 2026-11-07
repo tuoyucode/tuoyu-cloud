@@ -1,7 +1,7 @@
 package org.tuoyu.system.dubbo;
 
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.system.api.RemoteClientService;
 import org.tuoyu.system.api.domain.vo.RemoteClientVo;
 import org.tuoyu.system.domain.vo.SysClientVo;
@@ -27,7 +27,7 @@ public class RemoteClientServiceImpl implements RemoteClientService {
     @Override
     public RemoteClientVo queryByClientId(String clientId) {
         SysClientVo vo = sysClientService.queryByClientId(clientId);
-        return MapstructUtils.convert(vo, RemoteClientVo.class);
+        return BeanMapper.map(vo, RemoteClientVo.class);
     }
 
 }

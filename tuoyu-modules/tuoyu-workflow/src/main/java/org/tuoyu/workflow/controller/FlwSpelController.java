@@ -5,14 +5,13 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.workflow.common.ConditionalOnEnable;
 import org.tuoyu.workflow.domain.bo.FlowSpelBo;
 import org.tuoyu.workflow.domain.vo.FlowSpelVo;
@@ -33,7 +32,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/spel")
-public class FlwSpelController extends BaseController {
+public class FlwSpelController {
 
     private final IFlwSpelService flwSpelService;
 
@@ -42,8 +41,8 @@ public class FlwSpelController extends BaseController {
      */
     @SaCheckPermission("workflow:spel:list")
     @GetMapping("/list")
-    public R<PageResult<FlowSpelVo>> list(FlowSpelBo bo, PageQuery pageQuery) {
-        return R.ok(flwSpelService.queryPageList(bo, pageQuery));
+    public ApiResult<PageResult<FlowSpelVo>> list(FlowSpelBo bo, PageParam pageParam) {
+        return ApiResult.ok(flwSpelService.queryPageList(bo, pageParam));
     }
 
     /**
@@ -53,30 +52,32 @@ public class FlwSpelController extends BaseController {
      */
     @SaCheckPermission("workflow:spel:query")
     @GetMapping("/{id}")
-    public R<FlowSpelVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable Long id) {
-        return R.ok(flwSpelService.queryById(id));
+    public ApiResult<FlowSpelVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable Long id) {
+        return ApiResult.ok(flwSpelService.queryById(id));
     }
 
     /**
      * 新增流程spel表达式定义
      */
     @SaCheckPermission("workflow:spel:add")
-    @Log(title = "流程spel表达式定义", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "流程spel表达式定义", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping()
-    public R<Void> add(@Validated(AddGroup.class) @RequestBody FlowSpelBo bo) {
-        return toAjax(flwSpelService.insertByBo(bo));
+    public ApiResult<Void> add(@Validated(OnCreate.class) @RequestBody FlowSpelBo bo) {
+        flwSpelService.insertByBo(bo);
+        return ApiResult.ok();
     }
 
     /**
      * 修改流程spel表达式定义
      */
     @SaCheckPermission("workflow:spel:edit")
-    @Log(title = "流程spel表达式定义", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "流程spel表达式定义", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping()
-    public R<Void> edit(@Validated(EditGroup.class) @RequestBody FlowSpelBo bo) {
-        return toAjax(flwSpelService.updateByBo(bo));
+    public ApiResult<Void> edit(@Validated(OnUpdate.class) @RequestBody FlowSpelBo bo) {
+        flwSpelService.updateByBo(bo);
+        return ApiResult.ok();
     }
 
     /**
@@ -85,9 +86,10 @@ public class FlwSpelController extends BaseController {
      * @param ids 主键串
      */
     @SaCheckPermission("workflow:spel:remove")
-    @Log(title = "流程spel表达式定义", businessType = BusinessType.DELETE)
+    @OperationLog(module = "流程spel表达式定义", action = AuditAction.DELETE)
     @DeleteMapping("/{ids}")
-    public R<Void> remove(@NotEmpty(message = "主键不能为空") @PathVariable Long[] ids) {
-        return toAjax(flwSpelService.deleteWithValidByIds(List.of(ids), true));
+    public ApiResult<Void> remove(@NotEmpty(message = "主键不能为空") @PathVariable Long[] ids) {
+        flwSpelService.deleteWithValidByIds(List.of(ids), true);
+        return ApiResult.ok();
     }
 }

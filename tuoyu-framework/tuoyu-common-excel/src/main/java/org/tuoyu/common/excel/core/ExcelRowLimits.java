@@ -91,7 +91,7 @@ public final class ExcelRowLimits {
      * <p>
      * 统计与查询之间有新数据写入时，查询结果可能略多于统计值，查询后再按实际行数校验一次。
      *
-     * @param counter 统计行数（与 loader 使用同一查询条件，例如 {@code mapper.selectVoPage(PageQuery.countOnly(), wrapper).getTotal()}）
+     * @param counter 统计行数（与 loader 使用同一查询条件，例如 {@code mapper.selectPage(PageParam.countOnly(), wrapper).getTotal()}）
      * @param loader  查询全部数据
      * @return 查询结果
      */

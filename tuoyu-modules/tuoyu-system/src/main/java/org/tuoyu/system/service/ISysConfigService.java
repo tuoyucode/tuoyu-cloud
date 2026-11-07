@@ -1,7 +1,7 @@
 package org.tuoyu.system.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysConfigBo;
 import org.tuoyu.system.domain.vo.SysConfigVo;
 
@@ -18,10 +18,10 @@ public interface ISysConfigService {
      * 分页查询参数配置列表
      *
      * @param config    查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 参数配置分页列表
      */
-    PageResult<SysConfigVo> selectPageConfigList(SysConfigBo config, PageQuery pageQuery);
+    PageResult<SysConfigVo> selectPageConfigList(SysConfigBo config, PageParam pageParam);
 
     /**
      * 查询参数配置信息

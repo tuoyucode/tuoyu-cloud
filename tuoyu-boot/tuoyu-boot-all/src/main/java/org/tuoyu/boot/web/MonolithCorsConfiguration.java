@@ -1,5 +1,6 @@
 package org.tuoyu.boot.web;
 
+import org.tuoyu.common.core.constant.HeaderNames;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -34,7 +35,7 @@ public class MonolithCorsConfiguration {
         config.setAllowCredentials(true);
         config.setAllowedHeaders(List.of(
             "X-Requested-With", "Content-Language", "Content-Type",
-            "Authorization", "clientid", "X-Tuoyu-Encrypted"
+            "Authorization", HeaderNames.CLIENT_ID, "X-Tuoyu-Encrypted"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         // 携带凭据的跨域请求中，浏览器不认 "*"，需要读取的响应头要显式列出

@@ -1,7 +1,7 @@
 package org.tuoyu.gen.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.gen.domain.GenTable;
 import org.tuoyu.gen.domain.GenTableColumn;
 
@@ -27,19 +27,19 @@ public interface IGenTableService {
      * 查询业务列表
      *
      * @param genTable  业务信息
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 业务分页集合
      */
-    PageResult<GenTable> selectPageGenTableList(GenTable genTable, PageQuery pageQuery);
+    PageResult<GenTable> selectPageGenTableList(GenTable genTable, PageParam pageParam);
 
     /**
      * 查询据库列表
      *
      * @param genTable  业务信息
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数（结果来自数据库元数据，不支持排序）
      * @return 数据库表分页集合
      */
-    PageResult<GenTable> selectPageDbTableList(GenTable genTable, PageQuery pageQuery);
+    PageResult<GenTable> selectPageDbTableList(GenTable genTable, PageParam pageParam);
 
     /**
      * 查询据库列表

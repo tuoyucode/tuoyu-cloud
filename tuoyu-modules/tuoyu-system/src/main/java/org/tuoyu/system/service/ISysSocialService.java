@@ -40,25 +40,23 @@ public interface ISysSocialService {
      * 新增授权关系
      *
      * @param bo 包含新增授权关系信息的SysSocialBo对象
-     * @return 返回新增操作的结果，成功返回true，失败返回false
      */
-    Boolean insertByBo(SysSocialBo bo);
+    void insertByBo(SysSocialBo bo);
 
     /**
      * 更新社会化关系
      *
      * @param bo 包含更新信息的SysSocialBo对象
-     * @return 返回更新操作的结果，成功返回true，失败返回false
      */
-    Boolean updateByBo(SysSocialBo bo);
+    void updateByBo(SysSocialBo bo);
 
     /**
      * 删除社会化关系信息
      *
      * @param id 要删除的社会化关系的唯一标识符
-     * @return 返回删除操作的结果，成功返回true，失败返回false
+     * @throws org.tuoyu.common.core.exception.ServiceException 绑定记录不存在（已解除）
      */
-    Boolean deleteWithValidById(Long id);
+    void deleteWithValidById(Long id);
 
     /**
      * 根据认证ID查询社会化关系和用户信息

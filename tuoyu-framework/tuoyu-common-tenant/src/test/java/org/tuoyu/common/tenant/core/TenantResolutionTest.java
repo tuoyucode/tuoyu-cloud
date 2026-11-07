@@ -13,7 +13,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.tuoyu.common.core.context.CurrentUser;
-import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.mybatis.annotation.TenantIgnore;
 import org.tuoyu.common.tenant.cache.TenantAwareCacheManager;
@@ -51,15 +51,15 @@ class TenantResolutionTest {
     void tearDown() {
         RequestContextHolder.resetRequestAttributes();
         TenantProperties disabled = new TenantProperties();
-        new DefaultTenantContext(disabled, new StaticListableBeanFactory().getBeanProvider(UserContext.class), id -> null);
+        new DefaultTenantContext(disabled, new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), id -> null);
     }
 
     private DefaultTenantContext enable() {
         TenantProperties properties = new TenantProperties();
         properties.setEnabled(true);
         StaticListableBeanFactory beans = new StaticListableBeanFactory();
-        beans.addBean("userContext", (UserContext) () -> Optional.ofNullable(user.get()));
-        return new DefaultTenantContext(properties, beans.getBeanProvider(UserContext.class), switched::get);
+        beans.addBean("userContext", (UserContextProvider) () -> Optional.ofNullable(user.get()));
+        return new DefaultTenantContext(properties, beans.getBeanProvider(UserContextProvider.class), switched::get);
     }
 
     private void login(long userId, String tenantId, boolean superAdmin) {
@@ -79,7 +79,7 @@ class TenantResolutionTest {
         assertThat(TenantHelper.dynamic("acme", context::ignoring)).isFalse();
 
         TenantProperties disabled = new TenantProperties();
-        DefaultTenantContext off = new DefaultTenantContext(disabled, new StaticListableBeanFactory().getBeanProvider(UserContext.class), id -> null);
+        DefaultTenantContext off = new DefaultTenantContext(disabled, new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), id -> null);
         assertThat(TenantHelper.ignore(off::ignoring)).isFalse();
     }
 
@@ -119,7 +119,7 @@ class TenantResolutionTest {
         assertThat(context.currentTenantId()).as("同一请求中不重复解析").isEqualTo("acme");
 
         TenantProperties disabled = new TenantProperties();
-        DefaultTenantContext off = new DefaultTenantContext(disabled, new StaticListableBeanFactory().getBeanProvider(UserContext.class), id -> "x");
+        DefaultTenantContext off = new DefaultTenantContext(disabled, new StaticListableBeanFactory().getBeanProvider(UserContextProvider.class), id -> "x");
         assertThat(off.enabled()).isFalse();
         assertThat(off.currentTenantId()).isNull();
         assertThat(TenantHelper.isEnabled()).isFalse();

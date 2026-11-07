@@ -5,10 +5,10 @@ import cn.dev33.satoken.annotation.SaIgnore;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.push.annotation.ConditionalOnMessageTransport;
 import org.tuoyu.common.push.core.SseEmitterSessionManager;
-import org.tuoyu.common.satoken.utils.LoginHelper;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,7 +37,7 @@ public class SseController implements DisposableBean {
     public SseEmitter connect(HttpServletResponse response) {
         prepareSseResponse(response);
         String tokenValue = StpUtil.getTokenValue();
-        Long userId = LoginHelper.getUserId();
+        Long userId = UserContext.userId();
         return sessionManager.connect(userId, tokenValue);
     }
 
@@ -48,11 +48,11 @@ public class SseController implements DisposableBean {
      */
     @SaIgnore
     @GetMapping(value = "${message.path:/resource/message}/close")
-    public R<Void> close() {
+    public ApiResult<Void> close() {
         String tokenValue = StpUtil.getTokenValue();
-        Long userId = LoginHelper.getUserId();
+        Long userId = UserContext.userId();
         sessionManager.disconnect(userId, tokenValue);
-        return R.ok();
+        return ApiResult.ok();
     }
 
     /**
@@ -75,12 +75,12 @@ public class SseController implements DisposableBean {
 //     * @param msg    要发送的消息内容
 //     */
 //    @GetMapping(value = "${message.path:/resource/message}/send")
-//    public R<Void> send(Long userId, String msg) {
+//    public ApiResult<Void> send(Long userId, String msg) {
 //        PushDTO dto = new PushDTO();
 //        dto.setUserIds(List.of(userId));
 //        dto.setPayload(PushPayloadDTO.of("message", "backend", msg, null));
 //        sessionManager.publishMessage(dto);
-//        return R.ok();
+//        return ApiResult.ok();
 //    }
 //
 //    /**
@@ -89,9 +89,9 @@ public class SseController implements DisposableBean {
 //     * @param msg 要发送的消息内容
 //     */
 //    @GetMapping(value = "${message.path:/resource/message}/sendAll")
-//    public R<Void> send(String msg) {
+//    public ApiResult<Void> send(String msg) {
 //        sessionManager.publishAll(msg);
-//        return R.ok();
+//        return ApiResult.ok();
 //    }
 
     /**

@@ -20,6 +20,7 @@ import org.tuoyu.system.api.model.RoleDTO;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -103,7 +104,15 @@ class SaTokenContextTest {
             loginUser.setUsername("admin");
             loginUser.setDeptId(100L);
             loginUser.setDeptName("总部");
+            loginUser.setDeptCategory("hq");
+            loginUser.setNickname("管理员");
             loginUser.setTenantId("acme");
+            loginUser.setClientKey("pc");
+            loginUser.setDeviceType("pc");
+            loginUser.setBrowser("Chrome");
+            loginUser.setOs("Windows");
+            loginUser.setMenuPermission(Set.of("system:user:list"));
+            loginUser.setRolePermission(Set.of("common"));
             RoleDTO role = new RoleDTO();
             role.setRoleId(2L);
             role.setRoleKey("common");
@@ -118,6 +127,15 @@ class SaTokenContextTest {
             assertThat(user.getDeptId()).isEqualTo(100L);
             assertThat(user.getDeptName()).isEqualTo("总部");
             assertThat(user.getTenantId()).isEqualTo("acme");
+            assertThat(user.getUserType()).isEqualTo("sys_user");
+            assertThat(user.getNickname()).isEqualTo("管理员");
+            assertThat(user.getDeptCategory()).isEqualTo("hq");
+            assertThat(user.getClientKey()).isEqualTo("pc");
+            assertThat(user.getDeviceType()).isEqualTo("pc");
+            assertThat(user.getBrowser()).isEqualTo("Chrome");
+            assertThat(user.getOs()).isEqualTo("Windows");
+            assertThat(user.getPermissions()).containsExactly("system:user:list");
+            assertThat(user.getRoleKeys()).containsExactly("common");
             assertThat(user.isSuperAdmin()).isTrue();
             assertThat(user.getRoles()).singleElement().satisfies(r -> {
                 assertThat(r.getRoleId()).isEqualTo(2L);
@@ -135,6 +153,8 @@ class SaTokenContextTest {
         loginUser.setUserId(9L);
         CurrentUser user = SaTokenUserContext.toCurrentUser(loginUser);
         assertThat(user.getRoles()).isEmpty();
+        assertThat(user.getRoleKeys()).isEmpty();
+        assertThat(user.getPermissions()).isEmpty();
         assertThat(user.getDataScopeRoleMap()).isEmpty();
         assertThat(user.isSuperAdmin()).isFalse();
     }

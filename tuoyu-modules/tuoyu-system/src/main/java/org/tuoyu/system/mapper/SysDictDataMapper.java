@@ -1,8 +1,8 @@
 package org.tuoyu.system.mapper;
 
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysDictData;
-import org.tuoyu.system.domain.vo.SysDictDataVo;
 
 import java.util.List;
 
@@ -11,7 +11,7 @@ import java.util.List;
  *
  * @author Lion Li
  */
-public interface SysDictDataMapper extends BaseMapperPlus<SysDictData, SysDictDataVo> {
+public interface SysDictDataMapper extends BaseMapper<SysDictData> {
 
     /**
      * 根据字典类型查询字典数据列表
@@ -19,10 +19,10 @@ public interface SysDictDataMapper extends BaseMapperPlus<SysDictData, SysDictDa
      * @param dictType 字典类型
      * @return 符合条件的字典数据列表
      */
-    default List<SysDictDataVo> selectDictDataByType(String dictType) {
-        return this.lambda()
+    default List<SysDictData> selectDictDataByType(String dictType) {
+        return this.selectList(QueryBuilder.lambda(SysDictData.class)
             .eq(SysDictData::getDictType, dictType)
             .orderByAsc(SysDictData::getDictSort)
-            .voList();
+            .build());
     }
 }

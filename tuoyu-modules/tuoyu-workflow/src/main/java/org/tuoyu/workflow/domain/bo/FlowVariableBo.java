@@ -2,7 +2,6 @@ package org.tuoyu.workflow.domain.bo;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -21,19 +20,19 @@ public class FlowVariableBo implements Serializable {
     /**
      * 流程实例id
      */
-    @NotNull(message = "流程实例id为空", groups = AddGroup.class)
+    @NotNull(message = "流程实例id为空")
     private Long instanceId;
 
     /**
      * 流程变量key
      */
-    @NotNull(message = "流程变量key为空", groups = AddGroup.class)
+    @NotNull(message = "流程变量key为空")
     private String key;
 
     /**
      * 流程变量value
      */
-    @NotNull(message = "流程变量value为空", groups = AddGroup.class)
+    @NotNull(message = "流程变量value为空")
     private String value;
 
 }

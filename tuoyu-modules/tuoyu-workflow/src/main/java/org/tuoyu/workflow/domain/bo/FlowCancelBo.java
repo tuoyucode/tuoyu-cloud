@@ -2,7 +2,6 @@ package org.tuoyu.workflow.domain.bo;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -21,7 +20,7 @@ public class FlowCancelBo implements Serializable {
     /**
      * 任务ID
      */
-    @NotBlank(message = "业务ID不能为空", groups = AddGroup.class)
+    @NotBlank(message = "业务ID不能为空")
     private String businessId;
 
     /**

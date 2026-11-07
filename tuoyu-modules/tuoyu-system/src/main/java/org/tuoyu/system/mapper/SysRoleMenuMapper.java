@@ -1,6 +1,7 @@
 package org.tuoyu.system.mapper;
 
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysRoleMenu;
 
 import java.util.Collection;
@@ -10,7 +11,7 @@ import java.util.Collection;
  *
  * @author Lion Li
  */
-public interface SysRoleMenuMapper extends BaseMapperPlus<SysRoleMenu, SysRoleMenu> {
+public interface SysRoleMenuMapper extends BaseMapper<SysRoleMenu> {
 
     /**
      * 根据菜单ID串删除关联关系
@@ -19,7 +20,7 @@ public interface SysRoleMenuMapper extends BaseMapperPlus<SysRoleMenu, SysRoleMe
      * @return 结果
      */
     default int deleteByMenuIds(Collection<Long> menuIds) {
-        return this.lambda().in(SysRoleMenu::getMenuId, menuIds).deleteCount();
+        return this.delete(QueryBuilder.lambda(SysRoleMenu.class).in(SysRoleMenu::getMenuId, menuIds).build());
     }
 
 }

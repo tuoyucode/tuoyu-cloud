@@ -34,7 +34,7 @@ public class GenUtils {
         genTable.setBusinessName(getBusinessName(genTable.getTableName()));
         genTable.setFunctionName(replaceText(genTable.getTableComment()));
         genTable.setFunctionAuthor(PROPERTIES.getAuthor());
-        genTable.setFrontendType(GenConstants.FRONTEND_TYPE_DEFAULT);
+        genTable.setFrontendType(GenConstants.FRONTEND_TYPE_VBEN);
         genTable.setCreateTime(null);
         genTable.setUpdateTime(null);
     }

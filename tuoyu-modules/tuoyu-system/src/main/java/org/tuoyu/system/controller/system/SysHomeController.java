@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.system.domain.vo.HomeOverviewVo;
 import org.tuoyu.system.service.HomeOverviewService;
 
@@ -26,8 +26,8 @@ public class SysHomeController {
      */
     @SaCheckLogin
     @GetMapping("/overview")
-    public R<HomeOverviewVo> overview() {
-        return R.ok(homeOverviewService.overview());
+    public ApiResult<HomeOverviewVo> overview() {
+        return ApiResult.ok(homeOverviewService.overview());
     }
 
 }

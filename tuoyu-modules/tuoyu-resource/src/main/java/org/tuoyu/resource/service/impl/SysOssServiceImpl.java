@@ -6,7 +6,6 @@ import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.RandomUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.constant.CacheNames;
@@ -18,7 +17,8 @@ import org.tuoyu.common.core.upload.UploadFileValidator;
 import org.tuoyu.common.core.utils.*;
 import org.tuoyu.common.core.utils.file.FileUtils;
 import org.tuoyu.common.json.utils.JsonUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.oss.client.OssClient;
 import org.tuoyu.common.oss.enums.AccessPolicy;
@@ -70,16 +70,14 @@ public class SysOssServiceImpl implements ISysOssService {
      * 查询OSS对象存储列表
      *
      * @param bo        OSS对象存储分页查询对象
-     * @param pageQuery 分页查询实体类
+     * @param pageParam 分页参数
      * @return 结果
      */
     @Override
-    public PageResult<SysOssVo> queryPageList(SysOssBo bo, PageQuery pageQuery) {
+    public PageResult<SysOssVo> queryPageList(SysOssBo bo, PageParam pageParam) {
         LambdaQueryWrapper<SysOss> lqw = buildQueryWrapper(bo);
-        Page<SysOssVo> result = ossMapper.selectVoPage(pageQuery.build(), lqw);
-        List<SysOssVo> filterResult = StreamUtils.toList(result.getRecords(), this::matchingUrl);
-        result.setRecords(filterResult);
-        return PageResult.build(result.getRecords(), result.getTotal());
+        return PageResults.of(ossMapper.selectPage(pageParam.toPage(SysOss.class), lqw),
+            oss -> matchingUrl(BeanMapper.map(oss, SysOssVo.class)));
     }
 
     /**
@@ -164,7 +162,7 @@ public class SysOssServiceImpl implements ISysOssService {
     @Cacheable(cacheNames = CacheNames.SYS_OSS, key = "#ossId")
     @Override
     public SysOssVo getById(Long ossId) {
-        return ossMapper.selectVoById(ossId);
+        return BeanMapper.map(ossMapper.selectById(ossId), SysOssVo.class);
     }
 
     /**
@@ -298,24 +296,22 @@ public class SysOssServiceImpl implements ISysOssService {
         oss.setService(configKey);
         oss.setExt1(JsonUtils.toJsonString(ext1));
         ossMapper.insert(oss);
-        SysOssVo sysOssVo = MapstructUtils.convert(oss, SysOssVo.class);
+        SysOssVo sysOssVo = BeanMapper.map(oss, SysOssVo.class);
         return this.matchingUrl(sysOssVo);
     }
 
     /**
      * 新增OSS对象存储
      *
-     * @param bo SysOssBo 对象，包含待插入的数据
-     * @return 插入操作是否成功的布尔值
+     * @param bo SysOssBo 对象，包含待插入的数据；成功后回填 ossId
      */
     @Override
-    public Boolean insertByBo(SysOssBo bo) {
+    public void insertByBo(SysOssBo bo) {
         SysOss oss = BeanUtil.toBean(bo, SysOss.class);
-        boolean flag = ossMapper.insert(oss) > 0;
-        if (flag) {
-            bo.setOssId(oss.getOssId());
+        if (ossMapper.insert(oss) <= 0) {
+            throw new ServiceException("新增文件记录失败");
         }
-        return flag;
+        bo.setOssId(oss.getOssId());
     }
 
     /**
@@ -323,10 +319,10 @@ public class SysOssServiceImpl implements ISysOssService {
      *
      * @param ids     OSS对象ID串
      * @param isValid 判断是否需要校验
-     * @return 结果
+     * @throws ServiceException 文件数据不存在
      */
     @Override
-    public Boolean deleteWithValidByIds(Collection<Long> ids, Boolean isValid) {
+    public void deleteWithValidByIds(Collection<Long> ids, Boolean isValid) {
         if (isValid) {
             // 做一些业务上的校验,判断是否需要校验
         }
@@ -334,7 +330,9 @@ public class SysOssServiceImpl implements ISysOssService {
         for (SysOss sysOss : list) {
             OssFactory.instance(sysOss.getService()).delete(sysOss.getFileName());
         }
-        return ossMapper.deleteByIds(ids) > 0;
+        if (ossMapper.deleteByIds(ids) <= 0) {
+            throw new ServiceException("文件数据不存在!");
+        }
     }
 
     /**

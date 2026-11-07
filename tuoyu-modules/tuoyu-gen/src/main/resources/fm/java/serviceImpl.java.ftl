@@ -1,36 +1,42 @@
 package ${packageName}.service.impl;
 
+<#if table.tree>
 import cn.hutool.core.util.ObjectUtil;
-import org.tuoyu.common.core.utils.MapstructUtils;
-import org.tuoyu.common.core.utils.StringUtils;
-<#if table.crud>
-import org.tuoyu.common.core.domain.PageResult;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-</#if>
-<#if table.crud || enableExport>
-import org.tuoyu.common.mybatis.core.page.PageQuery;
 </#if>
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-<#if enableUnique>
+<#if enableStatus || enableSort>
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 </#if>
-import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+<#if table.crud>
+import org.tuoyu.common.core.domain.PageResult;
+</#if>
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.core.utils.BeanMapper;
+import org.tuoyu.common.core.utils.StringUtils;
+<#if table.crud || enableExport>
+import org.tuoyu.common.mybatis.core.page.PageParam;
+</#if>
+<#if table.crud>
+import org.tuoyu.common.mybatis.core.page.PageResults;
+</#if>
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import ${packageName}.domain.bo.${ClassName}Bo;
 import ${packageName}.domain.vo.${ClassName}Vo;
 import ${packageName}.domain.${ClassName};
 import ${packageName}.mapper.${ClassName}Mapper;
 import ${packageName}.service.I${ClassName}Service;
-<#if table.tree>
-import org.tuoyu.common.core.exception.ServiceException;
-</#if>
 
+<#if table.tree && "" != treeAncestorsField>
 import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+</#if>
 import java.util.Collection;
+import java.util.List;
+<#if hasBetween>
+import java.util.Map;
+</#if>
 
 /**
  * ${functionName}Service业务层处理
@@ -49,11 +55,11 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
      * 查询${functionName}
      *
      * @param ${pkColumn.javaField} 主键
-     * @return ${functionName}
+     * @return ${functionName}，不存在时为 null
      */
     @Override
     public ${ClassName}Vo queryById(${pkColumn.javaType} ${pkColumn.javaField}) {
-        return ${className}Mapper.selectVoById(${pkColumn.javaField});
+        return BeanMapper.map(${className}Mapper.selectById(${pkColumn.javaField}), ${ClassName}Vo.class);
     }
 
 <#if table.crud>
@@ -61,14 +67,13 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
      * 分页查询${functionName}列表
      *
      * @param bo        查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数（请求中带了 sort 时按它排序，否则按默认顺序）
      * @return ${functionName}分页列表
      */
     @Override
-    public PageResult<${ClassName}Vo> queryPageList(${ClassName}Bo bo, PageQuery pageQuery) {
-        LambdaQueryWrapper<${ClassName}> lqw = buildQueryWrapper(bo);
-        Page<${ClassName}Vo> result = ${className}Mapper.selectVoPage(pageQuery.build(), lqw);
-        return PageResult.build(result.getRecords(), result.getTotal());
+    public PageResult<${ClassName}Vo> queryPageList(${ClassName}Bo bo, PageParam pageParam) {
+        LambdaQueryWrapper<${ClassName}> lqw = buildQueryWrapper(bo, !pageParam.hasSort());
+        return PageResults.of(${className}Mapper.selectPage(pageParam.toPage(${ClassName}.class), lqw), ${ClassName}Vo.class);
     }
 </#if>
 
@@ -80,8 +85,7 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
      */
     @Override
     public List<${ClassName}Vo> queryList(${ClassName}Bo bo) {
-        LambdaQueryWrapper<${ClassName}> lqw = buildQueryWrapper(bo);
-        return ${className}Mapper.selectVoList(lqw);
+        return BeanMapper.mapList(${className}Mapper.selectList(buildQueryWrapper(bo, true)), ${ClassName}Vo.class);
     }
 <#if enableExport>
 
@@ -93,8 +97,8 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
      */
     @Override
     public long countList(${ClassName}Bo bo) {
-        // 分页插件统计行数时会去掉 ORDER BY，各数据库都能执行
-        return ${className}Mapper.selectVoPage(PageQuery.countOnly(), buildQueryWrapper(bo)).getTotal();
+        // 用分页插件统计：它会去掉 ORDER BY，各数据库都能执行
+        return ${className}Mapper.selectPage(PageParam.countOnly(), buildQueryWrapper(bo, false)).getTotal();
     }
 </#if>
 
@@ -118,16 +122,23 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
         if (!hasUniqueValue) {
             return true;
         }
-        LambdaQueryWrapper<${ClassName}> lqw = Wrappers.lambdaQuery();
+        return !${className}Mapper.exists(QueryBuilder.lambda(${ClassName}.class)
 <#list uniqueColumns as column>
-        lqw.eq(${ClassName}::get${column.capJavaField}, bo.get${column.capJavaField}());
+            .eq(${ClassName}::get${column.capJavaField}, bo.get${column.capJavaField}())
 </#list>
-        lqw.ne(bo.get${pkColumn.capJavaField}() != null, ${ClassName}::get${pkColumn.capJavaField}, bo.get${pkColumn.capJavaField}());
-        return !${className}Mapper.exists(lqw);
+            .neIfPresent(${ClassName}::get${pkColumn.capJavaField}, bo.get${pkColumn.capJavaField}())
+            .build());
     }
-</#if>
 
-    private LambdaQueryWrapper<${ClassName}> buildQueryWrapper(${ClassName}Bo bo) {
+</#if>
+    /**
+     * 按查询条件构建查询包装器
+     *
+     * @param bo           查询条件
+     * @param defaultOrder 是否加上默认排序
+     * @return 查询包装器
+     */
+    private LambdaQueryWrapper<${ClassName}> buildQueryWrapper(${ClassName}Bo bo, boolean defaultOrder) {
 <#if hasBetween>
         Map<String, Object> params = bo.getParams();
 </#if>
@@ -170,54 +181,61 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
 </#if>
 </#list>
 <#if table.tree && "" != treeAncestorsField>
-            .orderByAsc(${ClassName}::get${treeAncestorsCap})
+            .orderByAsc(defaultOrder, ${ClassName}::get${treeAncestorsCap})
 </#if>
 <#if table.tree && "" != treeParentCode>
-            .orderByAsc(${ClassName}::get${treeParentCap})
+            .orderByAsc(defaultOrder, ${ClassName}::get${treeParentCap})
 </#if>
 <#if table.tree && "" != treeOrderField>
-            .orderByAsc(${ClassName}::get${treeOrderCap})
+            .orderByAsc(defaultOrder, ${ClassName}::get${treeOrderCap})
 <#elseif enableSort>
-            .orderByAsc(${ClassName}::get${sortColumn.capJavaField})
+            .orderByAsc(defaultOrder, ${ClassName}::get${sortColumn.capJavaField})
 </#if>
-            .orderByAsc(${ClassName}::get${pkColumn.capJavaField})
+            .orderByAsc(defaultOrder, ${ClassName}::get${pkColumn.capJavaField})
             .build();
     }
 
     /**
-     * 新增${functionName}
+     * 新增${functionName}，成功后把主键回填到 bo
      *
      * @param bo ${functionName}
-     * @return 是否新增成功
      */
     @Override
-    public Boolean insertByBo(${ClassName}Bo bo) {
-        ${ClassName} add = MapstructUtils.convert(bo, ${ClassName}.class);
+    public void insertByBo(${ClassName}Bo bo) {
+<#if enableUnique>
+        if (!checkUnique(bo)) {
+            throw new ServiceException("新增${functionName}失败，组合唯一字段已存在");
+        }
+</#if>
+        ${ClassName} add = BeanMapper.map(bo, ${ClassName}.class);
 <#if table.tree>
         fillTreeMetaBeforeSave(add, false);
 </#if>
         validEntityBeforeSave(add);
-        boolean flag = ${className}Mapper.insert(add) > 0;
-        if (flag) {
-            bo.set${pkColumn.capJavaField}(add.get${pkColumn.capJavaField}());
-        }
-        return flag;
+        ${className}Mapper.insert(add);
+        bo.set${pkColumn.capJavaField}(add.get${pkColumn.capJavaField}());
     }
 
     /**
      * 修改${functionName}
      *
      * @param bo ${functionName}
-     * @return 是否修改成功
      */
     @Override
-    public Boolean updateByBo(${ClassName}Bo bo) {
-        ${ClassName} update = MapstructUtils.convert(bo, ${ClassName}.class);
+    public void updateByBo(${ClassName}Bo bo) {
+<#if enableUnique>
+        if (!checkUnique(bo)) {
+            throw new ServiceException("修改${functionName}失败，组合唯一字段已存在");
+        }
+</#if>
+        ${ClassName} update = BeanMapper.map(bo, ${ClassName}.class);
 <#if table.tree>
         fillTreeMetaBeforeSave(update, true);
 </#if>
         validEntityBeforeSave(update);
-        return ${className}Mapper.updateById(update) > 0;
+        if (${className}Mapper.updateById(update) == 0) {
+            throw new ServiceException("修改${functionName}失败，数据不存在");
+        }
     }
 
 <#if enableStatus>
@@ -226,42 +244,44 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
      *
      * @param ${pkColumn.javaField} 主键
      * @param status 状态值
-     * @return 是否修改成功
      */
     @Override
-    public Boolean updateStatus(${pkColumn.javaType} ${pkColumn.javaField}, ${statusColumn.javaType} status) {
-        return ${className}Mapper.lambda()
+    public void updateStatus(${pkColumn.javaType} ${pkColumn.javaField}, ${statusColumn.javaType} status) {
+        int rows = ${className}Mapper.update(Wrappers.<${ClassName}>lambdaUpdate()
             .set(${ClassName}::get${statusColumn.capJavaField}, status)
-            .eq(${ClassName}::get${pkColumn.capJavaField}, ${pkColumn.javaField})
-            .update();
+            .eq(${ClassName}::get${pkColumn.capJavaField}, ${pkColumn.javaField}));
+        if (rows == 0) {
+            throw new ServiceException("修改${functionName}状态失败，数据不存在");
+        }
     }
-</#if>
 
+</#if>
 <#if enableSort>
     /**
      * 调整${functionName}排序
      *
      * @param ${pkColumn.javaField} 主键
      * @param sortValue 排序值
-     * @return 是否修改成功
      */
     @Override
-    public Boolean updateSort(${pkColumn.javaType} ${pkColumn.javaField}, ${sortColumn.javaType} sortValue) {
-        return ${className}Mapper.lambda()
+    public void updateSort(${pkColumn.javaType} ${pkColumn.javaField}, ${sortColumn.javaType} sortValue) {
+        int rows = ${className}Mapper.update(Wrappers.<${ClassName}>lambdaUpdate()
             .set(${ClassName}::get${sortColumn.capJavaField}, sortValue)
-            .eq(${ClassName}::get${pkColumn.capJavaField}, ${pkColumn.javaField})
-            .update();
+            .eq(${ClassName}::get${pkColumn.capJavaField}, ${pkColumn.javaField}));
+        if (rows == 0) {
+            throw new ServiceException("调整${functionName}排序失败，数据不存在");
+        }
     }
-</#if>
 
+</#if>
     /**
      * 保存前的数据校验
      */
     private void validEntityBeforeSave(${ClassName} entity) {
         // 可在此扩展通用业务校验
     }
-
 <#if table.tree>
+
     private void fillTreeMetaBeforeSave(${ClassName} entity, boolean updateMode) {
 <#if "" != treeParentCode>
         if (entity.get${treeParentCap}() == null) {
@@ -313,10 +333,10 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
     }
 
     private void updateChildrenAncestors(${pkColumn.javaType} currentId, String newAncestors, String oldAncestors) {
-        List<${ClassName}> children = ${className}Mapper.lambda()
+        List<${ClassName}> children = ${className}Mapper.selectList(QueryBuilder.lambda(${ClassName}.class)
             .select(${ClassName}::get${pkColumn.capJavaField}, ${ClassName}::get${treeAncestorsCap})
-            .findInSet(currentId, ${ClassName}::get${treeAncestorsCap})
-            .list();
+            .findInSet(currentId, "${treeAncestorsColumnName}")
+            .build());
         List<${ClassName}> updateList = new ArrayList<>();
         for (${ClassName} child : children) {
             String ancestors = child.get${treeAncestorsCap}();
@@ -329,7 +349,7 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
             updateList.add(update);
         }
         if (!updateList.isEmpty()) {
-            ${className}Mapper.updateBatchById(updateList);
+            ${className}Mapper.updateById(updateList);
         }
     }
 
@@ -349,14 +369,15 @@ public class ${ClassName}ServiceImpl implements I${ClassName}Service {
      *
      * @param ids     待删除的主键集合
      * @param isValid 是否进行有效性校验
-     * @return 是否删除成功
      */
     @Override
-    public Boolean deleteWithValidByIds(Collection<${pkColumn.javaType}> ids, Boolean isValid) {
-        if (isValid) {
-            // 可在此扩展删除前业务校验
+    public void deleteWithValidByIds(Collection<${pkColumn.javaType}> ids, Boolean isValid) {
+        if (Boolean.TRUE.equals(isValid)) {
+            // 可在此扩展删除前业务校验，不允许删除时抛出 ServiceException 并说明原因
         }
-        return ${className}Mapper.deleteByIds(ids) > 0;
+        if (${className}Mapper.deleteByIds(ids) == 0) {
+            throw new ServiceException("删除${functionName}失败，数据不存在");
+        }
     }
 
 }

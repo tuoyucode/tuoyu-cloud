@@ -2,7 +2,7 @@ package org.tuoyu.system.controller.monitor;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.redisson.spring.data.connection.RedissonConnectionFactory;
 import org.springframework.data.redis.connection.RedisConnection;
@@ -30,7 +30,7 @@ public class CacheController {
      */
     @SaCheckPermission("monitor:cache:list")
     @GetMapping()
-    public R<CacheListInfoVo> getInfo() throws Exception {
+    public ApiResult<CacheListInfoVo> getInfo() throws Exception {
         RedisConnection connection = connectionFactory.getConnection();
         try {
             Properties commandStats = connection.commands().info("commandstats");
@@ -44,7 +44,7 @@ public class CacheController {
                     pieList.add(data);
                 });
             }
-            return R.ok(new CacheListInfoVo(
+            return ApiResult.ok(new CacheListInfoVo(
                 connection.commands().info(),
                 connection.commands().dbSize(), pieList));
         } finally {

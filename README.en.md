@@ -42,4 +42,15 @@ Database schemas are migrated automatically on startup (Flyway; create the empty
 
 ## License
 
-[MIT License](LICENSE). See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for third-party code and files included in this project.
+[MIT License](LICENSE).
+
+The following unmodified third-party components use other licenses:
+
+| Component | License | Location and purpose |
+|---|---|---|
+| [ip2region](https://github.com/lionsoul2014/ip2region) offline IP database | Apache-2.0 | `ip2region_v4.xdb` in `tuoyu-common-web`, distributed with the repository |
+| [RabbitMQ Delayed Message Plugin](https://github.com/rabbitmq/rabbitmq-delayed-message-exchange) | MPL-2.0 | `deploy/docker/rabbitmq`, distributed with the repository, optional |
+| [aviator](https://github.com/killme2008/aviator) | LGPL | Condition expression engine of the SnailJob server; packaged into executable jars and images as a dependency and replaceable under the LGPL |
+| [simple-http](https://github.com/xkcoding/simple-http) | LGPL-3.0 | HTTP layer of third-party login; packaged into executable jars and images as a dependency and replaceable under the LGPL |
+
+A few source files are derived from other open-source projects (Apache-2.0) and keep their original copyright and license headers. Other Maven dependencies are licensed as stated in their own distributions.

@@ -47,8 +47,8 @@ public interface RemoteSocialService {
      * 删除社会化关系
      *
      * @param socialId 社会化关系ID
-     * @return 结果
+     * @throws org.tuoyu.common.core.exception.ServiceException 绑定记录不存在（已解除）
      */
-    Boolean deleteWithValidById(Long socialId);
+    void deleteWithValidById(Long socialId);
 
 }

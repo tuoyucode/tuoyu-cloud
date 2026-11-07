@@ -17,10 +17,11 @@ import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.liteflow.utils.LiteFlowUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.LambdaJoinQueryBuilder;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.context.UserContext;
 import org.dromara.warm.flow.core.FlowEngine;
 import org.dromara.warm.flow.core.constant.ExceptionCons;
 import org.dromara.warm.flow.core.dto.FlowParams;
@@ -88,28 +89,28 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
      * 分页查询正在运行的流程实例
      *
      * @param flowInstanceBo 流程实例
-     * @param pageQuery      分页
+     * @param pageParam      分页
      */
     @Override
-    public PageResult<FlowInstanceVo> selectRunningInstanceList(FlowInstanceBo flowInstanceBo, PageQuery pageQuery) {
+    public PageResult<FlowInstanceVo> selectRunningInstanceList(FlowInstanceBo flowInstanceBo, PageParam pageParam) {
         MPJLambdaWrapper<FlowInstance> queryWrapper = buildQueryWrapper(flowInstanceBo);
         queryWrapper.in("fi", FlowInstance::getFlowStatus, BusinessStatusEnum.runningStatus());
-        Page<FlowInstanceVo> page = flwInstanceMapper.selectInstanceList(pageQuery.build(), queryWrapper);
-        return PageResult.build(page.getRecords(), page.getTotal());
+        Page<FlowInstanceVo> page = flwInstanceMapper.selectInstanceList(pageParam.toPage(FlowInstance.class, "fi"), queryWrapper);
+        return PageResults.of(page);
     }
 
     /**
      * 分页查询已结束的流程实例
      *
      * @param flowInstanceBo 流程实例
-     * @param pageQuery      分页
+     * @param pageParam      分页
      */
     @Override
-    public PageResult<FlowInstanceVo> selectFinishInstanceList(FlowInstanceBo flowInstanceBo, PageQuery pageQuery) {
+    public PageResult<FlowInstanceVo> selectFinishInstanceList(FlowInstanceBo flowInstanceBo, PageParam pageParam) {
         MPJLambdaWrapper<FlowInstance> queryWrapper = buildQueryWrapper(flowInstanceBo);
         queryWrapper.in("fi", FlowInstance::getFlowStatus, BusinessStatusEnum.finishStatus());
-        Page<FlowInstanceVo> page = flwInstanceMapper.selectInstanceList(pageQuery.build(), queryWrapper);
-        return PageResult.build(page.getRecords(), page.getTotal());
+        Page<FlowInstanceVo> page = flwInstanceMapper.selectInstanceList(pageParam.toPage(FlowInstance.class, "fi"), queryWrapper);
+        return PageResults.of(page);
     }
 
     /**
@@ -226,10 +227,10 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean deleteByInstanceIds(List<Long> instanceIds) {
+    public void deleteByInstanceIds(List<Long> instanceIds) {
         InstanceDeleteContext context = InstanceDeleteContext.byInstanceIds(instanceIds);
         LiteFlowUtils.execute(DELETE_INSTANCE_CHAIN, context);
-        return context.isResult();
+        requireDeleted(context);
     }
 
     /**
@@ -239,10 +240,20 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean deleteHisByInstanceIds(List<Long> instanceIds) {
+    public void deleteHisByInstanceIds(List<Long> instanceIds) {
         InstanceDeleteContext context = InstanceDeleteContext.byHistoryInstanceIds(instanceIds);
         LiteFlowUtils.execute(DELETE_INSTANCE_CHAIN, context);
-        return context.isResult();
+        requireDeleted(context);
+    }
+
+    /**
+     * 删除链路没有删除任何实例（实例不存在，或流程引擎没有删除成功）时拒绝
+     */
+    private static void requireDeleted(InstanceDeleteContext context) {
+        if (!context.isResult()) {
+            throw new ServiceException(CollUtil.isEmpty(context.getFlowInstances())
+                ? ExceptionCons.NOT_FOUNT_INSTANCE : "删除流程实例失败");
+        }
     }
 
     /**
@@ -252,7 +263,7 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean cancelProcessApply(FlowCancelBo bo) {
+    public void cancelProcessApply(FlowCancelBo bo) {
         Instance instance = selectInstByBusinessId(bo.getBusinessId());
         if (instance == null) {
             throw new ServiceException(ExceptionCons.NOT_FOUNT_INSTANCE);
@@ -261,8 +272,8 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
         if (definition == null) {
             throw new ServiceException(ExceptionCons.NOT_FOUNT_DEF);
         }
-        String userIdStr = LoginHelper.getUserIdStr();
-        if (!LoginHelper.isSuperAdmin() && !instance.getCreateBy().equals(userIdStr)) {
+        String userIdStr = UserContext.userIdString();
+        if (!UserContext.isSuperAdmin() && !instance.getCreateBy().equals(userIdStr)) {
             throw new ServiceException("权限不足，无法撤销流程!");
         }
         String message = bo.getMessage();
@@ -274,21 +285,20 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
             .handler(userIdStr)
             .ignore(true);
         taskService.revoke(instance.getId(), flowParams);
-        return true;
     }
 
     /**
      * 获取当前登陆人发起的流程实例
      *
      * @param instanceBo 流程实例
-     * @param pageQuery  分页
+     * @param pageParam  分页
      */
     @Override
-    public PageResult<FlowInstanceVo> selectCurrentInstanceList(FlowInstanceBo instanceBo, PageQuery pageQuery) {
+    public PageResult<FlowInstanceVo> selectCurrentInstanceList(FlowInstanceBo instanceBo, PageParam pageParam) {
         MPJLambdaWrapper<FlowInstance> queryWrapper = buildQueryWrapper(instanceBo);
-        queryWrapper.eq("fi", FlowInstance::getCreateBy, LoginHelper.getUserIdStr());
-        Page<FlowInstanceVo> page = flwInstanceMapper.selectInstanceList(pageQuery.build(), queryWrapper);
-        return PageResult.build(page.getRecords(), page.getTotal());
+        queryWrapper.eq("fi", FlowInstance::getCreateBy, Convert.toStr(UserContext.require().getUserId()));
+        Page<FlowInstanceVo> page = flwInstanceMapper.selectInstanceList(pageParam.toPage(FlowInstance.class, "fi"), queryWrapper);
+        return PageResults.of(page);
     }
 
     @Override
@@ -315,11 +325,11 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
      * @param instance 流程实例
      */
     private void checkInstanceReadAccess(FlowInstance instance) {
-        if (LoginHelper.isSuperAdmin()
+        if (UserContext.isSuperAdmin()
             || StpUtil.hasPermissionOr(INSTANCE_READ_PERMISSIONS)) {
             return;
         }
-        String userId = LoginHelper.getUserIdStr();
+        String userId = Convert.toStr(UserContext.require().getUserId());
         if (Objects.equals(instance.getCreateBy(), userId)) {
             return;
         }
@@ -438,19 +448,20 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean updateVariable(FlowVariableBo bo) {
+    public void updateVariable(FlowVariableBo bo) {
         FlowInstance flowInstance = flowInstanceMapper.selectById(bo.getInstanceId());
         if (flowInstance == null) {
             throw new ServiceException(ExceptionCons.NOT_FOUNT_INSTANCE);
         }
         Map<String, Object> variableMap = new HashMap<>(Optional.ofNullable(flowInstance.getVariableMap()).orElse(Collections.emptyMap()));
         if (!variableMap.containsKey(bo.getKey())) {
-            log.error("变量不存在: {}", bo.getKey());
-            return false;
+            throw new ServiceException("流程变量 " + bo.getKey() + " 不存在，只能修改已有的变量");
         }
         variableMap.put(bo.getKey(), convertVariableValue(bo.getKey(), variableMap.get(bo.getKey()), bo.getValue()));
         flowInstance.setVariable(FlowEngine.jsonConvert.objToStr(variableMap));
-        return flowInstanceMapper.updateById(flowInstance) > 0;
+        if (flowInstanceMapper.updateById(flowInstance) == 0) {
+            throw new ServiceException(ExceptionCons.NOT_FOUNT_INSTANCE);
+        }
     }
 
     /**
@@ -529,7 +540,7 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean processInvalid(FlowInvalidBo bo) {
+    public void processInvalid(FlowInvalidBo bo) {
         Instance instance = insService.getById(bo.getId());
         if (instance != null) {
             BusinessStatusEnum.checkInvalidStatus(instance.getFlowStatus());
@@ -540,6 +551,20 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
             .hisStatus(TaskStatusEnum.INVALID.getStatus())
             .ignore(true);
         taskService.terminationByInsId(bo.getId(), flowParams);
-        return true;
+    }
+
+    /**
+     * 激活或挂起流程实例
+     *
+     * @param instanceId 流程实例id
+     * @param active     true 激活，false 挂起
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void active(Long instanceId, boolean active) {
+        boolean updated = active ? insService.active(instanceId) : insService.unActive(instanceId);
+        if (!updated) {
+            throw new ServiceException((active ? "激活" : "挂起") + "流程实例失败，实例未更新");
+        }
     }
 }

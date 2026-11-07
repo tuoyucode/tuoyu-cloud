@@ -4,14 +4,16 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.crypto.SecureUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.core.utils.StringUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysClient;
 import org.tuoyu.system.domain.bo.SysClientBo;
@@ -45,7 +47,7 @@ public class SysClientServiceImpl implements ISysClientService {
      */
     @Override
     public SysClientVo queryById(Long id) {
-        SysClientVo vo = clientMapper.selectVoById(id);
+        SysClientVo vo = BeanMapper.map(clientMapper.selectById(id), SysClientVo.class);
         fillClientRuleFields(vo);
         hideSecret(vo);
         return vo;
@@ -57,7 +59,7 @@ public class SysClientServiceImpl implements ISysClientService {
     @Cacheable(cacheNames = CacheNames.SYS_CLIENT, key = "#clientId")
     @Override
     public SysClientVo queryByClientId(String clientId) {
-        SysClientVo vo = clientMapper.lambda().eq(SysClient::getClientId, clientId).voOne();
+        SysClientVo vo = BeanMapper.map(clientMapper.selectOne(QueryBuilder.lambda(SysClient.class).eq(SysClient::getClientId, clientId).build()), SysClientVo.class);
         fillClientRuleFields(vo);
         return vo;
     }
@@ -66,14 +68,14 @@ public class SysClientServiceImpl implements ISysClientService {
      * 查询客户端管理列表
      */
     @Override
-    public PageResult<SysClientVo> queryPageList(SysClientBo bo, PageQuery pageQuery) {
+    public PageResult<SysClientVo> queryPageList(SysClientBo bo, PageParam pageParam) {
         LambdaQueryWrapper<SysClient> lqw = buildQueryWrapper(bo);
-        Page<SysClientVo> result = clientMapper.selectVoPage(pageQuery.build(), lqw);
-        result.getRecords().forEach(vo -> {
+        PageResult<SysClientVo> result = PageResults.of(clientMapper.selectPage(pageParam.toPage(SysClient.class), lqw), SysClientVo.class);
+        result.getItems().forEach(vo -> {
             fillClientRuleFields(vo);
             hideSecret(vo);
         });
-        return PageResult.build(result.getRecords(), result.getTotal());
+        return result;
     }
 
     /**
@@ -82,7 +84,7 @@ public class SysClientServiceImpl implements ISysClientService {
     @Override
     public List<SysClientVo> queryList(SysClientBo bo) {
         LambdaQueryWrapper<SysClient> lqw = buildQueryWrapper(bo);
-        List<SysClientVo> list = clientMapper.selectVoList(lqw);
+        List<SysClientVo> list = BeanMapper.mapList(clientMapper.selectList(lqw), SysClientVo.class);
         list.forEach(vo -> {
             fillClientRuleFields(vo);
             hideSecret(vo);
@@ -95,7 +97,7 @@ public class SysClientServiceImpl implements ISysClientService {
      */
     @Override
     public long countList(SysClientBo bo) {
-        return clientMapper.selectVoPage(PageQuery.countOnly(), buildQueryWrapper(bo)).getTotal();
+        return clientMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(bo)).getTotal();
     }
 
     private LambdaQueryWrapper<SysClient> buildQueryWrapper(SysClientBo bo) {
@@ -112,8 +114,8 @@ public class SysClientServiceImpl implements ISysClientService {
      * 新增客户端管理
      */
     @Override
-    public Boolean insertByBo(SysClientBo bo) {
-        SysClient add = MapstructUtils.convert(bo, SysClient.class);
+    public void insertByBo(SysClientBo bo) {
+        SysClient add = BeanMapper.map(bo, SysClient.class);
         add.setGrantType(CollUtil.join(bo.getGrantTypeList(), StringUtils.SEPARATOR));
         add.setAccessPath(resolveRuleValue(bo.getAccessPath(), bo.getAccessPathList(), this::normalizeAccessPath));
         add.setIpWhitelist(resolveRuleValue(bo.getIpWhitelist(), bo.getIpWhitelistList(), UnaryOperator.identity()));
@@ -121,11 +123,8 @@ public class SysClientServiceImpl implements ISysClientService {
         String clientKey = bo.getClientKey();
         String clientSecret = bo.getClientSecret();
         add.setClientId(SecureUtil.md5(clientKey + clientSecret));
-        boolean flag = clientMapper.insert(add) > 0;
-        if (flag) {
-            bo.setId(add.getId());
-        }
-        return flag;
+        clientMapper.insert(add);
+        bo.setId(add.getId());
     }
 
     /**
@@ -133,8 +132,8 @@ public class SysClientServiceImpl implements ISysClientService {
      */
     @CacheEvict(cacheNames = CacheNames.SYS_CLIENT, key = "#bo.clientId")
     @Override
-    public Boolean updateByBo(SysClientBo bo) {
-        SysClient update = MapstructUtils.convert(bo, SysClient.class);
+    public void updateByBo(SysClientBo bo) {
+        SysClient update = BeanMapper.map(bo, SysClient.class);
         update.setGrantType(StringUtils.joinComma(bo.getGrantTypeList()));
         update.setAccessPath(resolveRuleValue(bo.getAccessPath(), bo.getAccessPathList(), this::normalizeAccessPath));
         update.setIpWhitelist(resolveRuleValue(bo.getIpWhitelist(), bo.getIpWhitelistList(), UnaryOperator.identity()));
@@ -142,7 +141,9 @@ public class SysClientServiceImpl implements ISysClientService {
         if (StringUtils.isBlank(update.getClientSecret())) {
             update.setClientSecret(null);
         }
-        return clientMapper.updateById(update) > 0;
+        if (clientMapper.updateById(update) == 0) {
+            throw new ServiceException("修改客户端'{}'失败，客户端不存在", bo.getClientKey());
+        }
     }
 
     /**
@@ -150,11 +151,13 @@ public class SysClientServiceImpl implements ISysClientService {
      */
     @CacheEvict(cacheNames = CacheNames.SYS_CLIENT, key = "#clientId")
     @Override
-    public int updateClientStatus(String clientId, String status) {
-        return clientMapper.lambda()
+    public void updateClientStatus(String clientId, String status) {
+        int rows = clientMapper.update(Wrappers.<SysClient>lambdaUpdate()
             .set(SysClient::getStatus, status)
-            .eq(SysClient::getClientId, clientId)
-            .updateCount();
+            .eq(SysClient::getClientId, clientId));
+        if (rows == 0) {
+            throw new ServiceException("修改客户端状态失败，客户端不存在");
+        }
     }
 
     /**
@@ -162,8 +165,10 @@ public class SysClientServiceImpl implements ISysClientService {
      */
     @CacheEvict(cacheNames = CacheNames.SYS_CLIENT, allEntries = true)
     @Override
-    public Boolean deleteWithValidByIds(Collection<Long> ids, Boolean isValid) {
-        return clientMapper.deleteByIds(ids) > 0;
+    public void deleteWithValidByIds(Collection<Long> ids, Boolean isValid) {
+        if (clientMapper.deleteByIds(ids) == 0) {
+            throw new ServiceException("删除客户端失败，客户端不存在");
+        }
     }
 
     /**
@@ -174,10 +179,10 @@ public class SysClientServiceImpl implements ISysClientService {
      */
     @Override
     public boolean checkClickKeyUnique(SysClientBo client) {
-        boolean exist = clientMapper.lambda()
+        boolean exist = clientMapper.exists(QueryBuilder.lambda(SysClient.class)
             .eq(SysClient::getClientKey, client.getClientKey())
             .neIfPresent(SysClient::getId, client.getId())
-            .exists();
+            .build());
         return !exist;
     }
 

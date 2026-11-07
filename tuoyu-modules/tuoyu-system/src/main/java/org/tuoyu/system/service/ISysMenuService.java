@@ -127,25 +127,22 @@ public interface ISysMenuService {
      * 新增保存菜单信息
      *
      * @param bo 菜单信息
-     * @return 结果
      */
-    int insertMenu(SysMenuBo bo);
+    void insertMenu(SysMenuBo bo);
 
     /**
      * 修改保存菜单信息
      *
      * @param bo 菜单信息
-     * @return 结果
      */
-    int updateMenu(SysMenuBo bo);
+    void updateMenu(SysMenuBo bo);
 
     /**
      * 删除菜单管理信息
      *
      * @param menuId 菜单ID
-     * @return 结果
      */
-    int deleteMenuById(Long menuId);
+    void deleteMenuById(Long menuId);
 
     /**
      * 批量删除菜单管理信息

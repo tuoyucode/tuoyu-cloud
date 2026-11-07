@@ -2,9 +2,8 @@ package org.tuoyu.resource.controller;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.domain.R;
-import org.tuoyu.common.satoken.utils.LoginHelper;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.resource.domain.vo.SysMessageBoxVo;
 import org.tuoyu.resource.service.ISysMessageService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/message")
-public class SysMessageController extends BaseController {
+public class SysMessageController {
 
     private final ISysMessageService messageService;
 
@@ -28,7 +27,7 @@ public class SysMessageController extends BaseController {
      */
     @SaCheckLogin
     @GetMapping("/box")
-    public R<SysMessageBoxVo> getBox() {
-        return R.ok(messageService.queryMessageBox(LoginHelper.getUserId()));
+    public ApiResult<SysMessageBoxVo> getBox() {
+        return ApiResult.ok(messageService.queryMessageBox(UserContext.userId()));
     }
 }

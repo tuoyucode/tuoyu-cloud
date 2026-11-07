@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.system.api.domain.vo.RemoteUserVo;
 import org.dromara.warm.flow.core.dto.FlowParams;
 import org.dromara.warm.flow.core.handler.PermissionHandler;
@@ -37,7 +37,7 @@ public class WorkflowPermissionHandler implements PermissionHandler {
      */
     @Override
     public List<String> permissions() {
-        return Collections.singletonList(LoginHelper.getUserIdStr());
+        return Collections.singletonList(UserContext.userIdString());
     }
 
     /**
@@ -47,7 +47,7 @@ public class WorkflowPermissionHandler implements PermissionHandler {
      */
     @Override
     public String getHandler() {
-        return LoginHelper.getUserIdStr();
+        return UserContext.userIdString();
     }
 
     /**

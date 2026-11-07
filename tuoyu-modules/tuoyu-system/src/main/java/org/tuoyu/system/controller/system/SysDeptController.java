@@ -4,12 +4,12 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.hutool.core.convert.Convert;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.constant.SystemConstants;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.StringUtils;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.system.domain.bo.SysDeptBo;
 import org.tuoyu.system.domain.vo.SysDeptVo;
 import org.tuoyu.system.service.ISysDeptService;
@@ -28,7 +28,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/dept")
-public class SysDeptController extends BaseController {
+public class SysDeptController {
 
     private final ISysDeptService deptService;
     private final ISysPostService postService;
@@ -38,9 +38,9 @@ public class SysDeptController extends BaseController {
      */
     @SaCheckPermission("system:dept:list")
     @GetMapping("/list")
-    public R<List<SysDeptVo>> list(SysDeptBo dept) {
+    public ApiResult<List<SysDeptVo>> list(SysDeptBo dept) {
         List<SysDeptVo> depts = deptService.selectDeptList(dept);
-        return R.ok(depts);
+        return ApiResult.ok(depts);
     }
 
     /**
@@ -50,11 +50,11 @@ public class SysDeptController extends BaseController {
      */
     @SaCheckPermission("system:dept:list")
     @GetMapping("/list/exclude/{deptId}")
-    public R<List<SysDeptVo>> excludeChild(@PathVariable(value = "deptId") Long deptId) {
+    public ApiResult<List<SysDeptVo>> excludeChild(@PathVariable(value = "deptId") Long deptId) {
         List<SysDeptVo> depts = deptService.selectDeptList(new SysDeptBo());
         depts.removeIf(d -> d.getDeptId().equals(deptId)
             || StringUtils.splitList(d.getAncestors()).contains(Convert.toStr(deptId)));
-        return R.ok(depts);
+        return ApiResult.ok(depts);
     }
 
     /**
@@ -64,47 +64,49 @@ public class SysDeptController extends BaseController {
      */
     @SaCheckPermission("system:dept:query")
     @GetMapping(value = "/{deptId}")
-    public R<SysDeptVo> getInfo(@PathVariable Long deptId) {
+    public ApiResult<SysDeptVo> getInfo(@PathVariable Long deptId) {
         deptService.checkDeptDataScope(deptId);
-        return R.ok(deptService.selectDeptById(deptId));
+        return ApiResult.ok(deptService.selectDeptById(deptId));
     }
 
     /**
      * 新增部门
      */
     @SaCheckPermission("system:dept:add")
-    @Log(title = "部门管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "部门管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping
-    public R<Void> add(@Validated @RequestBody SysDeptBo dept) {
+    public ApiResult<Void> add(@Validated @RequestBody SysDeptBo dept) {
         if (!deptService.checkDeptNameUnique(dept)) {
-            return R.fail("新增部门'" + dept.getDeptName() + "'失败，部门名称已存在");
+            throw new ServiceException("新增部门'" + dept.getDeptName() + "'失败，部门名称已存在");
         }
-        return toAjax(deptService.insertDept(dept));
+        deptService.insertDept(dept);
+        return ApiResult.ok();
     }
 
     /**
      * 修改部门
      */
     @SaCheckPermission("system:dept:edit")
-    @Log(title = "部门管理", businessType = BusinessType.UPDATE)
-    @RepeatSubmit()
+    @OperationLog(module = "部门管理", action = AuditAction.UPDATE)
+    @PreventResubmit
     @PutMapping
-    public R<Void> edit(@Validated @RequestBody SysDeptBo dept) {
+    public ApiResult<Void> edit(@Validated @RequestBody SysDeptBo dept) {
         Long deptId = dept.getDeptId();
         deptService.checkDeptDataScope(deptId);
         if (!deptService.checkDeptNameUnique(dept)) {
-            return R.fail("修改部门'" + dept.getDeptName() + "'失败，部门名称已存在");
+            throw new ServiceException("修改部门'" + dept.getDeptName() + "'失败，部门名称已存在");
         } else if (dept.getParentId().equals(deptId)) {
-            return R.fail("修改部门'" + dept.getDeptName() + "'失败，上级部门不能是自己");
+            throw new ServiceException("修改部门'" + dept.getDeptName() + "'失败，上级部门不能是自己");
         } else if (StringUtils.equals(SystemConstants.DISABLE, dept.getStatus())) {
             if (deptService.selectNormalChildrenDeptById(deptId) > 0) {
-                return R.fail("该部门包含未停用的子部门!");
+                throw new ServiceException("该部门包含未停用的子部门!");
             } else if (deptService.checkDeptExistUser(deptId)) {
-                return R.fail("该部门下存在已分配用户，不能禁用!");
+                throw new ServiceException("该部门下存在已分配用户，不能禁用!");
             }
         }
-        return toAjax(deptService.updateDept(dept));
+        deptService.updateDept(dept);
+        return ApiResult.ok();
     }
 
     /**
@@ -113,23 +115,24 @@ public class SysDeptController extends BaseController {
      * @param deptId 部门ID
      */
     @SaCheckPermission("system:dept:remove")
-    @Log(title = "部门管理", businessType = BusinessType.DELETE)
+    @OperationLog(module = "部门管理", action = AuditAction.DELETE)
     @DeleteMapping("/{deptId}")
-    public R<Void> remove(@PathVariable Long deptId) {
+    public ApiResult<Void> remove(@PathVariable Long deptId) {
         if (StringUtils.equals(SystemConstants.ROOT_DEPT_ANCESTORS, String.valueOf(deptId))) {
-            return R.warn("根部门不允许删除");
+            throw new ServiceException("根部门不允许删除");
         }
         if (deptService.hasChildByDeptId(deptId)) {
-            return R.warn("存在下级部门,不允许删除");
+            throw new ServiceException("存在下级部门,不允许删除");
         }
         if (deptService.checkDeptExistUser(deptId)) {
-            return R.warn("部门存在用户,不允许删除");
+            throw new ServiceException("部门存在用户,不允许删除");
         }
         if (postService.countPostByDeptId(deptId) > 0) {
-            return R.warn("部门存在岗位,不允许删除");
+            throw new ServiceException("部门存在岗位,不允许删除");
         }
         deptService.checkDeptDataScope(deptId);
-        return toAjax(deptService.deleteDeptById(deptId));
+        deptService.deleteDeptById(deptId);
+        return ApiResult.ok();
     }
 
     /**
@@ -139,8 +142,8 @@ public class SysDeptController extends BaseController {
      */
     @SaCheckPermission("system:dept:query")
     @GetMapping("/optionselect")
-    public R<List<SysDeptVo>> optionselect(@RequestParam(required = false) Long[] deptIds) {
-        return R.ok(deptService.selectDeptByIds(deptIds == null ? null : List.of(deptIds)));
+    public ApiResult<List<SysDeptVo>> optionselect(@RequestParam(required = false) Long[] deptIds) {
+        return ApiResult.ok(deptService.selectDeptByIds(deptIds == null ? null : List.of(deptIds)));
     }
 
 }

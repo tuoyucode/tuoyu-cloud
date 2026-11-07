@@ -1,6 +1,7 @@
 package org.tuoyu.system.mapper;
 
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysUserPost;
 
 /**
@@ -8,7 +9,7 @@ import org.tuoyu.system.domain.SysUserPost;
  *
  * @author Lion Li
  */
-public interface SysUserPostMapper extends BaseMapperPlus<SysUserPost, SysUserPost> {
+public interface SysUserPostMapper extends BaseMapper<SysUserPost> {
 
     /**
      * 删除用户的全部岗位关联
@@ -17,7 +18,7 @@ public interface SysUserPostMapper extends BaseMapperPlus<SysUserPost, SysUserPo
      * @return 删除的行数
      */
     default long deleteByUserId(Long userId) {
-        return this.lambda().eq(SysUserPost::getUserId, userId).deleteCount();
+        return this.delete(QueryBuilder.lambda(SysUserPost.class).eq(SysUserPost::getUserId, userId).build());
     }
 
 }

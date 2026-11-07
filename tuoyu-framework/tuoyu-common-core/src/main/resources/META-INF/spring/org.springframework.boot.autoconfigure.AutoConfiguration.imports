@@ -4,3 +4,4 @@ org.tuoyu.common.core.config.ValidatorConfig
 org.tuoyu.common.core.config.ThreadPoolConfig
 org.tuoyu.common.core.config.RequestSizeLimitConfiguration
 org.tuoyu.common.core.config.TrustedProxyConfiguration
+org.tuoyu.common.core.config.UserContextConfiguration

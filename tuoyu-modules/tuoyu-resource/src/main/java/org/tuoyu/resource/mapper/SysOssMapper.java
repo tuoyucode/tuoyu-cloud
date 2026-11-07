@@ -1,14 +1,13 @@
 package org.tuoyu.resource.mapper;
 
-import org.tuoyu.common.mybatis.core.mapper.BaseMapperPlus;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.resource.domain.SysOss;
-import org.tuoyu.resource.domain.vo.SysOssVo;
 
 /**
  * 文件上传 数据层
  *
  * @author Lion Li
  */
-public interface SysOssMapper extends BaseMapperPlus<SysOss, SysOssVo> {
+public interface SysOssMapper extends BaseMapper<SysOss> {
 
 }

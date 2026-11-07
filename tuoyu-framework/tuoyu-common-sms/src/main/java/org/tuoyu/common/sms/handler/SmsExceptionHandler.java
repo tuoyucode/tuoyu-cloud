@@ -1,9 +1,13 @@
 package org.tuoyu.common.sms.handler;
 
-import cn.hutool.http.HttpStatus;
+import org.tuoyu.common.core.web.ExceptionHandlerOrder;
+import org.springframework.core.annotation.Order;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.constant.HttpStatus;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.web.ApiErrors;
+import org.springframework.http.ResponseEntity;
 import org.dromara.sms4j.comm.exception.SmsBlendException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -14,6 +18,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * @author AprilWind
  */
 @Slf4j
+@Order(ExceptionHandlerOrder.MODULE)
 @RestControllerAdvice
 public class SmsExceptionHandler {
 
@@ -21,10 +26,10 @@ public class SmsExceptionHandler {
      * sms异常
      */
     @ExceptionHandler(SmsBlendException.class)
-    public R<Void> handleSmsBlendException(SmsBlendException e, HttpServletRequest request) {
+    public ResponseEntity<ApiResult<Void>> handleSmsBlendException(SmsBlendException e, HttpServletRequest request) {
         String requestURI = request.getRequestURI();
         log.error("请求地址'{}',发生sms短信异常.", requestURI, e);
-        return R.fail(HttpStatus.HTTP_INTERNAL_ERROR, "短信发送失败，请稍后再试...");
+        return ApiErrors.response(HttpStatus.ERROR, "短信发送失败，请稍后再试...");
     }
 
 }

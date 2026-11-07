@@ -1,7 +1,7 @@
 package org.tuoyu.workflow.service;
 
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.api.domain.bo.RemoteTaskAssigneeBo;
 import org.tuoyu.system.api.domain.vo.RemoteTaskAssigneeVo;
 import org.tuoyu.workflow.domain.bo.FlowSpelBo;
@@ -31,10 +31,10 @@ public interface IFlwSpelService {
      * 分页查询流程spel表达式定义列表
      *
      * @param bo        查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 流程spel表达式定义分页列表
      */
-    PageResult<FlowSpelVo> queryPageList(FlowSpelBo bo, PageQuery pageQuery);
+    PageResult<FlowSpelVo> queryPageList(FlowSpelBo bo, PageParam pageParam);
 
     /**
      * 查询符合条件的流程spel表达式定义列表
@@ -45,29 +45,26 @@ public interface IFlwSpelService {
     List<FlowSpelVo> queryList(FlowSpelBo bo);
 
     /**
-     * 新增流程spel表达式定义
+     * 新增流程spel表达式定义：表达式重复时抛出业务异常
      *
      * @param bo 流程spel表达式定义
-     * @return 是否新增成功
      */
-    Boolean insertByBo(FlowSpelBo bo);
+    void insertByBo(FlowSpelBo bo);
 
     /**
-     * 修改流程spel表达式定义
+     * 修改流程spel表达式定义：表达式重复或记录不存在时抛出业务异常
      *
      * @param bo 流程spel表达式定义
-     * @return 是否修改成功
      */
-    Boolean updateByBo(FlowSpelBo bo);
+    void updateByBo(FlowSpelBo bo);
 
     /**
      * 校验并批量删除流程spel表达式定义信息
      *
      * @param ids     待删除的主键集合
      * @param isValid 是否进行有效性校验
-     * @return 是否删除成功
      */
-    Boolean deleteWithValidByIds(Collection<Long> ids, Boolean isValid);
+    void deleteWithValidByIds(Collection<Long> ids, Boolean isValid);
 
     /**
      * 查询spel并返回任务指派的列表，支持分页

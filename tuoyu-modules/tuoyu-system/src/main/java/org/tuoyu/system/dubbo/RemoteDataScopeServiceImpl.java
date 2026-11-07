@@ -1,6 +1,7 @@
 package org.tuoyu.system.dubbo;
 
 import cn.hutool.core.collection.CollUtil;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import cn.hutool.core.convert.Convert;
 import cn.hutool.core.util.ObjectUtil;
 import lombok.RequiredArgsConstructor;
@@ -42,10 +43,10 @@ public class RemoteDataScopeServiceImpl implements RemoteDataScopeService {
         if (ObjectUtil.isNull(roleId)) {
             return "-1";
         }
-        List<SysRoleDept> list = roleDeptMapper.lambda()
+        List<SysRoleDept> list = roleDeptMapper.selectList(QueryBuilder.lambda(SysRoleDept.class)
             .select(SysRoleDept::getDeptId)
             .eq(SysRoleDept::getRoleId, roleId)
-            .list();
+            .build());
         if (CollUtil.isNotEmpty(list)) {
             return StreamUtils.join(list, rd -> Convert.toStr(rd.getDeptId()));
         }

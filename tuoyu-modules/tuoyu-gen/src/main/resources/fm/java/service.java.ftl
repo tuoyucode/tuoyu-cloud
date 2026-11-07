@@ -4,7 +4,7 @@ import ${packageName}.domain.vo.${ClassName}Vo;
 import ${packageName}.domain.bo.${ClassName}Bo;
 <#if table.crud>
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 </#if>
 
 import java.util.Collection;
@@ -12,6 +12,8 @@ import java.util.List;
 
 /**
  * ${functionName}Service接口
+ * <p>
+ * 写操作没有返回值，失败时抛出带原因的 ServiceException。
  *
  * @author ${author}
  * @date ${datetime}
@@ -22,7 +24,7 @@ public interface I${ClassName}Service {
      * 查询${functionName}
      *
      * @param ${pkColumn.javaField} 主键
-     * @return ${functionName}
+     * @return ${functionName}，不存在时为 null
      */
     ${ClassName}Vo queryById(${pkColumn.javaType} ${pkColumn.javaField});
 
@@ -31,10 +33,10 @@ public interface I${ClassName}Service {
      * 分页查询${functionName}列表
      *
      * @param bo        查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return ${functionName}分页列表
      */
-    PageResult<${ClassName}Vo> queryPageList(${ClassName}Bo bo, PageQuery pageQuery);
+    PageResult<${ClassName}Vo> queryPageList(${ClassName}Bo bo, PageParam pageParam);
 </#if>
 
     /**
@@ -63,23 +65,21 @@ public interface I${ClassName}Service {
      * @return 是否唯一
      */
     boolean checkUnique(${ClassName}Bo bo);
-</#if>
 
+</#if>
     /**
-     * 新增${functionName}
+     * 新增${functionName}，成功后把主键回填到 bo
      *
      * @param bo ${functionName}
-     * @return 是否新增成功
      */
-    Boolean insertByBo(${ClassName}Bo bo);
+    void insertByBo(${ClassName}Bo bo);
 
     /**
      * 修改${functionName}
      *
      * @param bo ${functionName}
-     * @return 是否修改成功
      */
-    Boolean updateByBo(${ClassName}Bo bo);
+    void updateByBo(${ClassName}Bo bo);
 
 <#if enableStatus>
     /**
@@ -87,29 +87,26 @@ public interface I${ClassName}Service {
      *
      * @param ${pkColumn.javaField} 主键
      * @param status 状态值
-     * @return 是否修改成功
      */
-    Boolean updateStatus(${pkColumn.javaType} ${pkColumn.javaField}, ${statusColumn.javaType} status);
-</#if>
+    void updateStatus(${pkColumn.javaType} ${pkColumn.javaField}, ${statusColumn.javaType} status);
 
+</#if>
 <#if enableSort>
     /**
      * 调整${functionName}排序
      *
      * @param ${pkColumn.javaField} 主键
      * @param sortValue 排序值
-     * @return 是否修改成功
      */
-    Boolean updateSort(${pkColumn.javaType} ${pkColumn.javaField}, ${sortColumn.javaType} sortValue);
-</#if>
+    void updateSort(${pkColumn.javaType} ${pkColumn.javaField}, ${sortColumn.javaType} sortValue);
 
+</#if>
     /**
      * 校验并批量删除${functionName}信息
      *
      * @param ids     待删除的主键集合
      * @param isValid 是否进行有效性校验
-     * @return 是否删除成功
      */
-    Boolean deleteWithValidByIds(Collection<${pkColumn.javaType}> ids, Boolean isValid);
+    void deleteWithValidByIds(Collection<${pkColumn.javaType}> ids, Boolean isValid);
 
 }

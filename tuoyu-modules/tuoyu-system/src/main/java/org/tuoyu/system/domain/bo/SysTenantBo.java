@@ -8,8 +8,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import org.tuoyu.system.domain.SysTenant;
 
 import java.io.Serial;
@@ -31,11 +31,11 @@ public class SysTenantBo implements Serializable {
     /**
      * 租户编码：小写字母、数字、连字符，2 ~ 20 位，以字母或数字开头；创建后不能修改
      */
-    @NotBlank(message = "租户编码不能为空", groups = {AddGroup.class, EditGroup.class})
-    @Pattern(regexp = "^[a-z0-9][a-z0-9-]{1,19}$", message = "租户编码只能包含小写字母、数字、连字符，2 ~ 20 位", groups = AddGroup.class)
+    @NotBlank(message = "租户编码不能为空", groups = {OnCreate.class, OnUpdate.class})
+    @Pattern(regexp = "^[a-z0-9][a-z0-9-]{1,19}$", message = "租户编码只能包含小写字母、数字、连字符，2 ~ 20 位", groups = OnCreate.class)
     private String tenantId;
 
-    @NotBlank(message = "租户名称不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "租户名称不能为空", groups = {OnCreate.class, OnUpdate.class})
     @Size(max = 50, message = "租户名称长度不能超过{max}个字符")
     private String tenantName;
 
@@ -51,7 +51,7 @@ public class SysTenantBo implements Serializable {
     /**
      * 租户套餐：新增、修改普通租户时必填；默认租户（平台）没有套餐，修改时忽略
      */
-    @NotNull(message = "租户套餐不能为空", groups = AddGroup.class)
+    @NotNull(message = "租户套餐不能为空", groups = OnCreate.class)
     private Long packageId;
 
     /**
@@ -73,15 +73,15 @@ public class SysTenantBo implements Serializable {
     /**
      * 新增租户时创建的管理员账号
      */
-    @NotBlank(message = "管理员账号不能为空", groups = AddGroup.class)
-    @Size(min = 2, max = 30, message = "管理员账号长度为 2 ~ 30 个字符", groups = AddGroup.class)
+    @NotBlank(message = "管理员账号不能为空", groups = OnCreate.class)
+    @Size(min = 2, max = 30, message = "管理员账号长度为 2 ~ 30 个字符", groups = OnCreate.class)
     private String adminUserName;
 
     /**
      * 新增租户时创建的管理员口令（只写，接口加密传输）
      */
-    @NotBlank(message = "管理员口令不能为空", groups = AddGroup.class)
-    @Size(min = 8, max = 64, message = "管理员口令长度为 8 ~ 64 个字符", groups = AddGroup.class)
+    @NotBlank(message = "管理员口令不能为空", groups = OnCreate.class)
+    @Size(min = 8, max = 64, message = "管理员口令长度为 8 ~ 64 个字符", groups = OnCreate.class)
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String adminPassword;
 

@@ -2,16 +2,16 @@ package org.tuoyu.workflow.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.api.domain.bo.RemoteTaskAssigneeBo;
 import org.tuoyu.system.api.domain.vo.RemoteTaskAssigneeVo;
@@ -50,21 +50,20 @@ public class FlwSpelServiceImpl implements IFlwSpelService {
      */
     @Override
     public FlowSpelVo queryById(Long id) {
-        return spelMapper.selectVoById(id);
+        return BeanMapper.map(spelMapper.selectById(id), FlowSpelVo.class);
     }
 
     /**
      * 分页查询流程spel表达式定义列表
      *
      * @param bo        查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 流程spel表达式定义分页列表
      */
     @Override
-    public PageResult<FlowSpelVo> queryPageList(FlowSpelBo bo, PageQuery pageQuery) {
+    public PageResult<FlowSpelVo> queryPageList(FlowSpelBo bo, PageParam pageParam) {
         LambdaQueryWrapper<FlowSpel> lqw = buildQueryWrapper(bo);
-        Page<FlowSpelVo> result = spelMapper.selectVoPage(pageQuery.build(), lqw);
-        return PageResult.build(result.getRecords(), result.getTotal());
+        return PageResults.of(spelMapper.selectPage(pageParam.toPage(FlowSpel.class), lqw), FlowSpelVo.class);
     }
 
     /**
@@ -76,7 +75,7 @@ public class FlwSpelServiceImpl implements IFlwSpelService {
     @Override
     public List<FlowSpelVo> queryList(FlowSpelBo bo) {
         LambdaQueryWrapper<FlowSpel> lqw = buildQueryWrapper(bo);
-        return spelMapper.selectVoList(lqw);
+        return BeanMapper.mapList(spelMapper.selectList(lqw), FlowSpelVo.class);
     }
 
     private LambdaQueryWrapper<FlowSpel> buildQueryWrapper(FlowSpelBo bo) {
@@ -95,30 +94,27 @@ public class FlwSpelServiceImpl implements IFlwSpelService {
      * 新增流程spel表达式定义
      *
      * @param bo 流程spel表达式定义
-     * @return 是否新增成功
      */
     @Override
-    public Boolean insertByBo(FlowSpelBo bo) {
-        FlowSpel add = MapstructUtils.convert(bo, FlowSpel.class);
+    public void insertByBo(FlowSpelBo bo) {
+        FlowSpel add = BeanMapper.map(bo, FlowSpel.class);
         validEntityBeforeSave(add);
-        boolean flag = spelMapper.insert(add) > 0;
-        if (flag) {
-            bo.setId(add.getId());
-        }
-        return flag;
+        spelMapper.insert(add);
+        bo.setId(add.getId());
     }
 
     /**
      * 修改流程spel表达式定义
      *
      * @param bo 流程spel表达式定义
-     * @return 是否修改成功
      */
     @Override
-    public Boolean updateByBo(FlowSpelBo bo) {
-        FlowSpel update = MapstructUtils.convert(bo, FlowSpel.class);
+    public void updateByBo(FlowSpelBo bo) {
+        FlowSpel update = BeanMapper.map(bo, FlowSpel.class);
         validEntityBeforeSave(update);
-        return spelMapper.updateById(update) > 0;
+        if (spelMapper.updateById(update) == 0) {
+            throw new ServiceException("流程spel表达式定义不存在，无法修改");
+        }
     }
 
     /**
@@ -126,10 +122,10 @@ public class FlwSpelServiceImpl implements IFlwSpelService {
      */
     private void validEntityBeforeSave(FlowSpel entity) {
         if (StringUtils.isNotBlank(entity.getViewSpel())) {
-            boolean exists = spelMapper.lambda()
+            boolean exists = spelMapper.exists(QueryBuilder.lambda(FlowSpel.class)
                 .eq(FlowSpel::getViewSpel, entity.getViewSpel())
                 .neIfPresent(FlowSpel::getId, entity.getId())
-                .exists();
+                .build());
             if (exists) {
                 throw new ServiceException("SpEL表达式已存在，请勿重复添加");
             }
@@ -141,14 +137,15 @@ public class FlwSpelServiceImpl implements IFlwSpelService {
      *
      * @param ids     待删除的主键集合
      * @param isValid 是否进行有效性校验
-     * @return 是否删除成功
      */
     @Override
-    public Boolean deleteWithValidByIds(Collection<Long> ids, Boolean isValid) {
+    public void deleteWithValidByIds(Collection<Long> ids, Boolean isValid) {
         if (isValid) {
             //TODO 做一些业务上的校验,判断是否需要校验
         }
-        return spelMapper.deleteByIds(ids) > 0;
+        if (spelMapper.deleteByIds(ids) == 0) {
+            throw new ServiceException("删除流程表达式失败，表达式不存在");
+        }
     }
 
     /**
@@ -159,7 +156,7 @@ public class FlwSpelServiceImpl implements IFlwSpelService {
      */
     @Override
     public RemoteTaskAssigneeVo selectSpelByTaskAssigneeList(RemoteTaskAssigneeBo taskQuery) {
-        PageQuery pageQuery = new PageQuery(taskQuery.getPageSize(), taskQuery.getPageNum());
+        PageParam pageParam = new PageParam(taskQuery.getPage(), taskQuery.getPageSize());
         FlowSpelBo bo = new FlowSpelBo();
         bo.setViewSpel(taskQuery.getHandlerCode());
         bo.setRemark(taskQuery.getHandlerName());
@@ -167,9 +164,9 @@ public class FlwSpelServiceImpl implements IFlwSpelService {
         Map<String, Object> params = bo.getParams();
         params.put("beginTime", taskQuery.getBeginTime());
         params.put("endTime", taskQuery.getEndTime());
-        PageResult<FlowSpelVo> page = this.queryPageList(bo, pageQuery);
+        PageResult<FlowSpelVo> page = this.queryPageList(bo, pageParam);
         // 使用封装的字段映射方法进行转换
-        List<RemoteTaskAssigneeVo.TaskHandler> handlers = RemoteTaskAssigneeVo.convertToHandlerList(page.getRows(),
+        List<RemoteTaskAssigneeVo.TaskHandler> handlers = RemoteTaskAssigneeVo.convertToHandlerList(page.getItems(),
             FlowSpelVo::getViewSpel, item -> "", FlowSpelVo::getRemark, item -> "", FlowSpelVo::getCreateTime);
         return new RemoteTaskAssigneeVo(page.getTotal(), handlers);
     }
@@ -185,10 +182,10 @@ public class FlwSpelServiceImpl implements IFlwSpelService {
         if (CollUtil.isEmpty(viewSpels)) {
             return Collections.emptyMap();
         }
-        List<FlowSpel> list = spelMapper.lambda()
+        List<FlowSpel> list = spelMapper.selectList(QueryBuilder.lambda(FlowSpel.class)
             .select(FlowSpel::getViewSpel, FlowSpel::getRemark)
             .in(FlowSpel::getViewSpel, viewSpels)
-            .list();
+            .build());
         return StreamUtils.toMap(list, FlowSpel::getViewSpel, FlowSpel::getRemark);
     }
 

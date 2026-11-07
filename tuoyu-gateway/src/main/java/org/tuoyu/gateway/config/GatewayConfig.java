@@ -1,5 +1,6 @@
 package org.tuoyu.gateway.config;
 
+import org.tuoyu.common.core.constant.HeaderNames;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -53,7 +54,7 @@ public class GatewayConfig {
         config.setAllowCredentials(true);
         config.setAllowedHeaders(List.of(
             "X-Requested-With", "Content-Language", "Content-Type",
-            "Authorization", "clientid", "credential", "X-XSRF-TOKEN",
+            "Authorization", HeaderNames.CLIENT_ID, "credential", "X-XSRF-TOKEN",
             "isToken", "token", "Admin-Token", "App-Token", "X-Tuoyu-Encrypted",
             // W3C 链路头：前端可以带上自己生成的 traceparent（ADR 0007）
             "traceparent"

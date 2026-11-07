@@ -53,7 +53,7 @@ class SysOssServiceImplUploadTest {
     private SysOssServiceImpl service;
 
     /**
-     * 保存文件信息时会用 JsonUtils、MapstructUtils，它们从 Spring 容器取 JsonMapper 与 Converter
+     * 保存文件信息时会用 JsonUtils、BeanMapper，它们从 Spring 容器取 JsonMapper 与 Converter
      */
     @BeforeAll
     static void initSpring() {

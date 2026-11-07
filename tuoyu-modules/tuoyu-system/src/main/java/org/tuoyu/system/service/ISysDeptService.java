@@ -2,7 +2,7 @@ package org.tuoyu.system.service;
 
 import cn.hutool.core.lang.tree.Tree;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.domain.bo.SysDeptBo;
 import org.tuoyu.system.domain.vo.SysDeptVo;
 
@@ -19,10 +19,10 @@ public interface ISysDeptService {
      * 分页查询部门管理数据
      *
      * @param dept      部门信息
-     * @param pageQuery 分页对象
+     * @param pageParam 分页对象
      * @return 部门信息集合
      */
-    PageResult<SysDeptVo> selectPageDeptList(SysDeptBo dept, PageQuery pageQuery);
+    PageResult<SysDeptVo> selectPageDeptList(SysDeptBo dept, PageParam pageParam);
 
     /**
      * 查询部门管理数据
@@ -124,24 +124,21 @@ public interface ISysDeptService {
      * 新增保存部门信息
      *
      * @param bo 部门信息
-     * @return 结果
      */
-    int insertDept(SysDeptBo bo);
+    void insertDept(SysDeptBo bo);
 
     /**
      * 修改保存部门信息
      *
      * @param bo 部门信息
-     * @return 结果
      */
-    int updateDept(SysDeptBo bo);
+    void updateDept(SysDeptBo bo);
 
     /**
      * 删除部门管理信息
      *
      * @param deptId 部门ID
-     * @return 结果
      */
-    int deleteDeptById(Long deptId);
+    void deleteDeptById(Long deptId);
 
 }

@@ -8,6 +8,8 @@ import org.tuoyu.common.core.enums.PushSourceEnum;
 import org.tuoyu.common.core.enums.PushTypeEnum;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.json.utils.JsonUtils;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
+import org.tuoyu.common.mybatis.helper.DataBaseHelper;
 import org.tuoyu.common.mybatis.utils.IdGeneratorUtil;
 import org.tuoyu.common.push.dto.PushPayloadDTO;
 import org.tuoyu.resource.domain.SysMessage;
@@ -34,6 +36,11 @@ public class SysMessageServiceImpl implements ISysMessageService {
      * 全局广播用户标识（所有用户可见）
      */
     private static final String GLOBAL_USER_IDS = "0";
+
+    /**
+     * 接收用户ID（逗号分隔）所在的列
+     */
+    private static final String SEND_USER_IDS_COLUMN = "send_user_ids";
 
     /**
      * 消息分类：系统消息
@@ -128,16 +135,16 @@ public class SysMessageServiceImpl implements ISysMessageService {
      * @return 消息VO列表
      */
     private List<SysMessageVo> selectMessageList(String category, Long userId) {
-        List<SysMessage> list = messageMapper.lambda()
+        List<SysMessage> list = messageMapper.selectList(new Page<>(1, BOX_LIMIT, false), QueryBuilder.lambda(SysMessage.class)
             .eq(SysMessage::getCategory, category)
             .ge(SysMessage::getCreateTime, LocalDateTime.now().minusDays(BOX_DAYS))
             .and(wrapper ->
                 wrapper.eq(SysMessage::getSendUserIds, GLOBAL_USER_IDS)
                     .or()
-                    .findInSet(userId, SysMessage::getSendUserIds)
+                    .apply(DataBaseHelper.findInSet(userId, SEND_USER_IDS_COLUMN))
             )
             .orderByDesc(SysMessage::getCreateTime, SysMessage::getMessageId)
-            .list(new Page<>(1, BOX_LIMIT, false));
+            .build());
         return list.stream().map(this::buildVo).toList();
     }
 

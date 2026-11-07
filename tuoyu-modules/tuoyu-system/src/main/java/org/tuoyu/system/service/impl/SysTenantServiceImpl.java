@@ -1,18 +1,19 @@
 package org.tuoyu.system.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.encrypt.password.PasswordHasher;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.common.tenant.core.TenantProperties;
@@ -63,9 +64,8 @@ public class SysTenantServiceImpl implements ISysTenantService {
     private final TenantProperties tenantProperties;
 
     @Override
-    public PageResult<SysTenantVo> selectPageList(SysTenantBo bo, PageQuery pageQuery) {
-        Page<SysTenantVo> page = tenantMapper.selectVoPage(pageQuery.build(), buildQueryWrapper(bo));
-        return PageResult.build(page.getRecords(), page.getTotal());
+    public PageResult<SysTenantVo> selectPageList(SysTenantBo bo, PageParam pageParam) {
+        return PageResults.of(tenantMapper.selectPage(pageParam.toPage(SysTenant.class), buildQueryWrapper(bo)), SysTenantVo.class);
     }
 
     private Wrapper<SysTenant> buildQueryWrapper(SysTenantBo bo) {
@@ -80,7 +80,7 @@ public class SysTenantServiceImpl implements ISysTenantService {
 
     @Override
     public SysTenantVo selectById(String tenantId) {
-        return tenantMapper.selectVoById(tenantId);
+        return BeanMapper.map(tenantMapper.selectById(tenantId), SysTenantVo.class);
     }
 
     @Override
@@ -93,7 +93,7 @@ public class SysTenantServiceImpl implements ISysTenantService {
         checkDomainUnique(bo.getDomain(), tenantId);
         Set<Long> menuIds = packageMenus(bo.getPackageId());
 
-        SysTenant tenant = MapstructUtils.convert(bo, SysTenant.class);
+        SysTenant tenant = BeanMapper.map(bo, SysTenant.class);
         tenant.setStatus(StringUtils.blankToDefault(bo.getStatus(), SystemConstants.NORMAL));
         tenantMapper.insert(tenant);
 
@@ -155,7 +155,7 @@ public class SysTenantServiceImpl implements ISysTenantService {
         } else {
             packageMenus(bo.getPackageId());
         }
-        SysTenant tenant = MapstructUtils.convert(bo, SysTenant.class);
+        SysTenant tenant = BeanMapper.map(bo, SysTenant.class);
         tenantMapper.updateById(tenant);
         clearRemovedLimits(existing, bo);
         if (!platform && !Objects.equals(existing.getPackageId(), bo.getPackageId())) {
@@ -173,11 +173,10 @@ public class SysTenantServiceImpl implements ISysTenantService {
         if (!clearExpire && !clearCount) {
             return;
         }
-        tenantMapper.lambda()
+        tenantMapper.update(Wrappers.<SysTenant>lambdaUpdate()
             .set(clearExpire, SysTenant::getExpireTime, null)
             .set(clearCount, SysTenant::getAccountCount, null)
-            .eq(SysTenant::getTenantId, bo.getTenantId())
-            .update();
+            .eq(SysTenant::getTenantId, bo.getTenantId()));
     }
 
     @Override
@@ -214,18 +213,19 @@ public class SysTenantServiceImpl implements ISysTenantService {
             return;
         }
         Set<Long> menuIds = packageMenuMapper.selectMenuIds(tenant.getPackageId());
-        TenantHelper.dynamic(tenantId, () -> roleMapper.lambda()
+        TenantHelper.dynamic(tenantId, () -> roleMapper.selectList(QueryBuilder.lambda(SysRole.class)
             .eq(SysRole::getRoleKey, TENANT_ADMIN_ROLE_KEY)
-            .list()
+            .build())
             .forEach(role -> replaceRoleMenus(role.getRoleId(), menuIds)));
     }
 
     @Override
     public List<String> selectTenantIdsByPackage(Long packageId) {
-        return tenantMapper.lambda()
+        List<Object> ids = tenantMapper.selectObjs(QueryBuilder.lambda(SysTenant.class)
             .select(SysTenant::getTenantId)
             .eq(SysTenant::getPackageId, packageId)
-            .objs(String::valueOf);
+            .build());
+        return ids.stream().map(String::valueOf).toList();
     }
 
     @Override
@@ -247,10 +247,10 @@ public class SysTenantServiceImpl implements ISysTenantService {
 
     private List<SysTenantVo> activeTenants() {
         LocalDateTime now = LocalDateTime.now();
-        return tenantMapper.lambda()
+        return BeanMapper.mapList(tenantMapper.selectList(QueryBuilder.lambda(SysTenant.class)
             .eq(SysTenant::getStatus, SystemConstants.NORMAL)
             .orderByAsc(SysTenant::getCreateTime)
-            .voList().stream()
+            .build()), SysTenantVo.class).stream()
             .filter(t -> t.getExpireTime() == null || t.getExpireTime().isAfter(now))
             .toList();
     }
@@ -259,10 +259,10 @@ public class SysTenantServiceImpl implements ISysTenantService {
         if (StringUtils.isBlank(domain)) {
             return;
         }
-        boolean taken = tenantMapper.lambda()
+        boolean taken = tenantMapper.exists(QueryBuilder.lambda(SysTenant.class)
             .eq(SysTenant::getDomain, domain.trim())
             .ne(SysTenant::getTenantId, tenantId)
-            .exists();
+            .build());
         if (taken) {
             throw new ServiceException("域名 " + domain + " 已被其他租户绑定");
         }
@@ -280,9 +280,9 @@ public class SysTenantServiceImpl implements ISysTenantService {
     }
 
     private void replaceRoleMenus(Long roleId, Set<Long> menuIds) {
-        roleMenuMapper.lambda().eq(SysRoleMenu::getRoleId, roleId).deleteCount();
+        roleMenuMapper.delete(QueryBuilder.lambda(SysRoleMenu.class).eq(SysRoleMenu::getRoleId, roleId).build());
         if (!menuIds.isEmpty()) {
-            roleMenuMapper.insertBatch(menuIds.stream().map(menuId -> {
+            roleMenuMapper.insert(menuIds.stream().map(menuId -> {
                 SysRoleMenu roleMenu = new SysRoleMenu();
                 roleMenu.setRoleId(roleId);
                 roleMenu.setMenuId(menuId);

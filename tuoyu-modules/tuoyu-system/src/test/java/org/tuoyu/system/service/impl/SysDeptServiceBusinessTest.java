@@ -10,9 +10,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.redis.utils.CacheUtils;
-import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.system.support.CurrentUserStub;
 import org.tuoyu.system.domain.SysDept;
 import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.domain.bo.SysDeptBo;
@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -34,7 +35,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -54,7 +54,7 @@ class SysDeptServiceBusinessTest {
     private final SysUserMapper userMapper = SystemTestSupport.mapper(SysUserMapper.class);
     private final SysDeptServiceImpl service = new SysDeptServiceImpl(deptMapper, roleMapper, userMapper);
 
-    private final MockedStatic<LoginHelper> login = mockStatic(LoginHelper.class, CALLS_REAL_METHODS);
+    private final CurrentUserStub login = CurrentUserStub.install();
     private final MockedStatic<CacheUtils> cache = mockStatic(CacheUtils.class);
 
     @AfterEach
@@ -102,7 +102,7 @@ class SysDeptServiceBusinessTest {
     @DisplayName("分页列表")
     void page() {
         when(deptMapper.selectList(any(IPage.class), any())).thenReturn(List.of(dept(11L, 10L, "0,10", "0")));
-        assertEquals(1, service.selectPageDeptList(new SysDeptBo(), new PageQuery()).getRows().size());
+        assertEquals(1, service.selectPageDeptList(new SysDeptBo(), new PageParam()).getItems().size());
     }
 
     @Test
@@ -160,11 +160,11 @@ class SysDeptServiceBusinessTest {
     @DisplayName("部门数据权限：超级管理员放行，其他人看不到时拒绝")
     void dataScope() {
         service.checkDeptDataScope(null);
-        login.when(LoginHelper::getUserId).thenReturn(SystemConstants.SUPER_ADMIN_USER_ID);
+        login.userId(SystemConstants.SUPER_ADMIN_USER_ID);
         service.checkDeptDataScope(10L);
         verify(deptMapper, never()).selectCount(any());
 
-        login.when(LoginHelper::getUserId).thenReturn(100L);
+        login.userId(100L);
         when(deptMapper.selectCount(any())).thenReturn(0L);
         assertThrows(ServiceException.class, () -> service.checkDeptDataScope(10L));
         when(deptMapper.selectCount(any())).thenReturn(1L);
@@ -184,7 +184,7 @@ class SysDeptServiceBusinessTest {
 
         when(deptMapper.selectById(10L)).thenReturn(dept(10L, 0L, "0", "0"));
         when(deptMapper.insert(any(SysDept.class))).thenReturn(1);
-        assertEquals(1, service.insertDept(bo));
+        assertDoesNotThrow(() -> service.insertDept(bo));
         ArgumentCaptor<SysDept> saved = ArgumentCaptor.forClass(SysDept.class);
         verify(deptMapper).insert(saved.capture());
         assertEquals("0,10", saved.getValue().getAncestors());
@@ -202,11 +202,10 @@ class SysDeptServiceBusinessTest {
     @Test
     @DisplayName("修改部门：更换上级时改写自己与子部门的祖级，并启用上级部门")
     void updateMovesChildren() {
-        login.when(LoginHelper::getUserId).thenReturn(SystemConstants.SUPER_ADMIN_USER_ID);
+        login.userId(SystemConstants.SUPER_ADMIN_USER_ID);
         when(deptMapper.selectById(11L)).thenReturn(dept(11L, 10L, "0,10", "0"));
         when(deptMapper.selectById(20L)).thenReturn(dept(20L, 0L, "0", "0"));
         when(deptMapper.selectList(any(Wrapper.class))).thenReturn(List.of(dept(12L, 11L, "0,10,11", "0")));
-        when(deptMapper.updateBatchById(any())).thenReturn(true);
         when(deptMapper.updateById(any(SysDept.class))).thenReturn(1);
         SysDeptBo bo = new SysDeptBo();
         bo.setDeptId(11L);
@@ -214,13 +213,13 @@ class SysDeptServiceBusinessTest {
         bo.setDeptName("部门11");
         bo.setStatus("0");
 
-        assertEquals(1, service.updateDept(bo));
+        assertDoesNotThrow(() -> service.updateDept(bo));
 
         ArgumentCaptor<SysDept> updated = ArgumentCaptor.forClass(SysDept.class);
         verify(deptMapper).updateById(updated.capture());
         assertEquals("0,20", updated.getValue().getAncestors());
         ArgumentCaptor<Collection<SysDept>> children = ArgumentCaptor.captor();
-        verify(deptMapper).updateBatchById(children.capture());
+        verify(deptMapper).updateById(children.capture());
         assertThat(children.getValue()).extracting(SysDept::getAncestors).containsExactly("0,20,11");
         cache.verify(() -> CacheUtils.evict(any(), eq(12L)));
         // 启用上级部门
@@ -246,6 +245,6 @@ class SysDeptServiceBusinessTest {
         assertEquals("0,10", updated.getValue().getAncestors());
         verify(deptMapper, never()).update(any(Wrapper.class));
         when(deptMapper.deleteById(11L)).thenReturn(1);
-        assertEquals(1, service.deleteDeptById(11L));
+        assertDoesNotThrow(() -> service.deleteDeptById(11L));
     }
 }

@@ -1,76 +1,90 @@
 package org.tuoyu.common.core.domain;
 
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
 
 /**
- * 表格分页数据对象
+ * 分页结果：{@code { "items": [...], "total": 123 }}。
+ * <p>
+ * 从 MyBatis-Plus 的分页结果转换用 tuoyu-common-mybatis 的 {@code PageResults}。
  *
- * @author Lion Li
+ * @param <T> 元素类型
+ * @author tuoyu
  */
-@Data
-@NoArgsConstructor
 public class PageResult<T> implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /**
-     * 总记录数
-     */
+    private List<T> items = new ArrayList<>();
+
     private long total;
 
     /**
-     * 列表数据
+     * 供反序列化使用；业务代码用静态工厂方法创建
      */
-    private Collection<T> rows;
+    public PageResult() {
+    }
 
-    /**
-     * 分页
-     *
-     * @param list  列表数据
-     * @param total 总记录数
-     */
-    public PageResult(Collection<T> list, long total) {
-        this.rows = emptyIfNull(list);
+    private PageResult(List<T> items, long total) {
+        this.items = items == null ? new ArrayList<>() : items;
         this.total = total;
     }
 
     /**
-     * 根据分页对象构建表格分页数据对象
+     * @param items 当前页的数据，为 null 时按空列表处理
+     * @param total 符合条件的总条数
      */
-    public static <T> PageResult<T> build(Collection<T> list, long total) {
-        PageResult<T> rspData = new PageResult<>();
-        rspData.setRows(emptyIfNull(list));
-        rspData.setTotal(total);
-        return rspData;
+    public static <T> PageResult<T> of(List<T> items, long total) {
+        return new PageResult<>(items, total);
     }
 
     /**
-     * 根据数据列表构建表格分页数据对象
+     * 不分页的列表（例如内存中的数据）：总条数为列表长度
+     *
+     * @param items 全部数据，为 null 时按空列表处理
      */
-    public static <T> PageResult<T> build(Collection<T> list) {
-        PageResult<T> rspData = new PageResult<>();
-        Collection<T> rows = emptyIfNull(list);
-        rspData.setRows(rows);
-        rspData.setTotal(rows.size());
-        return rspData;
+    public static <T> PageResult<T> of(List<T> items) {
+        return new PageResult<>(items, items == null ? 0 : items.size());
     }
 
     /**
-     * 构建表格分页数据对象
+     * @return 没有数据的分页结果
      */
-    public static <T> PageResult<T> build() {
-        return new PageResult<>();
+    public static <T> PageResult<T> empty() {
+        return new PageResult<>(new ArrayList<>(), 0);
     }
 
-    private static <T> Collection<T> emptyIfNull(Collection<T> list) {
-        return list == null ? Collections.emptyList() : list;
+    /**
+     * 转换元素类型，总条数不变
+     *
+     * @param mapper 元素转换
+     */
+    public <R> PageResult<R> map(Function<? super T, ? extends R> mapper) {
+        List<R> mapped = new ArrayList<>(items.size());
+        for (T item : items) {
+            mapped.add(mapper.apply(item));
+        }
+        return new PageResult<>(mapped, total);
+    }
+
+    public List<T> getItems() {
+        return items;
+    }
+
+    public void setItems(List<T> items) {
+        this.items = items == null ? new ArrayList<>() : items;
+    }
+
+    public long getTotal() {
+        return total;
+    }
+
+    public void setTotal(long total) {
+        this.total = total;
     }
 
 }

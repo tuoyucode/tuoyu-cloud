@@ -3,16 +3,16 @@ package org.tuoyu.system.service.impl;
 import cn.hutool.core.convert.Convert;
 import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.core.utils.ObjectUtils;
 import org.tuoyu.common.core.utils.StringUtils;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.redis.utils.CacheUtils;
 import org.tuoyu.system.domain.SysConfig;
@@ -42,14 +42,13 @@ public class SysConfigServiceImpl implements ISysConfigService {
      * 分页查询参数配置列表
      *
      * @param config    查询条件
-     * @param pageQuery 分页参数
+     * @param pageParam 分页参数
      * @return 参数配置分页列表
      */
     @Override
-    public PageResult<SysConfigVo> selectPageConfigList(SysConfigBo config, PageQuery pageQuery) {
+    public PageResult<SysConfigVo> selectPageConfigList(SysConfigBo config, PageParam pageParam) {
         LambdaQueryWrapper<SysConfig> lqw = buildQueryWrapper(config);
-        Page<SysConfigVo> page = configMapper.selectVoPage(pageQuery.build(), lqw);
-        return PageResult.build(page.getRecords(), page.getTotal());
+        return PageResults.of(configMapper.selectPage(pageParam.toPage(SysConfig.class), lqw), SysConfigVo.class);
     }
 
     /**
@@ -60,7 +59,7 @@ public class SysConfigServiceImpl implements ISysConfigService {
      */
     @Override
     public SysConfigVo selectConfigById(Long configId) {
-        return configMapper.selectVoById(configId);
+        return BeanMapper.map(configMapper.selectById(configId), SysConfigVo.class);
     }
 
     /**
@@ -72,7 +71,7 @@ public class SysConfigServiceImpl implements ISysConfigService {
     @Cacheable(cacheNames = CacheNames.SYS_CONFIG, key = "#configKey")
     @Override
     public String selectConfigByKey(String configKey) {
-        SysConfig retConfig = configMapper.lambda().eq(SysConfig::getConfigKey, configKey).one();
+        SysConfig retConfig = configMapper.selectOne(QueryBuilder.lambda(SysConfig.class).eq(SysConfig::getConfigKey, configKey).build());
         return ObjectUtils.notNullGetter(retConfig, SysConfig::getConfigValue, StringUtils.EMPTY);
     }
 
@@ -96,7 +95,7 @@ public class SysConfigServiceImpl implements ISysConfigService {
     @Override
     public List<SysConfigVo> selectConfigList(SysConfigBo config) {
         LambdaQueryWrapper<SysConfig> lqw = buildQueryWrapper(config);
-        return configMapper.selectVoList(lqw);
+        return BeanMapper.mapList(configMapper.selectList(lqw), SysConfigVo.class);
     }
 
     /**
@@ -104,7 +103,7 @@ public class SysConfigServiceImpl implements ISysConfigService {
      */
     @Override
     public long countConfigList(SysConfigBo config) {
-        return configMapper.selectVoPage(PageQuery.countOnly(), buildQueryWrapper(config)).getTotal();
+        return configMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(config)).getTotal();
     }
 
     private LambdaQueryWrapper<SysConfig> buildQueryWrapper(SysConfigBo bo) {
@@ -127,12 +126,12 @@ public class SysConfigServiceImpl implements ISysConfigService {
     @CachePut(cacheNames = CacheNames.SYS_CONFIG, key = "#bo.configKey")
     @Override
     public String insertConfig(SysConfigBo bo) {
-        SysConfig config = MapstructUtils.convert(bo, SysConfig.class);
+        SysConfig config = BeanMapper.map(bo, SysConfig.class);
         int row = configMapper.insert(config);
         if (row > 0) {
             return config.getConfigValue();
         }
-        throw new ServiceException("操作失败");
+        throw new ServiceException("新增参数'{}'失败", bo.getConfigName());
     }
 
     /**
@@ -145,7 +144,7 @@ public class SysConfigServiceImpl implements ISysConfigService {
     @Override
     public String updateConfig(SysConfigBo bo) {
         int row;
-        SysConfig config = MapstructUtils.convert(bo, SysConfig.class);
+        SysConfig config = BeanMapper.map(bo, SysConfig.class);
         if (config.getConfigId() != null) {
             SysConfig temp = configMapper.selectById(config.getConfigId());
             if (ObjectUtil.isNotNull(temp) && !StringUtils.equals(temp.getConfigKey(), config.getConfigKey())) {
@@ -154,14 +153,16 @@ public class SysConfigServiceImpl implements ISysConfigService {
             row = configMapper.updateById(config);
         } else {
             CacheUtils.evict(CacheNames.SYS_CONFIG, config.getConfigKey());
-            row = configMapper.lambda()
+            row = configMapper.update(config, QueryBuilder.lambda(SysConfig.class)
                 .eq(SysConfig::getConfigKey, config.getConfigKey())
-                .updateCount(config);
+                .build());
         }
         if (row > 0) {
             return config.getConfigValue();
         }
-        throw new ServiceException("操作失败");
+        // 按参数键修改时只传了参数键与参数值，没有参数名称
+        String name = StringUtils.isNotBlank(bo.getConfigName()) ? bo.getConfigName() : bo.getConfigKey();
+        throw new ServiceException("修改参数'{}'失败，参数不存在", name);
     }
 
     /**
@@ -197,10 +198,10 @@ public class SysConfigServiceImpl implements ISysConfigService {
      */
     @Override
     public boolean checkConfigKeyUnique(SysConfigBo config) {
-        boolean exist = configMapper.lambda()
+        boolean exist = configMapper.exists(QueryBuilder.lambda(SysConfig.class)
             .eq(SysConfig::getConfigKey, config.getConfigKey())
             .neIfPresent(SysConfig::getConfigId, config.getConfigId())
-            .exists();
+            .build());
         return !exist;
     }
 

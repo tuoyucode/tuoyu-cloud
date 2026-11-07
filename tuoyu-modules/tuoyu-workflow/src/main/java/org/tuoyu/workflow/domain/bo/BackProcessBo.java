@@ -2,7 +2,7 @@ package org.tuoyu.workflow.domain.bo;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
+import org.tuoyu.common.core.validate.OnCreate;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -26,7 +26,7 @@ public class BackProcessBo implements Serializable {
     /**
      * 任务ID
      */
-    @NotNull(message = "任务ID不能为空", groups = AddGroup.class)
+    @NotNull(message = "任务ID不能为空", groups = OnCreate.class)
     private Long taskId;
 
     /**

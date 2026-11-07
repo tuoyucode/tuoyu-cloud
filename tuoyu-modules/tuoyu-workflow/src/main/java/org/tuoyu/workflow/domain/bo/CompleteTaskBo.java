@@ -2,7 +2,7 @@ package org.tuoyu.workflow.domain.bo;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
+import org.tuoyu.common.core.validate.OnCreate;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -25,7 +25,7 @@ public class CompleteTaskBo implements Serializable {
     /**
      * 任务id
      */
-    @NotNull(message = "任务id不能为空", groups = {AddGroup.class})
+    @NotNull(message = "任务id不能为空", groups = {OnCreate.class})
     private Long taskId;
 
     /**

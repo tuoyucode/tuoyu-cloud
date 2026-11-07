@@ -1,6 +1,7 @@
 package org.tuoyu.system.dubbo;
 
 import cn.hutool.core.bean.BeanUtil;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.Opt;
 import cn.hutool.core.util.ObjectUtil;
@@ -9,7 +10,7 @@ import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.enums.UserStatus;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.exception.user.UserException;
-import org.tuoyu.common.core.utils.MapstructUtils;
+import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.core.utils.ThreadUtils;
@@ -67,7 +68,7 @@ public class RemoteUserServiceImpl implements RemoteUserService {
      */
     @Override
     public LoginUser getUserInfo(String username) throws UserException {
-        SysUserVo sysUser = userMapper.lambda().eq(SysUser::getUserName, username).voOne();
+        SysUserVo sysUser = BeanMapper.map(userMapper.selectOne(QueryBuilder.lambda(SysUser.class).eq(SysUser::getUserName, username).build()), SysUserVo.class);
         if (ObjectUtil.isNull(sysUser)) {
             throw new UserException("user.not.exists", username);
         }
@@ -85,7 +86,7 @@ public class RemoteUserServiceImpl implements RemoteUserService {
      */
     @Override
     public LoginUser getUserInfo(Long userId) throws UserException {
-        SysUserVo sysUser = userMapper.selectVoById(userId);
+        SysUserVo sysUser = BeanMapper.map(userMapper.selectById(userId), SysUserVo.class);
         if (ObjectUtil.isNull(sysUser)) {
             throw new UserException("user.not.exists", "");
         }
@@ -105,7 +106,7 @@ public class RemoteUserServiceImpl implements RemoteUserService {
      */
     @Override
     public LoginUser getUserInfoByPhoneNumber(String phoneNumber) throws UserException {
-        SysUserVo sysUser = userMapper.lambda().eq(SysUser::getPhoneNumber, phoneNumber).voOne();
+        SysUserVo sysUser = BeanMapper.map(userMapper.selectOne(QueryBuilder.lambda(SysUser.class).eq(SysUser::getPhoneNumber, phoneNumber).build()), SysUserVo.class);
         if (ObjectUtil.isNull(sysUser)) {
             throw new UserException("user.not.exists", phoneNumber);
         }
@@ -125,7 +126,7 @@ public class RemoteUserServiceImpl implements RemoteUserService {
      */
     @Override
     public LoginUser getUserInfoByEmail(String email) throws UserException {
-        SysUserVo user = userMapper.lambda().eq(SysUser::getEmail, email).voOne();
+        SysUserVo user = BeanMapper.map(userMapper.selectOne(QueryBuilder.lambda(SysUser.class).eq(SysUser::getEmail, email).build()), SysUserVo.class);
         if (ObjectUtil.isNull(user)) {
             throw new UserException("user.not.exists", email);
         }
@@ -168,22 +169,21 @@ public class RemoteUserServiceImpl implements RemoteUserService {
      * 注册用户信息
      *
      * @param remoteUserBo 用户信息
-     * @return 结果
      */
     @Override
-    public Boolean registerUserInfo(RemoteUserBo remoteUserBo) throws UserException, ServiceException {
-        SysUserBo sysUserBo = MapstructUtils.convert(remoteUserBo, SysUserBo.class);
+    public void registerUserInfo(RemoteUserBo remoteUserBo) throws UserException, ServiceException {
+        SysUserBo sysUserBo = BeanMapper.map(remoteUserBo, SysUserBo.class);
         String username = sysUserBo.getUserName();
         if (!("true".equals(configService.selectConfigByKey("sys.account.registerUser")))) {
             throw new ServiceException("当前系统没有开启注册功能");
         }
-        boolean exist = userMapper.lambda()
+        boolean exist = userMapper.exists(QueryBuilder.lambda(SysUser.class)
             .eq(SysUser::getUserName, sysUserBo.getUserName())
-            .exists();
+            .build());
         if (exist) {
             throw new UserException("user.register.save.error", username);
         }
-        return userService.registerUser(sysUserBo);
+        userService.registerUser(sysUserBo);
     }
 
     /**
@@ -303,15 +303,15 @@ public class RemoteUserServiceImpl implements RemoteUserService {
         if (CollUtil.isEmpty(userIds)) {
             return List.of();
         }
-        List<SysUserVo> list = userMapper.lambda()
+        List<SysUserVo> list = BeanMapper.mapList(userMapper.selectList(QueryBuilder.lambda(SysUser.class)
             .select(SysUser::getUserId, SysUser::getDeptId, SysUser::getUserName,
                 SysUser::getNickName, SysUser::getUserType, SysUser::getEmail,
                 SysUser::getPhoneNumber, SysUser::getGender, SysUser::getStatus,
                 SysUser::getCreateTime)
             .eq(SysUser::getStatus, SystemConstants.NORMAL)
             .in(SysUser::getUserId, userIds)
-            .voList();
-        return MapstructUtils.convert(list, RemoteUserVo.class);
+            .build()), SysUserVo.class);
+        return BeanMapper.mapList(list, RemoteUserVo.class);
     }
 
     /**
@@ -341,9 +341,9 @@ public class RemoteUserServiceImpl implements RemoteUserService {
         }
 
         // 通过角色ID获取用户角色信息
-        List<SysUserRole> userRoles = userRoleMapper.lambda()
+        List<SysUserRole> userRoles = userRoleMapper.selectList(QueryBuilder.lambda(SysUserRole.class)
             .in(SysUserRole::getRoleId, roleIds)
-            .list();
+            .build());
 
         // 获取用户ID列表
         Set<Long> userIds = StreamUtils.toSet(userRoles, SysUserRole::getUserId);
@@ -362,11 +362,11 @@ public class RemoteUserServiceImpl implements RemoteUserService {
         if (CollUtil.isEmpty(deptIds)) {
             return List.of();
         }
-        List<SysUserVo> list = userMapper.lambda()
+        List<SysUserVo> list = BeanMapper.mapList(userMapper.selectList(QueryBuilder.lambda(SysUser.class)
             .select(SysUser::getUserId, SysUser::getUserName, SysUser::getNickName, SysUser::getEmail, SysUser::getPhoneNumber)
             .eq(SysUser::getStatus, SystemConstants.NORMAL)
             .in(SysUser::getDeptId, deptIds)
-            .voList();
+            .build()), SysUserVo.class);
         return BeanUtil.copyToList(list, RemoteUserVo.class);
     }
 
@@ -383,9 +383,9 @@ public class RemoteUserServiceImpl implements RemoteUserService {
         }
 
         // 通过岗位ID获取用户岗位信息
-        List<SysUserPost> userPosts = userPostMapper.lambda()
+        List<SysUserPost> userPosts = userPostMapper.selectList(QueryBuilder.lambda(SysUserPost.class)
             .in(SysUserPost::getPostId, postIds)
-            .list();
+            .build());
 
         // 获取用户ID列表
         Set<Long> userIds = StreamUtils.toSet(userPosts, SysUserPost::getUserId);
@@ -404,10 +404,10 @@ public class RemoteUserServiceImpl implements RemoteUserService {
         if (CollUtil.isEmpty(userIds)) {
             return Map.of();
         }
-        List<SysUser> list = userMapper.lambda()
+        List<SysUser> list = userMapper.selectList(QueryBuilder.lambda(SysUser.class)
             .select(SysUser::getUserId, SysUser::getNickName)
             .in(SysUser::getUserId, userIds)
-            .list();
+            .build());
         return StreamUtils.toMap(list, SysUser::getUserId, SysUser::getNickName);
     }
 

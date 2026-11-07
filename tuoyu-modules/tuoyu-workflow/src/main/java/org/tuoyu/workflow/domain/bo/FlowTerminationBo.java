@@ -2,7 +2,6 @@ package org.tuoyu.workflow.domain.bo;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -21,7 +20,7 @@ public class FlowTerminationBo implements Serializable {
     /**
      * 任务id
      */
-    @NotNull(message = "任务id为空", groups = AddGroup.class)
+    @NotNull(message = "任务id为空")
     private Long taskId;
 
     /**

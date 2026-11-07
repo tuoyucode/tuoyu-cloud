@@ -5,7 +5,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.tuoyu.auth.domain.vo.ApiCryptoPublicKeyVo;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.encrypt.api.ApiCryptoCodec;
 import org.tuoyu.common.encrypt.api.ApiCryptoKey;
 import org.tuoyu.common.encrypt.api.ApiCryptoKeyRing;
@@ -33,13 +33,13 @@ public class ApiCryptoController {
      */
     @SaIgnore
     @GetMapping("/crypto/public-key")
-    public R<ApiCryptoPublicKeyVo> publicKey() {
+    public ApiResult<ApiCryptoPublicKeyVo> publicKey() {
         ApiCryptoPublicKeyVo vo = new ApiCryptoPublicKeyVo();
         ApiCryptoKeyRing ring = keyRing.getIfAvailable();
         ApiCryptoProperties config = properties.getIfAvailable();
         vo.setEnabled(ring != null && config != null);
         if (ring == null || config == null) {
-            return R.ok(vo);
+            return ApiResult.ok(vo);
         }
         ApiCryptoKey current = ring.current();
         vo.setVersion(ApiCryptoCodec.VERSION);
@@ -48,7 +48,7 @@ public class ApiCryptoController {
         vo.setPublicKey(current.publicKeyBase64());
         vo.setRequireHttps(config.isRequireHttps());
         vo.setReplayWindowSeconds(config.getReplayWindow().toSeconds());
-        return R.ok(vo);
+        return ApiResult.ok(vo);
     }
 
 }

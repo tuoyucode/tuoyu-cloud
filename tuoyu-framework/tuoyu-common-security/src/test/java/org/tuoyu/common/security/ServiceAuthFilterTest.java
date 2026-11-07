@@ -7,16 +7,19 @@ import cn.dev33.satoken.context.mock.SaTokenContextMockUtil;
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.filter.SaServletFilter;
 import cn.dev33.satoken.same.SaSameUtil;
-import cn.dev33.satoken.util.SaResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.tuoyu.common.core.web.TraceIdSource;
 import org.tuoyu.common.satoken.auth.RequestAuthenticator;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import org.tuoyu.common.security.config.SecurityConfiguration;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,7 +48,8 @@ class ServiceAuthFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new SecurityConfiguration().getSaServletFilter(authenticator);
+        filter = new SecurityConfiguration().getSaServletFilter(authenticator,
+            new StaticListableBeanFactory().getBeanProvider(TraceIdSource.class));
         request = new MockHttpServletRequest("GET", "/user/list");
         request.addHeader(RequestAuthenticator.FORWARDED_PREFIX, "/system");
         response = new MockHttpServletResponse();
@@ -86,10 +90,13 @@ class ServiceAuthFilterTest {
     @Test
     @DisplayName("未登录时返回 401 与固定的提示，不带上请求中的令牌")
     void notLoginError() {
-        SaResult result = (SaResult) filter.error.run(
+        String body = (String) filter.error.run(
             NotLoginException.newInstance("login", NotLoginException.TOKEN_FREEZE, "token 已被冻结", "secret-token-value"));
-        assertThat(result.getCode()).isEqualTo(401);
-        assertThat(result.getMsg()).isEqualTo("登录已过期，请重新登录").doesNotContain("secret-token-value");
+        JsonNode result = JsonMapper.builder().build().readTree(body);
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(result.get("code").asInt()).isEqualTo(401);
+        assertThat(result.get("message").asString()).isEqualTo("登录已过期，请重新登录");
+        assertThat(body).doesNotContain("secret-token-value");
         assertThat(response.getContentType()).contains("application/json");
     }
 

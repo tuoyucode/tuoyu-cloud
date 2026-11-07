@@ -3,8 +3,8 @@ package org.tuoyu.workflow.domain.bo;
 import io.github.linpeilie.annotations.AutoMapper;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import org.tuoyu.workflow.domain.FlowSpel;
 
 import java.io.Serial;
@@ -48,13 +48,13 @@ public class FlowSpelBo implements Serializable {
     /**
      * 预览spel值
      */
-    @NotBlank(message = "预览spel值不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "预览spel值不能为空", groups = {OnCreate.class, OnUpdate.class})
     private String viewSpel;
 
     /**
      * 状态（0正常 1停用）
      */
-    @NotBlank(message = "状态（0正常 1停用）不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "状态（0正常 1停用）不能为空", groups = {OnCreate.class, OnUpdate.class})
     private String status;
 
     /**

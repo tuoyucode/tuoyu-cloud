@@ -10,7 +10,7 @@ import org.mockito.ArgumentCaptor;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.encrypt.password.PasswordHasher;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
+import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.common.tenant.core.TenantProperties;
 import org.tuoyu.system.domain.SysDept;
@@ -45,6 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -136,7 +137,7 @@ class SysTenantServiceBusinessTest {
         verify(roleMapper).insert(role.capture());
         assertEquals(ISysTenantService.TENANT_ADMIN_ROLE_KEY, role.getValue().getRoleKey());
         ArgumentCaptor<Collection<SysRoleMenu>> menus = ArgumentCaptor.captor();
-        verify(roleMenuMapper).insertBatch(menus.capture());
+        verify(roleMenuMapper).insert(menus.capture());
         assertThat(menus.getValue()).extracting(SysRoleMenu::getMenuId).containsExactlyInAnyOrder(10L, 11L);
 
         ArgumentCaptor<SysUser> user = ArgumentCaptor.forClass(SysUser.class);
@@ -191,7 +192,7 @@ class SysTenantServiceBusinessTest {
 
         verify(tenantMapper).updateById(any(SysTenant.class));
         verify(roleMenuMapper).delete(any());
-        verify(roleMenuMapper).insertBatch(any());
+        verify(roleMenuMapper).insert(anyCollection());
     }
 
     @Test
@@ -284,7 +285,7 @@ class SysTenantServiceBusinessTest {
         service.syncPackage("acme");
 
         verify(roleMenuMapper).delete(any());
-        verify(roleMenuMapper, never()).insertBatch(any());
+        verify(roleMenuMapper, never()).insert(anyCollection());
     }
 
     @Test
@@ -309,7 +310,7 @@ class SysTenantServiceBusinessTest {
         when(tenantMapper.selectList(any(IPage.class), any())).thenReturn(List.of(tenant("acme", 7L)));
         SysTenantBo query = new SysTenantBo();
         query.setTenantName("Ac");
-        assertEquals(1, service.selectPageList(query, new PageQuery()).getRows().size());
+        assertEquals(1, service.selectPageList(query, new PageParam()).getItems().size());
 
         when(tenantMapper.selectById("acme")).thenReturn(tenant("acme", 7L));
         assertEquals("租户acme", service.selectById("acme").getTenantName());

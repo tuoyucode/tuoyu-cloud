@@ -5,14 +5,13 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import cn.hutool.core.convert.Convert;
 import lombok.RequiredArgsConstructor;
 import org.tuoyu.common.core.domain.PageResult;
-import org.tuoyu.common.core.domain.R;
+import org.tuoyu.common.core.domain.ApiResult;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.StreamUtils;
-import org.tuoyu.common.log.annotation.Log;
-import org.tuoyu.common.log.enums.BusinessType;
-import org.tuoyu.common.mybatis.core.page.PageQuery;
-import org.tuoyu.common.redis.annotation.RepeatSubmit;
-import org.tuoyu.common.web.core.BaseController;
-import org.dromara.warm.flow.core.service.InsService;
+import org.tuoyu.common.log.annotation.OperationLog;
+import org.tuoyu.common.log.enums.AuditAction;
+import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.workflow.common.ConditionalOnEnable;
 import org.tuoyu.workflow.domain.bo.FlowCancelBo;
 import org.tuoyu.workflow.domain.bo.FlowInstanceBo;
@@ -36,33 +35,32 @@ import java.util.Map;
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/instance")
-public class FlwInstanceController extends BaseController {
+public class FlwInstanceController {
 
-    private final InsService insService;
     private final IFlwInstanceService flwInstanceService;
 
     /**
      * 查询正在运行的流程实例列表
      *
      * @param flowInstanceBo 流程实例
-     * @param pageQuery      分页
+     * @param pageParam      分页
      */
     @GetMapping("/pageByRunning")
     @SaCheckPermission("workflow:instance:list")
-    public R<PageResult<FlowInstanceVo>> selectRunningInstanceList(FlowInstanceBo flowInstanceBo, PageQuery pageQuery) {
-        return R.ok(flwInstanceService.selectRunningInstanceList(flowInstanceBo, pageQuery));
+    public ApiResult<PageResult<FlowInstanceVo>> selectRunningInstanceList(FlowInstanceBo flowInstanceBo, PageParam pageParam) {
+        return ApiResult.ok(flwInstanceService.selectRunningInstanceList(flowInstanceBo, pageParam));
     }
 
     /**
      * 查询已结束的流程实例列表
      *
      * @param flowInstanceBo 流程实例
-     * @param pageQuery      分页
+     * @param pageParam      分页
      */
     @GetMapping("/pageByFinish")
     @SaCheckPermission("workflow:instance:list")
-    public R<PageResult<FlowInstanceVo>> selectFinishInstanceList(FlowInstanceBo flowInstanceBo, PageQuery pageQuery) {
-        return R.ok(flwInstanceService.selectFinishInstanceList(flowInstanceBo, pageQuery));
+    public ApiResult<PageResult<FlowInstanceVo>> selectFinishInstanceList(FlowInstanceBo flowInstanceBo, PageParam pageParam) {
+        return ApiResult.ok(flwInstanceService.selectFinishInstanceList(flowInstanceBo, pageParam));
     }
 
     /**
@@ -72,8 +70,8 @@ public class FlwInstanceController extends BaseController {
      */
     @GetMapping("/getInfo/{businessId}")
     @SaCheckPermission("workflow:instance:query")
-    public R<FlowInstanceVo> getInfo(@PathVariable Long businessId) {
-        return R.ok(flwInstanceService.queryByBusinessId(businessId));
+    public ApiResult<FlowInstanceVo> getInfo(@PathVariable Long businessId) {
+        return ApiResult.ok(flwInstanceService.queryByBusinessId(businessId));
     }
 
     /**
@@ -82,10 +80,13 @@ public class FlwInstanceController extends BaseController {
      * @param businessIds 业务id
      */
     @DeleteMapping("/deleteByBusinessIds/{businessIds}")
-    @Log(title = "流程实例管理", businessType = BusinessType.DELETE)
+    @OperationLog(module = "流程实例管理", action = AuditAction.DELETE)
     @SaCheckPermission("workflow:instance:remove")
-    public R<Void> deleteByBusinessIds(@PathVariable List<Long> businessIds) {
-        return toAjax(flwInstanceService.deleteByBusinessIds(StreamUtils.toList(businessIds, Convert::toStr)));
+    public ApiResult<Void> deleteByBusinessIds(@PathVariable List<Long> businessIds) {
+        if (!flwInstanceService.deleteByBusinessIds(StreamUtils.toList(businessIds, Convert::toStr))) {
+            throw new ServiceException("未找到对应的流程实例");
+        }
+        return ApiResult.ok();
     }
 
     /**
@@ -94,10 +95,11 @@ public class FlwInstanceController extends BaseController {
      * @param instanceIds 实例id
      */
     @DeleteMapping("/deleteByInstanceIds/{instanceIds}")
-    @Log(title = "流程实例管理", businessType = BusinessType.DELETE)
+    @OperationLog(module = "流程实例管理", action = AuditAction.DELETE)
     @SaCheckPermission("workflow:instance:remove")
-    public R<Void> deleteByInstanceIds(@PathVariable List<Long> instanceIds) {
-        return toAjax(flwInstanceService.deleteByInstanceIds(instanceIds));
+    public ApiResult<Void> deleteByInstanceIds(@PathVariable List<Long> instanceIds) {
+        flwInstanceService.deleteByInstanceIds(instanceIds);
+        return ApiResult.ok();
     }
 
     /**
@@ -106,10 +108,11 @@ public class FlwInstanceController extends BaseController {
      * @param instanceIds 实例id
      */
     @DeleteMapping("/deleteHisByInstanceIds/{instanceIds}")
-    @Log(title = "流程实例管理", businessType = BusinessType.DELETE)
+    @OperationLog(module = "流程实例管理", action = AuditAction.DELETE)
     @SaCheckPermission("workflow:instance:remove")
-    public R<Void> deleteHisByInstanceIds(@PathVariable List<Long> instanceIds) {
-        return toAjax(flwInstanceService.deleteHisByInstanceIds(instanceIds));
+    public ApiResult<Void> deleteHisByInstanceIds(@PathVariable List<Long> instanceIds) {
+        flwInstanceService.deleteHisByInstanceIds(instanceIds);
+        return ApiResult.ok();
     }
 
     /**
@@ -117,12 +120,13 @@ public class FlwInstanceController extends BaseController {
      *
      * @param bo 参数
      */
-    @RepeatSubmit()
+    @PreventResubmit
     @PutMapping("/cancelProcessApply")
-    @Log(title = "流程实例管理", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "流程实例管理", action = AuditAction.UPDATE)
     @SaCheckLogin
-    public R<Void> cancelProcessApply(@RequestBody FlowCancelBo bo) {
-        return toAjax(flwInstanceService.cancelProcessApply(bo));
+    public ApiResult<Void> cancelProcessApply(@Validated @RequestBody FlowCancelBo bo) {
+        flwInstanceService.cancelProcessApply(bo);
+        return ApiResult.ok();
     }
 
     /**
@@ -131,24 +135,25 @@ public class FlwInstanceController extends BaseController {
      * @param id     流程实例id
      * @param active 激活/挂起
      */
-    @RepeatSubmit()
+    @PreventResubmit
     @PutMapping("/active/{id}")
-    @Log(title = "流程实例管理", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "流程实例管理", action = AuditAction.UPDATE)
     @SaCheckPermission("workflow:instance:active")
-    public R<Boolean> active(@PathVariable Long id, @RequestParam boolean active) {
-        return R.ok(active ? insService.active(id) : insService.unActive(id));
+    public ApiResult<Void> active(@PathVariable Long id, @RequestParam boolean active) {
+        flwInstanceService.active(id, active);
+        return ApiResult.ok();
     }
 
     /**
      * 获取当前登陆人发起的流程实例
      *
      * @param flowInstanceBo 参数
-     * @param pageQuery      分页
+     * @param pageParam      分页
      */
     @GetMapping("/pageByCurrent")
     @SaCheckPermission("workflow:instance:currentList")
-    public R<PageResult<FlowInstanceVo>> selectCurrentInstanceList(FlowInstanceBo flowInstanceBo, PageQuery pageQuery) {
-        return R.ok(flwInstanceService.selectCurrentInstanceList(flowInstanceBo, pageQuery));
+    public ApiResult<PageResult<FlowInstanceVo>> selectCurrentInstanceList(FlowInstanceBo flowInstanceBo, PageParam pageParam) {
+        return ApiResult.ok(flwInstanceService.selectCurrentInstanceList(flowInstanceBo, pageParam));
     }
 
     /**
@@ -158,8 +163,8 @@ public class FlwInstanceController extends BaseController {
      */
     @GetMapping("/flowHisTaskList/{businessId}")
     @SaCheckLogin
-    public R<Map<String, Object>> flowHisTaskList(@PathVariable String businessId) {
-        return R.ok(flwInstanceService.flowHisTaskList(businessId));
+    public ApiResult<Map<String, Object>> flowHisTaskList(@PathVariable String businessId) {
+        return ApiResult.ok(flwInstanceService.flowHisTaskList(businessId));
     }
 
     /**
@@ -169,8 +174,8 @@ public class FlwInstanceController extends BaseController {
      */
     @GetMapping("/instanceVariable/{instanceId}")
     @SaCheckPermission("workflow:instance:variableQuery")
-    public R<Map<String, Object>> instanceVariable(@PathVariable Long instanceId) {
-        return R.ok(flwInstanceService.instanceVariable(instanceId));
+    public ApiResult<Map<String, Object>> instanceVariable(@PathVariable Long instanceId) {
+        return ApiResult.ok(flwInstanceService.instanceVariable(instanceId));
     }
 
     /**
@@ -178,12 +183,13 @@ public class FlwInstanceController extends BaseController {
      *
      * @param bo 参数
      */
-    @RepeatSubmit()
+    @PreventResubmit
     @PutMapping("/updateVariable")
-    @Log(title = "流程实例管理", businessType = BusinessType.UPDATE)
+    @OperationLog(module = "流程实例管理", action = AuditAction.UPDATE)
     @SaCheckPermission("workflow:instance:variable")
-    public R<Void> updateVariable(@Validated @RequestBody FlowVariableBo bo) {
-        return toAjax(flwInstanceService.updateVariable(bo));
+    public ApiResult<Void> updateVariable(@Validated @RequestBody FlowVariableBo bo) {
+        flwInstanceService.updateVariable(bo);
+        return ApiResult.ok();
     }
 
     /**
@@ -191,12 +197,13 @@ public class FlwInstanceController extends BaseController {
      *
      * @param bo 参数
      */
-    @Log(title = "流程实例管理", businessType = BusinessType.INSERT)
-    @RepeatSubmit()
+    @OperationLog(module = "流程实例管理", action = AuditAction.CREATE)
+    @PreventResubmit
     @PostMapping("/invalid")
     @SaCheckPermission("workflow:instance:invalid")
-    public R<Boolean> invalid(@Validated @RequestBody FlowInvalidBo bo) {
-        return R.ok(flwInstanceService.processInvalid(bo));
+    public ApiResult<Void> invalid(@Validated @RequestBody FlowInvalidBo bo) {
+        flwInstanceService.processInvalid(bo);
+        return ApiResult.ok();
     }
 
 }

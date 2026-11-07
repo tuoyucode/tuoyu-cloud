@@ -4,8 +4,8 @@ import io.github.linpeilie.annotations.AutoMapper;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
-import org.tuoyu.common.core.validate.AddGroup;
-import org.tuoyu.common.core.validate.EditGroup;
+import org.tuoyu.common.core.validate.OnCreate;
+import org.tuoyu.common.core.validate.OnUpdate;
 import org.tuoyu.workflow.domain.FlowCategory;
 
 import java.io.Serial;
@@ -29,19 +29,19 @@ public class FlowCategoryBo implements Serializable {
     /**
      * 流程分类ID
      */
-    @NotNull(message = "流程分类ID不能为空", groups = {EditGroup.class})
+    @NotNull(message = "流程分类ID不能为空", groups = {OnUpdate.class})
     private Long categoryId;
 
     /**
      * 父流程分类id
      */
-    @NotNull(message = "父流程分类id不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotNull(message = "父流程分类id不能为空", groups = {OnCreate.class, OnUpdate.class})
     private Long parentId;
 
     /**
      * 流程分类名称
      */
-    @NotBlank(message = "流程分类名称不能为空", groups = {AddGroup.class, EditGroup.class})
+    @NotBlank(message = "流程分类名称不能为空", groups = {OnCreate.class, OnUpdate.class})
     private String categoryName;
 
     /**
