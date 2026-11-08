@@ -83,6 +83,7 @@ public class TemplateEngineUtils {
      * @return 模板上下文
      */
     public static Dict buildContext(GenTable genTable) {
+        fillBlankColumnComments(genTable);
         // 构建上下文
         Dict context = new Dict();
         String moduleName = genTable.getModuleName();
@@ -145,6 +146,23 @@ public class TemplateEngineUtils {
         }
 
         return context;
+    }
+
+    /**
+     * 没有注释的字段用字段名作为注释。模板中的代码注释、表单标签与文案都取自字段注释，
+     * 数据库中的列没有注释（或编辑时清空了注释）时，渲染会因取不到值而失败
+     *
+     * @param genTable 代码生成业务表对象
+     */
+    private static void fillBlankColumnComments(GenTable genTable) {
+        if (CollUtil.isEmpty(genTable.getColumns())) {
+            return;
+        }
+        for (GenTableColumn column : genTable.getColumns()) {
+            if (StringUtils.isBlank(column.getColumnComment())) {
+                column.setColumnComment(column.getColumnName());
+            }
+        }
     }
 
     /**

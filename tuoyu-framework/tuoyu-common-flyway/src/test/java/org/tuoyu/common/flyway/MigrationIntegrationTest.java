@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -46,7 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <ul>
  *     <li>空库：从 V1 执行到最新版本，再次启动时不执行任何脚本，校验通过；</li>
  *     <li>已有库（执行过全新安装脚本、没有迁移记录表）：按基线版本 1 接入，只执行 V2 起的脚本；</li>
- *     <li>有表但缺少基线中的表（连错库、旧库未升级）：拒绝迁移，也不建迁移记录表。</li>
+ *     <li>有表但缺少基线中的表（连错库、旧库未升级）：拒绝迁移，也不建迁移记录表；</li>
+ *     <li>两种数据库都迁移到最新版本后，种子数据一致（两套脚本分别维护，容易一边写错）。</li>
  * </ul>
  * 负责迁移的服务按目录自动发现（带 src/main/resources/db/migration 的模块），新增的库无需修改本测试。
  * <p>
@@ -259,6 +261,113 @@ class MigrationIntegrationTest {
 
             assertTrue(e.getMessage().contains("缺少基线（V1）中的表"), e.getMessage());
             assertFalse(vendor.hasTable(database, "flyway_schema_history"), "拒绝迁移时不应建迁移记录表");
+        }
+    }
+
+    /**
+     * 负责迁移的服务（每个库一项，不区分数据库）
+     */
+    static Stream<Arguments> databases() throws IOException {
+        return owners().filter(arguments -> arguments.get()[1] == Vendor.MYSQL)
+            .map(arguments -> Arguments.of(arguments.get()[0], arguments.get()[2]));
+    }
+
+    @ParameterizedTest(name = "{0}（{1}）")
+    @MethodSource("databases")
+    @DisplayName("迁移到最新版本后，MySQL 与 PostgreSQL 中的种子数据一致")
+    void seedDataMatchesAcrossDatabases(String name, Owner owner) throws Exception {
+        String database = name + "-seed";
+        try (URLClassLoader loader = migrationsOf(owner.module())) {
+            for (Vendor vendor : Vendor.values()) {
+                vendor.createDatabase(database);
+                new SupportedDatabaseMigrationStrategy().migrate(flyway(loader, vendor, database, owner.migration()));
+            }
+        }
+        List<String> differences = new ArrayList<>();
+        try (Connection mysqlConnection = Vendor.MYSQL.connect(database);
+             Connection postgresConnection = Vendor.POSTGRESQL.connect(database)) {
+            for (String table : SeedData.tables(postgresConnection)) {
+                List<String> columns = SeedData.comparableColumns(postgresConnection, mysqlConnection, table);
+                if (columns.isEmpty()) {
+                    continue;
+                }
+                List<String> inMysql = SeedData.rows(mysqlConnection, Vendor.MYSQL, table, columns);
+                List<String> inPostgres = SeedData.rows(postgresConnection, Vendor.POSTGRESQL, table, columns);
+                List<String> onlyMysql = new ArrayList<>(inMysql);
+                onlyMysql.removeAll(inPostgres);
+                List<String> onlyPostgres = new ArrayList<>(inPostgres);
+                onlyPostgres.removeAll(inMysql);
+                if (!onlyMysql.isEmpty() || !onlyPostgres.isEmpty()) {
+                    differences.add(table + " " + columns + "\n  仅 MySQL：" + onlyMysql + "\n  仅 PostgreSQL：" + onlyPostgres);
+                }
+            }
+        }
+        assertTrue(differences.isEmpty(), "两种数据库的种子数据不一致（时间、布尔列不比较）：\n" + String.join("\n", differences));
+    }
+
+    /**
+     * 跨数据库比较种子数据：按两边都有的列逐行比较，忽略行的顺序。
+     * 时间列（取值依赖执行时刻）、布尔列（MySQL 用整数存储）与二进制列不比较；
+     * 值去掉末尾空格后比较（PostgreSQL 的定长 character 列会补空格，MySQL 的 char 不补）
+     */
+    private static final class SeedData {
+
+        private static final List<String> SKIPPED_TYPE_PREFIXES = List.of(
+            "timestamp", "date", "time", "datetime", "boolean", "bit", "bytea", "blob", "longblob", "mediumblob", "tinyblob");
+
+        private SeedData() {
+        }
+
+        static List<String> tables(Connection postgres) throws SQLException {
+            List<String> tables = new ArrayList<>();
+            try (Statement statement = postgres.createStatement();
+                 ResultSet rs = statement.executeQuery("select table_name from information_schema.tables where table_schema = current_schema()"
+                     + " and table_type = 'BASE TABLE' and table_name <> 'flyway_schema_history' order by table_name")) {
+                while (rs.next()) {
+                    tables.add(rs.getString(1));
+                }
+            }
+            return tables;
+        }
+
+        static List<String> comparableColumns(Connection postgres, Connection mysql, String table) throws SQLException {
+            List<String> inPostgres = columns(postgres, "current_schema()", table);
+            List<String> inMysql = columns(mysql, "database()", table);
+            return inPostgres.stream().filter(inMysql::contains).toList();
+        }
+
+        private static List<String> columns(Connection connection, String schema, String table) throws SQLException {
+            List<String> columns = new ArrayList<>();
+            try (Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("select column_name, data_type from information_schema.columns where table_schema = "
+                     + schema + " and lower(table_name) = '" + table + "' order by ordinal_position")) {
+                while (rs.next()) {
+                    String type = rs.getString(2).toLowerCase(Locale.ROOT);
+                    if (SKIPPED_TYPE_PREFIXES.stream().noneMatch(type::startsWith)) {
+                        columns.add(rs.getString(1).toLowerCase(Locale.ROOT));
+                    }
+                }
+            }
+            return columns;
+        }
+
+        static List<String> rows(Connection connection, Vendor vendor, String table, List<String> columns) throws SQLException {
+            String quote = vendor == Vendor.MYSQL ? "`" : "\"";
+            String select = columns.stream().map(c -> quote + c + quote).reduce((a, b) -> a + ", " + b).orElseThrow();
+            List<String> rows = new ArrayList<>();
+            try (Statement statement = connection.createStatement();
+                 ResultSet rs = statement.executeQuery("select " + select + " from " + quote + table + quote)) {
+                while (rs.next()) {
+                    StringBuilder row = new StringBuilder("(");
+                    for (int i = 1; i <= columns.size(); i++) {
+                        String value = rs.getString(i);
+                        row.append(i > 1 ? ", " : "").append(value == null ? null : value.stripTrailing());
+                    }
+                    rows.add(row.append(')').toString());
+                }
+            }
+            rows.sort(null);
+            return rows;
         }
     }
 

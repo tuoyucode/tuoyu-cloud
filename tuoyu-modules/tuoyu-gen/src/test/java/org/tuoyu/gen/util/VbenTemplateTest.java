@@ -18,6 +18,7 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -192,6 +193,25 @@ class VbenTemplateTest {
             files.forEach((path, content) -> REMOVED_API.forEach(old ->
                 assertFalse(content.contains(old), path + " 中不应出现 " + old)));
         }
+    }
+
+    @Test
+    @DisplayName("字段没有注释（数据库中的列没有注释、编辑时清空）时用字段名代替，前后端模板都能渲染")
+    void shouldRenderColumnsWithoutComment() throws IOException {
+        GenTable table = postTable();
+        table.setColumns(new ArrayList<>(table.getColumns()));
+        GenTableColumn noComment = column("post_note", null, "String", "postNote", false, false, "input", null, "EQ");
+        GenTableColumn blankComment = column("post_level", " ", "String", "postLevel", false, false, "input", null, null);
+        table.getColumns().add(noComment);
+        table.getColumns().add(blankComment);
+
+        Map<String, String> backend = renderBackend(table);
+        Map<String, String> frontend = render(table);
+
+        String domain = backend.get(GenConstants.JAVA_DOMAIN_TEMPLATE_PATH);
+        assertTrue(domain.contains("* post_note"), domain);
+        assertTrue(domain.contains("* post_level"), domain);
+        assertTrue(frontend.values().stream().anyMatch(content -> content.contains("post_note")));
     }
 
     @SuppressWarnings("unchecked")

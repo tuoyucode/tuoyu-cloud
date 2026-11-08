@@ -39,3 +39,4 @@ Oracle 不在 1.0 的支持范围内，Flyway 连接 Oracle 时自动跳过迁�
 | `20261030-menu` | 删除“流程表达式定义导出”按钮（`workflow:spel:export`，没有对应接口）及其角色授权与套餐菜单。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V5__remove_spel_export_menu.sql` 完成 |
 | `20261101-users` | 删除演示账号 `test`、`test1`（口令为公开的 666666）及其角色、岗位关联与第三方绑定，演示角色保留。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V6__remove_demo_users.sql` 完成 |
 | `20261107-gen` | 代码生成只提供 Vben 前端模板：已有业务表的前端模板类型（`gen_table.frontend_type`）统一为 `vben`。全新安装脚本中该列默认值已是 `vben`，无需修改。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V7__gen_frontend_type_vben.sql` 完成 |
+| `20261108-seed` | “流程设计”页面的显示状态与菜单状态改为 `'1'` / `'0'`（全新安装脚本中写成了 `'N'` / `'Y'`，菜单被当作停用，流程设计器无法打开）；流程表达式的按钮名称与页面名称一致；多租户新增的表与列补上注释。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V8__align_seed_data.sql` 完成（同时清空授权类型字典中无用的样式类；PostgreSQL 同样补上多租户列的注释） |
