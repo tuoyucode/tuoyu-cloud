@@ -20,7 +20,7 @@
     </properties>
 
     <dependencies>
-        <!-- 多租户（ADR 0006，默认关闭） -->
+        <!-- 多租户（默认关闭） -->
         <dependency>
             <groupId>org.tuoyu</groupId>
             <artifactId>tuoyu-common-tenant</artifactId>

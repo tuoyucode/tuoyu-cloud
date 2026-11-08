@@ -40,7 +40,7 @@ public class SecurityConfiguration implements WebMvcConfigurer {
     }
 
     /**
-     * 各服务自行校验（ADR 0005 第 5 节，登录校验下沉到各服务）：
+     * 各服务自行校验（登录校验下沉到各服务）：
      * 先校验请求来自网关（same-token），再按完整路径校验登录与客户端规则。
      * 内网请求即使绕过网关、伪造了 same-token 之外的请求头，也必须登录
      */

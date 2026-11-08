@@ -11,7 +11,7 @@ import java.util.*;
 /**
  * 加密字段处理器。
  * <p>
- * 失败闭合（见 docs/adr/0003-上传-XSS-脱敏与字段加密.md）：任何字段加密失败时，恢复已改动的字段并抛出
+ * 失败闭合：任何字段加密失败时，恢复已改动的字段并抛出
  * {@link FieldEncryptionException}，SQL 不会执行，明文不会入库；解密失败同样抛出异常，不把密文或半成品返回给业务。
  *
  * @author Lion Li

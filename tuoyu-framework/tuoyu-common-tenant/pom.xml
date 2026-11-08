@@ -11,7 +11,7 @@
     <artifactId>tuoyu-common-tenant</artifactId>
 
     <description>
-        tuoyu-common-tenant 多租户（默认关闭）：共享表按 tenant_id 隔离，租户上下文跨线程、跨服务透传并签名（见 docs/adr/0006-多租户.md）
+        tuoyu-common-tenant 多租户（默认关闭）：共享表按 tenant_id 隔离，租户上下文跨线程、跨服务透传并签名
     </description>
 
     <properties>

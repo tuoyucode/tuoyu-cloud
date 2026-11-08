@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 迁移脚本的仓库级校验（见 docs/adr/0004-数据库迁移.md）。不连接数据库，也不依赖 Docker。
+ * 迁移脚本的仓库级校验。不连接数据库，也不依赖 Docker。
  * <ul>
  *     <li>每个库只有一个负责迁移的服务，只有它带迁移脚本、依赖本模块、在 Nacos 中配置 spring.flyway；</li>
  *     <li>MySQL 与 PostgreSQL 各有一套脚本（db/migration/&lt;库名&gt;/mysql、db/migration/&lt;库名&gt;/postgresql），命名为

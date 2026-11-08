@@ -85,7 +85,7 @@ public class SysMenuServiceImpl implements ISysMenuService {
     }
 
     /**
-     * 按租户套餐限制菜单（ADR 0006）：租户内只能使用套餐中的菜单，超级管理员不受限制；关闭多租户时隐藏租户管理菜单
+     * 按租户套餐限制菜单：租户内只能使用套餐中的菜单，超级管理员不受限制；关闭多租户时隐藏租户管理菜单
      */
     private <M> List<M> scoped(List<M> menus, Function<M, Long> id, Function<M, String> perms, boolean superAdmin) {
         Optional<Set<Long>> allowed = superAdmin ? Optional.empty() : tenantMenuScope.allowedMenuIds();

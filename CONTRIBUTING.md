@@ -1,6 +1,6 @@
 # 参与贡献
 
-感谢你愿意参与 TuoYu-Cloud。本文写的是改代码前需要知道的约定：哪些事情不能做、怎么构建和测试、各个子系统有哪些容易踩的坑。设计上的来龙去脉在 `docs/adr/` 中，本文只给结论。
+感谢你愿意参与 TuoYu-Cloud。本文写的是改代码前需要知道的约定：哪些事情不能做、怎么构建和测试、各个子系统有哪些容易踩的坑。
 
 TuoYu-Cloud 是一个通用的 Java 微服务框架，**同一套代码既可以按微服务部署，也可以按单体部署**。它不面向任何具体业务，MIT 协议，没有商业版。
 
@@ -53,7 +53,7 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 
 ## 数据库脚本
 
-1.0 支持 MySQL 与 PostgreSQL，由 `TUOYU_DB_TYPE`（`mysql` 默认，或 `postgresql`）选择。设计见 `docs/adr/0004-数据库迁移.md`。
+1.0 支持 MySQL 与 PostgreSQL，由 `TUOYU_DB_TYPE`（`mysql` 默认，或 `postgresql`）选择。
 
 - MySQL、PostgreSQL 由 Flyway 迁移。表结构与种子数据的改动只写成迁移脚本 `V<n>__<小写说明>.sql`，两种数据库各一份（版本号与说明相同），放在负责该库的服务的 `src/main/resources/db/migration/<库名>/mysql` 与 `.../postgresql` 下：
   - `tuoyu-cloud` 库：`tuoyu-system`，库名 `cloud`；
@@ -67,8 +67,6 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 - `MigrationIntegrationTest` 用 Testcontainers 在真实的 MySQL、PostgreSQL 上执行每个负责服务的迁移，需要 Docker：本地没有 Docker 时跳过，CI 中必须执行。新增迁移脚本后以 CI 的结果为准。
 
 ## 两种部署方式
-
-设计见 `docs/adr/0005-RPC抽象与两种部署方式.md`。
 
 - **微服务**：各业务模块单独启动，可执行 jar 为 `target/<模块>-exec.jar`（普通 jar 供单体依赖），Dockerfile 复制它。
 - **单体**：`tuoyu-boot/tuoyu-boot-all`（`target/tuoyu-boot-all.jar`，端口 8081，与网关相同），不需要 Nacos，从 `TUOYU_CONFIG_DIR`（默认 `deploy/config/nacos`）读取与 Nacos 相同的配置文件，最后加载单体专用的 `tuoyu-boot-all.yml`。pom 中排除 Dubbo、Nacos、Seata（`MonolithAssemblyTest` 检查）。
@@ -90,7 +88,7 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 - 配置中一律写成 `${TUOYU_XXX}` 占位符，仓库内不放任何明文口令。必填项不给默认值，缺失时服务拒绝启动；可选组件（短信、第三方登录、RabbitMQ 等）用空默认值 `${TUOYU_XXX:}`；用户名、地址等非敏感项可以带默认值，例如 `${TUOYU_DB_USERNAME:root}`。
 - 新增变量时，同步登记到 `.env.example` 和 `GenerateEnv.java`，CI 会检查。
 - **仓库内的配置默认必须是生产安全的**，开发便利项（例如 `TUOYU_ACTUATOR_EXPOSURE`）只能通过本地 `.env` 开启。`ProductionConfigTest` 按生产模式校验 `deploy/config/nacos`，并检查各服务自带的 `application*.yml`（SnailJob、SnailAI 服务端不导入公共配置，以它为准）。
-- **接口加密**（`docs/adr/0001-接口加密.md`）：只有后端持有 RSA 私钥（`TUOYU_API_CRYPTO_PRIVATE_KEY`），前端不持有任何密钥，公钥运行时从 `/auth/crypto/public-key` 获取。需要加密的接口标注 `@ApiEncrypt`，目前有登录、注册、修改密码、重置密码、新增用户、新增租户；请求中有明文口令的新接口都要标注。改动协议时同步修改 ADR 与测试向量 `tuoyu-common-encrypt/src/test/resources/api-crypto/test-vectors.json`。生成或轮换私钥：`java tools/secrets/GenerateEnv.java --api-crypto-key`。
+- **接口加密**（RSA-OAEP-256 + AES-256-GCM）：只有后端持有 RSA 私钥（`TUOYU_API_CRYPTO_PRIVATE_KEY`），前端不持有任何密钥，公钥运行时从 `/auth/crypto/public-key` 获取。需要加密的接口标注 `@ApiEncrypt`，目前有登录、注册、修改密码、重置密码、新增用户、新增租户；请求中有明文口令的新接口都要标注。改动协议时同步修改前后端的实现与测试向量 `tuoyu-common-encrypt/src/test/resources/api-crypto/test-vectors.json`。生成或轮换私钥：`java tools/secrets/GenerateEnv.java --api-crypto-key`。
 - **Redis 反序列化白名单**（`RedisTypeAllowlist`）：`org.tuoyu.` 下的类型自动放行；其他包加入 `tuoyu.redis.allowed-type-prefixes`；JDK 类型改 `RedisTypeAllowlist` 并补测试。不允许改回放行全部。
 - **管理员初始口令**：种子数据中 admin 的口令是公开的，tuoyu-system 启动时若 admin 仍是种子口令则改为 `TUOYU_ADMIN_INITIAL_PASSWORD`，生产环境未配置时拒绝启动。种子数据不放可登录的演示账号。
 
@@ -111,9 +109,9 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 
 ## 输入输出安全
 
-- **客户端 IP**（`docs/adr/0002-认证加固与可信代理.md`）一律通过 `ServletUtils.getClientIP` 获取，不要自己读转发头。可信代理 `tuoyu.web.trusted-proxies`：各服务默认信任回环与私有网段（`TUOYU_TRUSTED_PROXIES`），网关默认只信任回环（`TUOYU_GATEWAY_TRUSTED_PROXIES`），网关前的反向代理不在本机时必须配置。不允许 `/0`；`none` 表示不信任任何代理。不要配置 `spring.cloud.gateway.server.webmvc.trusted-proxies`。
+- **客户端 IP** 一律通过 `ServletUtils.getClientIP` 获取，不要自己读转发头。可信代理 `tuoyu.web.trusted-proxies`：各服务默认信任回环与私有网段（`TUOYU_TRUSTED_PROXIES`），网关默认只信任回环（`TUOYU_GATEWAY_TRUSTED_PROXIES`），网关前的反向代理不在本机时必须配置。不允许 `/0`；`none` 表示不信任任何代理。不要配置 `spring.cloud.gateway.server.webmvc.trusted-proxies`。
 - **登录失败锁定**：配置在 `tuoyu.auth.*`，锁定键名一律由 `LoginFailureKeys` 生成；验证码统一用 `VerifyCodeService`（一次性）。短信、邮箱验证码接口免登录，发送前都必须先通过图形验证码。
-- **上传**（`docs/adr/0003-上传-XSS-脱敏与字段加密.md`）：扩展名白名单 `tuoyu.upload.allowed-extensions` 加文件头校验。新增允许的类型时，在 `FileType` 中登记文件头规则并补测试，同时修改前端 `views/system/oss/data.ts` 的 `UPLOAD_EXTENSIONS`，两处保持一致。上传请求的上限取 `max-request-size` 与 `max-file-size` 中较小的（每次一个文件，网关据此先拒绝）；新增一次上传多个文件的接口时要调整这条规则。
+- **上传**：扩展名白名单 `tuoyu.upload.allowed-extensions` 加文件头校验。新增允许的类型时，在 `FileType` 中登记文件头规则并补测试，同时修改前端 `views/system/oss/data.ts` 的 `UPLOAD_EXTENSIONS`，两处保持一致。上传请求的上限取 `max-request-size` 与 `max-file-size` 中较小的（每次一个文件，网关据此先拒绝）；新增一次上传多个文件的接口时要调整这条规则。
 - **XSS**：没有全局输入过滤，普通字段原样保存、由前端输出时转义。富文本字段标注 `@RichText`（jsoup 白名单清洗），前端只对这些字段用 `v-html`。不要再加全局输入过滤。
 - **脱敏与字段加密**：脱敏失败时整体掩码；`@EncryptField` 只用于 String，算法为 AES-GCM / SM4-GCM，密钥 `TUOYU_FIELD_ENCRYPT_KEY`（`GenerateEnv --field-key`），加解密失败时拒绝执行；密文不能做等值查询。
 - **管理接口不下发密钥**：密钥类字段（含第三方平台的令牌，例如 `SysSocialVo`）在 Vo 中标注 `@JsonIgnore`，另加“是否已设置”的布尔字段（例如 `SysOssConfigVo.accessKeySet`），导出时不带出。修改接口中该字段为空表示不修改。
@@ -123,7 +121,7 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 
 ## 框架对外 API
 
-设计见 `docs/adr/0008-框架对外API.md`。代码生成输出的后端代码就是按这些约定写的，可以作为参考。
+代码生成输出的后端代码就是按这些约定写的，可以作为参考。
 
 - **响应**：Controller 返回 `ApiResult<T>`（`{ code, message, data, traceId }`，成功为 HTTP 200、`code` 0），不继承任何基类。注意 `ApiResult.ok("文字")` 中的文字是 data，只带提示时写 `ApiResult.ok("提示", null)`。Controller 不返回失败的 `ApiResult`。
 - **失败**：抛 `ServiceException`，消息写清具体原因（例如“岗位编码已存在”，而不是“操作失败”）。全局异常处理按类别设置 HTTP 状态码：参数校验与业务规则 400、未登录或令牌失效 401、无权限 403、不存在 404、数据重复 409、请求过大 413、重复提交与限流 429、未预期的异常 500（只返回错误编号）。`ServiceException` 带的错误码在 400 ~ 599 之间时作为 HTTP 状态，否则为 400。401 只用于令牌缺失或失效，登录失败（密码错误、验证码错误、账号锁定等）是 400。模块自己的 `@RestControllerAdvice` 用 `ApiErrors` 生成响应，并标 `@Order(ExceptionHandlerOrder.MODULE)`，保证排在全局异常处理之前；提示中不要带异常的原始消息。
@@ -136,8 +134,6 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 - 请求头名等框架约定的常量在 core 的 `HeaderNames` 中，不要另写字符串。
 
 ## 跨模块调用
-
-设计见 `docs/adr/0005-RPC抽象与两种部署方式.md`。
 
 - 跨模块调用只能通过 `tuoyu-api-*` 中标注 `@RemoteApi` 的接口。调用方用普通的构造器注入，不加注解：容器中有实现时注入本地调用代理，否则在微服务中注入 Dubbo 引用；单体中缺少实现时拒绝启动。
 - 提供方是普通的 `@Service`，由 `tuoyu-common-dubbo` 统一导出。业务模块与 api 中不能出现 Dubbo（`@DubboReference`、`@DubboService`、`@EnableDubbo`、mock、stub），ArchUnit 检查。
@@ -152,15 +148,13 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 
 ## 日志追踪与优雅停机
 
-设计见 `docs/adr/0007-日志追踪与优雅停机.md`。
-
 - `tuoyu-common-observability` 负责 traceId（W3C `traceparent`，MDC 键 `traceId`，响应头 `X-Trace-Id`）。跨线程、跨服务透传走 `TracePropagator`，不要自己读写 MDC 中的 traceId。
 - 日志格式只在 `logback-pattern.xml` 中定义，各服务（含单体）的 logback 配置最前面 `<include resource="logback-pattern.xml"/>`，不要再自行定义 pattern。
 - 停机顺序：先下线（健康检查 503、从 Nacos 注销）→ 等待 `TUOYU_SHUTDOWN_OFFLINE_DELAY`（默认 5 秒）→ 排空请求（`TUOYU_SHUTDOWN_TIMEOUT`，默认 30 秒）→ Dubbo（`TUOYU_DUBBO_SHUTDOWN_WAIT`）→ 其他组件。容器的停止宽限期至少约 55 秒（compose 为 60 秒）。网关负载均衡缓存的有效期必须小于下线等待（`ProductionConfigTest` 检查）。
 
 ## 多租户
 
-设计见 `docs/adr/0006-多租户.md`。默认关闭（`TUOYU_TENANT_ENABLED`），开启时必须配置 `TUOYU_TENANT_CONTEXT_SECRET`。
+默认关闭（`TUOYU_TENANT_ENABLED`），开启时必须配置 `TUOYU_TENANT_CONTEXT_SECRET`。
 
 - 表中有 `tenant_id` 的数据按租户隔离，不需要维护表清单。新增需要隔离的表时，表加 `tenant_id varchar(20) not null default 'default'`（迁移脚本），实体继承 `TenantEntity`。插入时框架改写为当前租户，按实体更新不会改动租户；不要手工设置 `tenantId`，也不要用 `lambdaUpdate().set(tenantId, ...)` 这类按 Wrapper 写的更新改租户。
 - 平台共享的表（菜单、字典、参数、客户端、存储配置、代码生成、租户与套餐）没有 `tenant_id`。
@@ -185,7 +179,6 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 | `tuoyu-architecture` | 依赖规则检查 |
 | `deploy` | SQL、Nacos 配置、部署脚本 |
 | `tools` | 工具脚本 |
-| `docs` | 设计记录（ADR）与升级指南 |
 
 ## 前端
 
@@ -193,4 +186,9 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 
 ## 命名
 
-新写的类按作用命名，不加 `Plus`、`Tuoyu` 之类的前缀（包名 `org.tuoyu` 已经说明归属），也不要与依赖库中的类同名。确实无法避免、且不会同时使用的重名，登记在 ADR 0008 第 9 节。
+新写的类按作用命名，不加 `Plus`、`Tuoyu` 之类的前缀（包名 `org.tuoyu` 已经说明归属），也不要与依赖库中的类同名。新增类型前先扫描服务与单体的全部依赖（含间接依赖）的类路径；确实无法避免、且不会同时使用的重名，登记在下表中：
+
+| 本框架的类 | 依赖库中的同名类 | 所在依赖 | 无害的原因 |
+|---|---|---|---|
+| `org.tuoyu.common.core.domain.ApiResult` | `org.dromara.warm.flow.core.dto.ApiResult` | `warm-flow-core` | 只用于 Warm-Flow 自带的接口（`/warm-flow/**`）内部，项目中没有任何文件引用它 |
+| `org.tuoyu.common.core.domain.PageResult` | `org.apache.seata.common.result.PageResult` | `seata-all` | Seata 控制台内部使用，项目中没有任何文件引用它 |

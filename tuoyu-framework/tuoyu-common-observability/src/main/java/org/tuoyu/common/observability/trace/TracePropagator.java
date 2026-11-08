@@ -6,7 +6,7 @@ import org.tuoyu.common.core.context.ContextPropagator;
 import java.util.Map;
 
 /**
- * 透传链路（ADR 0007 第 3.3 节）：Dubbo 调用、{@code @Async}、{@code ThreadUtils} 的虚拟线程都经由
+ * 透传链路：Dubbo 调用、{@code @Async}、{@code ThreadUtils} 的虚拟线程都经由
  * {@link ContextPropagator} 透传，值为 traceparent 字符串。
  * <p>
  * 恢复时 traceId 不变、spanId 重新生成（每个执行位置一个 spanId）；没有收到值或值不合法时开始一条新链路，

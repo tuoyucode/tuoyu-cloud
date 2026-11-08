@@ -29,7 +29,7 @@ public class ThreadPoolConfig {
     private ScheduledExecutorService scheduledExecutorService;
 
     /**
-     * 停机时等待已提交任务完成的最长时间（公共配置 tuoyu.shutdown.timeout，ADR 0007）
+     * 停机时等待已提交任务完成的最长时间（公共配置 tuoyu.shutdown.timeout）
      */
     @Value("${tuoyu.shutdown.timeout:30s}")
     private Duration shutdownTimeout = Duration.ofSeconds(30);

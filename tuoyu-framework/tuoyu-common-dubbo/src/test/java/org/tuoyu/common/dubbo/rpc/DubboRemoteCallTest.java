@@ -28,10 +28,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 真实的 Dubbo 调用（同一个 JVM 中的提供方与调用方，直连，不经过注册中心），验证 ADR 0005 中远程调用的语义：
+ * 真实的 Dubbo 调用（同一个 JVM 中的提供方与调用方，直连，不经过注册中心），验证远程调用的语义：
  * 上下文透传、异常原样传回、调用方可能没有的异常被转换
  */
-@DisplayName("跨服务调用：Dubbo 中的上下文透传与异常（ADR 0005）")
+@DisplayName("跨服务调用：Dubbo 中的上下文透传与异常")
 class DubboRemoteCallTest {
 
     private static FrameworkModel framework;

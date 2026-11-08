@@ -389,7 +389,7 @@ public class SysRoleServiceImpl implements ISysRoleService {
             // 未传菜单：视为没有菜单权限，不报空指针
             return;
         }
-        // 租户内只能分配套餐中的菜单（ADR 0006）：不依赖前端只展示套餐菜单
+        // 租户内只能分配套餐中的菜单：不依赖前端只展示套餐菜单
         tenantMenuScope.allowedMenuIds().ifPresent(allowed -> {
             if (!allowed.containsAll(Arrays.asList(role.getMenuIds()))) {
                 throw new ServiceException("只能分配租户套餐中的菜单");

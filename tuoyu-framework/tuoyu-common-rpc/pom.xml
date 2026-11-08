@@ -11,7 +11,7 @@
     <artifactId>tuoyu-common-rpc</artifactId>
 
     <description>
-        tuoyu-common-rpc 跨模块调用抽象：有本地实现时注入本地调用代理，否则在微服务中注入远程引用（见 docs/adr/0005-RPC抽象与两种部署方式.md）。
+        tuoyu-common-rpc 跨模块调用抽象：有本地实现时注入本地调用代理，否则在微服务中注入远程引用。
         不依赖 Dubbo
     </description>
 

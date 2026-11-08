@@ -13,7 +13,7 @@
 
     <description>
         tuoyu-boot-all 单体启动器：一个进程包含 auth、system、resource、workflow、gen、job 全部业务模块，
-        跨模块调用都是进程内调用；不依赖 Dubbo、Nacos、Seata（ADR 0005 第 3.7、5 节）
+        跨模块调用都是进程内调用；不依赖 Dubbo、Nacos、Seata
     </description>
 
     <!--

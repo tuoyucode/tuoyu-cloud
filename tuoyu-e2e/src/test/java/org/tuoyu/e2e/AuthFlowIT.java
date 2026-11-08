@@ -63,7 +63,7 @@ class AuthFlowIT {
         assertThat(data.path("enabled").asBoolean()).as("接口加密已开启").isTrue();
         assertThat(data.path("version").asInt()).isEqualTo(ApiCrypto.VERSION);
         assertThat(data.path("algorithm").asString()).isEqualTo(ApiCrypto.ALGORITHM);
-        // kid 由公钥推导（ADR 0001 第 3.1 节），客户端自己计算的结果必须与服务端一致
+        // kid 由公钥推导，客户端自己计算的结果必须与服务端一致
         ApiCrypto.ServerKey key = ApiCrypto.parsePublicKey(data.path("publicKey").asString());
         assertThat(data.path("kid").asString()).isEqualTo(key.kid());
         assertThat(key.publicKey().getModulus().bitLength()).as("RSA 密钥长度").isGreaterThanOrEqualTo(2048);

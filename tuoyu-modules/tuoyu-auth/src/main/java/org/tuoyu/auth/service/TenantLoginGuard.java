@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 import java.util.function.Supplier;
 
 /**
- * 登录、注册时确定租户（ADR 0006 第 5 节）：开启多租户时必须指定租户，且租户存在、启用、未过期；
+ * 登录、注册时确定租户：开启多租户时必须指定租户，且租户存在、启用、未过期；
  * 之后的用户查询、登录日志等都在该租户中执行
  *
  * @author tuoyu

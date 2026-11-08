@@ -48,7 +48,7 @@ public class RedisBusProperties {
     private int streamMaxLen = 10000;
 
     /**
-     * 停止消费时等待正在处理的消息完成的最长时间，超过后中断（优雅停机，ADR 0007）。
+     * 停止消费时等待正在处理的消息完成的最长时间，超过后中断（优雅停机）。
      * 应大于 readTimeout：消费线程可能正阻塞在读取上
      */
     private Duration shutdownTimeout = Duration.ofSeconds(10);

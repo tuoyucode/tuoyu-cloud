@@ -39,7 +39,7 @@ management:
     logfile:
       external-file: ./logs/${spring.application.name}/console.log
 
-# 数据库迁移（见 docs/adr/0004-数据库迁移.md）：本服务负责 tuoyu-job 库，迁移脚本在 db/migration/job/{vendor}
+# 数据库迁移：本服务负责 tuoyu-job 库，迁移脚本在 db/migration/job/{vendor}
 tuoyu:
   flyway:
     database: job

@@ -5,7 +5,7 @@ import org.tuoyu.common.redis.utils.RedisUtils;
 import java.time.Duration;
 
 /**
- * 超级管理员切换进入的租户（ADR 0006 第 4 节），按用户保存在 Redis 中
+ * 超级管理员切换进入的租户，按用户保存在 Redis 中
  *
  * @author tuoyu
  */

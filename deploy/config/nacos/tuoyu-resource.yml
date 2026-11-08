@@ -13,7 +13,7 @@ spring:
           password: ${datasource.system-master.password}
 
 tuoyu:
-  # 文件上传（见 docs/adr/0003-上传-XSS-脱敏与字段加密.md）
+  # 文件上传
   upload:
     # 允许上传的扩展名（忽略大小写）。同时按文件头校验内容，内容与扩展名不符时拒绝
     # 只能取有文件头校验规则的类型：jpg jpeg png gif bmp webp pdf doc docx xls xlsx ppt pptx txt csv zip rar 7z gz mp3 wav mp4

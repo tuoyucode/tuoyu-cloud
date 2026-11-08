@@ -16,7 +16,7 @@
     <packaging>pom</packaging>
 
     <description>
-        tuoyu-boot 启动器：tuoyu-boot-all 把全部业务模块装进一个进程（单体，见 docs/adr/0005-RPC抽象与两种部署方式.md 第 5 节）。
+        tuoyu-boot 启动器：tuoyu-boot-all 把全部业务模块装进一个进程（单体）。
         微服务方式仍由各业务模块自己启动
     </description>
 

@@ -15,7 +15,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * 租户 SQL 改写的规则（ADR 0006 第 3 节），SQL 改写本身由 MyBatis-Plus 的租户插件完成：
+ * 租户 SQL 改写的规则，SQL 改写本身由 MyBatis-Plus 的租户插件完成：
  * <ul>
  *     <li>表中有 {@code tenant_id} 字段（实体有 tenantId 属性）的表按租户隔离，不需要手工维护清单；</li>
  *     <li>处于忽略租户的代码块中（{@code TenantHelper.ignore}、{@code @TenantIgnore}）时不改写；</li>

@@ -7,7 +7,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
- * Dubbo 的停止只由 Spring 负责：不注册 Dubbo 自己的 JVM 停机钩子（ADR 0007 第 4 节）。
+ * Dubbo 的停止只由 Spring 负责：不注册 Dubbo 自己的 JVM 停机钩子。
  * <p>
  * Dubbo 的钩子与 Spring 的停机钩子同时开始执行，它只等待 {@code dubbo.application.shutwait}（默认 10 秒）让 Spring 关闭 Dubbo，
  * 超时后自行销毁 Dubbo。而 Spring 要先下线、排空请求（{@code tuoyu.shutdown.*}），再关闭 Nacos 客户端，最后才关闭 Dubbo，

@@ -41,7 +41,7 @@
 
     <build>
         <testResources>
-            <!-- 接口加密测试向量与后端共用同一份文件（docs/adr/0001-接口加密.md），不复制 -->
+            <!-- 接口加密测试向量与后端共用同一份文件，不复制 -->
             <testResource>
                 <directory>${project.basedir}/../tuoyu-framework/tuoyu-common-encrypt/src/test/resources/api-crypto</directory>
                 <targetPath>api-crypto</targetPath>

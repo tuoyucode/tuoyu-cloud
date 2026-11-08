@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * 在真实的 Spring Boot 容器中：实现只是普通 Bean，没有 {@code @DubboService}，由导出器导出为 Dubbo 服务，
  * 其他进程中的调用方可以按接口全名调用（与 {@code @DubboService} 的服务名相同）
  */
-@DisplayName("跨模块调用：Spring 容器中的实现被导出为 Dubbo 服务（ADR 0005）")
+@DisplayName("跨模块调用：Spring 容器中的实现被导出为 Dubbo 服务")
 class SpringDubboExportTest {
 
     @Test

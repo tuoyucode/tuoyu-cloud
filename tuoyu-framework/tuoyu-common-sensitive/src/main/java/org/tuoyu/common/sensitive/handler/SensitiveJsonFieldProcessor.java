@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 响应脱敏处理器。
  * <p>
- * 失败闭合（见 docs/adr/0003-上传-XSS-脱敏与字段加密.md）：
+ * 失败闭合：
  * <ul>
  *     <li>没有 {@link SensitiveService} 实现时一律脱敏；</li>
  *     <li>判断权限时出错按“需要脱敏”处理；</li>

@@ -5,7 +5,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.safety.Safelist;
 
 /**
- * 富文本白名单清洗（见 docs/adr/0003-上传-XSS-脱敏与字段加密.md）。
+ * 富文本白名单清洗。
  * <p>
  * 只用于明确需要保存 HTML 的字段（例如通知公告内容），普通字段不清洗、不修改用户输入，由前端在输出时转义。
  * 规则：

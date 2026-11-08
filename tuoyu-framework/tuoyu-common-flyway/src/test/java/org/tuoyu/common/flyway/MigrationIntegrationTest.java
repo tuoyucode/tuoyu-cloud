@@ -41,7 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 在真实的 MySQL、PostgreSQL 上执行每个库的迁移脚本（见 docs/adr/0004-数据库迁移.md），与服务启动时的做法一致：
+ * 在真实的 MySQL、PostgreSQL 上执行每个库的迁移脚本，与服务启动时的做法一致：
  * 同样的框架约定（{@link FlywayConventions}）、同样的迁移策略（{@link SupportedDatabaseMigrationStrategy}）、同样的连接参数。
  * <ul>
  *     <li>空库：从 V1 执行到最新版本，再次启动时不执行任何脚本，校验通过；</li>

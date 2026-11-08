@@ -31,7 +31,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * 服务的登录校验过滤器（ADR 0005 第 5 节）：先校验请求来自网关，再采信网关写入的前缀还原完整路径
+ * 服务的登录校验过滤器：先校验请求来自网关，再采信网关写入的前缀还原完整路径
  */
 @DisplayName("服务校验过滤器：same-token 不通过时不采信前缀、不进入登录校验")
 class ServiceAuthFilterTest {

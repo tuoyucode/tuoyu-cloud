@@ -3,7 +3,7 @@ package org.tuoyu.common.observability.trace;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 日志追踪配置（ADR 0007）
+ * 日志追踪配置
  *
  * @author tuoyu
  */

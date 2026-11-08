@@ -5,7 +5,7 @@ import java.util.Deque;
 import java.util.function.Supplier;
 
 /**
- * 租户的显式设置与忽略（ADR 0006 第 3、4 节），按代码块嵌套：
+ * 租户的显式设置与忽略，按代码块嵌套：
  * <ul>
  *     <li>{@link #dynamic(String, Supplier)}：代码块中在指定租户执行（登录、{@code @TenantJob}、平台管理）；</li>
  *     <li>{@link #ignore(Supplier)}：代码块中忽略租户隔离（SQL 不加租户条件）。</li>

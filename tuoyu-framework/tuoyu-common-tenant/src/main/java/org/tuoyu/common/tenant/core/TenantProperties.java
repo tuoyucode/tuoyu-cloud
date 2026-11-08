@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 多租户配置（ADR 0006）
+ * 多租户配置
  *
  * @author tuoyu
  */

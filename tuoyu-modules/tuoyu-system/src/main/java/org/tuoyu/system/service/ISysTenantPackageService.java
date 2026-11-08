@@ -9,7 +9,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * 租户套餐 服务层（ADR 0006 第 7 节）
+ * 租户套餐 服务层
  *
  * @author tuoyu
  */

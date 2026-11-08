@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 /**
- * 接口加密配置，协议见 docs/adr/0001-接口加密.md
+ * 接口加密配置
  *
  * @author tuoyu
  */

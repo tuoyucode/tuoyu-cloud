@@ -11,7 +11,7 @@ spring:
     # 环境配置
     active: ${TUOYU_PROFILES_ACTIVE:dev}
 
-# 数据库迁移（见 docs/adr/0004-数据库迁移.md）：本服务负责 tuoyu-cloud 库，迁移脚本在 db/migration/cloud/{vendor}
+# 数据库迁移：本服务负责 tuoyu-cloud 库，迁移脚本在 db/migration/cloud/{vendor}
 tuoyu:
   flyway:
     database: cloud

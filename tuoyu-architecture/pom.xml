@@ -11,7 +11,7 @@
     <artifactId>tuoyu-architecture</artifactId>
 
     <description>
-        tuoyu-architecture 依赖规则检查（ADR 0005 第 4 节）：只有测试，读取各模块编译后的类，不发布
+        tuoyu-architecture 依赖规则检查：只有测试，读取各模块编译后的类，不发布
     </description>
 
     <properties>

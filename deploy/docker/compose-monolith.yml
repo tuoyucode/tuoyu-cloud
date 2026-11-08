@@ -6,7 +6,7 @@
 #
 # - 不需要 Nacos：单体从 TUOYU_CONFIG_DIR（/app/config，挂载自 deploy/config/nacos）读取与 Nacos 相同的配置；
 # - 对外端口与微服务的网关相同（8081），前端访问的地址在两种部署方式下一致；
-# - 定时任务：目前按“SnailJob 服务端作为第二个进程随单体一起部署”编写（ADR 0005 第 5 节第 10 条的方案二，默认启用）。
+# - 定时任务：目前按“SnailJob 服务端作为第二个进程随单体一起部署”编写（默认启用）。
 #   不需要定时任务时只启动前三个服务：... up -d mysql redis tuoyu-boot-all
 # - 项目名与 core、full 相同（tuoyu），共用 MySQL、Redis 数据卷：在两种部署方式之间切换时数据不用迁移，
 #   切换前先停掉另一套（docker compose ... down），启动时加 --remove-orphans 清理另一套留下的容器。

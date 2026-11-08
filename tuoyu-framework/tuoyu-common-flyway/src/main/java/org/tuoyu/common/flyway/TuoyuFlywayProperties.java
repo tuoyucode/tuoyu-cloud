@@ -6,7 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 数据库迁移配置（见 docs/adr/0004-数据库迁移.md）。
+ * 数据库迁移配置。
  * <pre>
  * tuoyu:
  *   flyway:

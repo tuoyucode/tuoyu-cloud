@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@DisplayName("HTTP 入口：确定链路、返回响应头、请求结束后清理（ADR 0007）")
+@DisplayName("HTTP 入口：确定链路、返回响应头、请求结束后清理")
 class TraceFilterTest {
 
     private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";

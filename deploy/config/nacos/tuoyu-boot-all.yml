@@ -1,4 +1,4 @@
-# 单体（tuoyu-boot-all，ADR 0005 第 5 节）特有的配置
+# 单体（tuoyu-boot-all）特有的配置
 # 单体从本地目录依次加载 application-common.yml、datasource.yml 与各模块的配置，最后加载本文件，覆盖其中与部署方式有关的部分
 # 微服务方式不使用本文件（导入 Nacos 也无妨）
 tuoyu:

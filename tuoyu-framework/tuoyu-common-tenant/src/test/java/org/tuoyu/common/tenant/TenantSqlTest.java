@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 跨租户越权（SQL 层）：开启多租户时，隔离表的查询、更新、删除都只作用于当前租户，插入补上当前租户；
- * 共享表不变；缺少租户时拒绝执行（ADR 0006 第 3、8 节）
+ * 共享表不变；缺少租户时拒绝执行
  */
 @DisplayName("多租户：SQL 改写与失败闭合")
 class TenantSqlTest {

@@ -24,7 +24,7 @@ import org.tuoyu.common.tenant.mybatis.TenantIgnoreAdvisor;
 import org.tuoyu.common.tenant.mybatis.TuoyuTenantLineHandler;
 
 /**
- * 多租户自动配置（ADR 0006）。
+ * 多租户自动配置。
  * <p>
  * 租户上下文、{@code TenantHelper}、{@code @TenantJob} 总是可用（未开启时直接执行）；
  * SQL 拦截、跨服务透传、缓存隔离只在 {@code tuoyu.tenant.enabled=true} 时加载，关闭时零开销。

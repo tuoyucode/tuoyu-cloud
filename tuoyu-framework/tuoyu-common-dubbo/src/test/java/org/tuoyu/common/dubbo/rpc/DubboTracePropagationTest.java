@@ -26,9 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * 真实的 Dubbo 调用（直连，不经过注册中心）：链路经由 ContextPropagator 透传（ADR 0007 第 3.3 节）
+ * 真实的 Dubbo 调用（直连，不经过注册中心）：链路经由 ContextPropagator 透传
  */
-@DisplayName("链路透传：微服务方式下的 Dubbo 调用（ADR 0007）")
+@DisplayName("链路透传：微服务方式下的 Dubbo 调用")
 class DubboTracePropagationTest {
 
     private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";

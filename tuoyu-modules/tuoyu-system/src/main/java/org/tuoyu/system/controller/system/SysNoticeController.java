@@ -92,9 +92,9 @@ public class SysNoticeController {
             data,
             "/system/notice?noticeId=" + notice.getNoticeId()
         );
-        // 推送只是提示：公告已保存，推送失败不影响结果（统一降级，单体与微服务行为一致，ADR 0007）
+        // 推送只是提示：公告已保存，推送失败不影响结果（统一降级，单体与微服务行为一致）
         if (TenantHelper.isEnabled()) {
-            // 开启多租户时只推送给本租户的用户（ADR 0006 第 6 节）；用户查询按租户隔离
+            // 开启多租户时只推送给本租户的用户；用户查询按租户隔离
             List<Long> userIds = userService.selectAllUserIds();
             RemoteFallback.run(PUSH_FALLBACK_NAME, () -> remoteMessageService.publishMessagePayload(userIds, payload));
         } else {

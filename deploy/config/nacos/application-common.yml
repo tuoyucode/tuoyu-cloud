@@ -5,7 +5,7 @@ tuoyu:
   # 非文件请求（JSON 等）的请求体上限，超过直接返回 413（TUOYU_REQUEST_MAX_BODY_SIZE）
   request:
     max-body-size: ${TUOYU_REQUEST_MAX_BODY_SIZE:10MB}
-  # 可信代理网段（见 docs/adr/0002-认证加固与可信代理.md）：CIDR，逗号分隔，支持 IPv4 / IPv6
+  # 可信代理网段：CIDR，逗号分隔，支持 IPv4 / IPv6
   # 只有直连地址属于这些网段时，才采信 X-Forwarded-For / X-Real-IP（从右向左取第一个不可信的地址）
   # 这里是各服务的取值，默认信任回环与私有网段：服务的直连地址是网关，网关到各服务走内网（客户端也在内网时，可收窄为网关的实际地址）
   # 网关是入口，在 tuoyu-gateway.yml 中单独收窄为回环地址（TUOYU_GATEWAY_TRUSTED_PROXIES）；不允许 /0，设为 none 表示不信任任何代理
@@ -25,7 +25,7 @@ tuoyu:
   auth:
     password:
       bcrypt-cost: 10
-  # 多租户（ADR 0006），默认关闭：关闭时不加载 SQL 拦截器，行为与单租户系统相同
+  # 多租户，默认关闭：关闭时不加载 SQL 拦截器，行为与单租户系统相同
   # 开启后：表中有 tenant_id 的数据按租户隔离；登录必须指定租户；后台代码缺少租户时拒绝执行
   tenant:
     enabled: ${TUOYU_TENANT_ENABLED:false}
@@ -33,7 +33,7 @@ tuoyu:
     default-tenant-id: default
     # 跨服务透传租户的签名密钥，开启时必填（TUOYU_TENANT_CONTEXT_SECRET），否则拒绝启动
     context-secret: ${TUOYU_TENANT_CONTEXT_SECRET:}
-  # 接口加密（RSA-OAEP-256 + AES-256-GCM），协议见 docs/adr/0001-接口加密.md
+  # 接口加密（RSA-OAEP-256 + AES-256-GCM）
   api-crypto:
     enabled: true
     # RSA 私钥（PKCS#8 DER 的 Base64），公钥由它推导，前端运行时通过 /auth/crypto/public-key 获取
@@ -44,7 +44,7 @@ tuoyu:
     require-https: ${TUOYU_API_CRYPTO_REQUIRE_HTTPS:true}
     # 防重放的时间窗口
     replay-window: 5m
-  # 优雅停机（见 docs/adr/0007-日志追踪与优雅停机.md）：停机时先下线（健康检查返回 503、从注册中心注销），
+  # 优雅停机：停机时先下线（健康检查返回 503、从注册中心注销），
   # 等待 offline-delay 让网关与反向代理发现本实例已下线，再停止接收新请求并等待处理中的请求完成；
   # 之后依次停止 Dubbo（等待 dubbo.application.shutwait）、消息消费与线程池。
   # 部署时容器的停止宽限期（docker stop -t、compose 的 stop_grace_period、K8s 的 terminationGracePeriodSeconds）
@@ -60,7 +60,7 @@ tuoyu:
   #   allowed-type-prefixes:
   #     - com.acme.order.
 
-# 免登录白名单：网关与各服务共用（各服务也校验登录，ADR 0005 第 5 节）。写完整路径，即前端访问的路径
+# 免登录白名单：网关与各服务共用（各服务也校验登录）。写完整路径，即前端访问的路径
 security:
   ignore:
     whites:
@@ -295,7 +295,7 @@ mybatis-plus:
       # 如需改为自增 需要将数据库表全部设置为自增
       idType: ASSIGN_ID
 
-# 数据字段加密（@EncryptField，见 docs/adr/0003-上传-XSS-脱敏与字段加密.md）
+# 数据字段加密（@EncryptField）
 mybatis-encryptor:
   # 是否开启加密
   enable: false

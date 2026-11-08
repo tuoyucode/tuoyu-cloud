@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("链路透传：经由 ContextPropagator 跨线程、跨服务（ADR 0007）")
+@DisplayName("链路透传：经由 ContextPropagator 跨线程、跨服务")
 class TracePropagatorTest {
 
     private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";

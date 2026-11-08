@@ -3,7 +3,7 @@ package org.tuoyu.auth.domain.vo;
 import java.util.List;
 
 /**
- * 登录页的租户（ADR 0006 第 5 节）
+ * 登录页的租户
  *
  * @param enabled 是否开启多租户；关闭时登录页不显示租户
  * @param tenants 可选择的租户；某个租户绑定了当前访问域名时只有它

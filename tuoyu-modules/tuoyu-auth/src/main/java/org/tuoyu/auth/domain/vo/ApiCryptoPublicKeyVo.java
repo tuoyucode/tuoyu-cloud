@@ -3,7 +3,7 @@ package org.tuoyu.auth.domain.vo;
 import lombok.Data;
 
 /**
- * 接口加密的公钥信息，协议见 docs/adr/0001-接口加密.md
+ * 接口加密的公钥信息
  *
  * @author tuoyu
  */

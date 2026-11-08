@@ -19,7 +19,7 @@ import java.util.Base64;
 import java.util.HexFormat;
 
 /**
- * 字段加密的认证加密实现：AES-GCM 与 SM4-GCM（见 docs/adr/0003-上传-XSS-脱敏与字段加密.md）。
+ * 字段加密的认证加密实现：AES-GCM 与 SM4-GCM。
  * <p>
  * 密文格式（不含统一的 {@code ENC_} 前缀）：
  * <pre>

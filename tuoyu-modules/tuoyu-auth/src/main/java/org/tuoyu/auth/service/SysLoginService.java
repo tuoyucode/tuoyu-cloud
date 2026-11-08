@@ -46,8 +46,6 @@ import java.util.function.Supplier;
 
 /**
  * 登录校验方法
- * <p>
- * 认证加固的设计见 docs/adr/0002-认证加固与可信代理.md。
  *
  * @author tuoyu
  */

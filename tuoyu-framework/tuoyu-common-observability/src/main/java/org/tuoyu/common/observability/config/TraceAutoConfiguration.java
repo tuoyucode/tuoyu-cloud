@@ -17,7 +17,7 @@ import org.tuoyu.common.observability.trace.TraceProperties;
 import org.tuoyu.common.observability.trace.TracePropagator;
 
 /**
- * 日志追踪（ADR 0007）：HTTP 入口过滤器与跨线程、跨服务的透传
+ * 日志追踪：HTTP 入口过滤器与跨线程、跨服务的透传
  *
  * @author tuoyu
  */

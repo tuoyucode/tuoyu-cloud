@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * 租户上下文（{@link TenantContext} 的实现，ADR 0006 第 4 节）。当前租户按优先级：
+ * 租户上下文（{@link TenantContext} 的实现）。当前租户按优先级：
  * <ol>
  *     <li>代码块中显式指定的（{@link TenantHelper#dynamic}）；</li>
  *     <li>超级管理员切换进入的租户（{@link DynamicTenantStore}）；</li>

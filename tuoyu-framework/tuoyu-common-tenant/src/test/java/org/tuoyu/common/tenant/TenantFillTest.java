@@ -19,7 +19,7 @@ import org.tuoyu.common.tenant.core.TenantProperties;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * 不能借插入、更新把数据写进其他租户（ADR 0006）：插入时改写为当前租户，按实体更新时不改动所属租户
+ * 不能借插入、更新把数据写进其他租户：插入时改写为当前租户，按实体更新时不改动所属租户
  */
 @DisplayName("多租户：插入与更新时的租户字段")
 class TenantFillTest {

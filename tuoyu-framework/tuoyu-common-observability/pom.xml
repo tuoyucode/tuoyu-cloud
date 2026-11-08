@@ -11,7 +11,7 @@
     <artifactId>tuoyu-common-observability</artifactId>
 
     <description>
-        tuoyu-common-observability 日志追踪与优雅停机（见 docs/adr/0007-日志追踪与优雅停机.md）：
+        tuoyu-common-observability 日志追踪与优雅停机：
         W3C traceparent 链路 ID 写入日志、跨线程跨服务透传；停机时先下线再排空请求。
         除 Spring Boot 外的依赖都是可选的：监控中心等不带 tuoyu-common-core 的服务也能使用
     </description>

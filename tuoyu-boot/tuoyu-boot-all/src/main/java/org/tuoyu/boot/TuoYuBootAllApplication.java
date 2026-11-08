@@ -11,7 +11,7 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 
 /**
- * 单体启动器：一个进程包含全部业务模块（ADR 0005 第 5 节）。
+ * 单体启动器：一个进程包含全部业务模块。
  * <p>
  * 扫描各业务模块的包；各模块自己的启动类（微服务方式的入口）不参与，避免重复处理它们的配置。
  * 业务代码与微服务方式完全相同：跨模块调用由 tuoyu-common-rpc 注入本地调用代理（不参与调用方事务），

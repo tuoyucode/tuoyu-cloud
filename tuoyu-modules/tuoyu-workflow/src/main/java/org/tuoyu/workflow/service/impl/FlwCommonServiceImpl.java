@@ -125,7 +125,7 @@ public class FlwCommonServiceImpl implements IFlwCommonService {
         if (ObjectUtil.isEmpty(messageTypeEnum)) {
             return;
         }
-        // 消息只是通知：发送失败不影响流程办理（统一降级，单体与微服务行为一致，ADR 0007）
+        // 消息只是通知：发送失败不影响流程办理（统一降级，单体与微服务行为一致）
         switch (messageTypeEnum) {
             case SYSTEM_MESSAGE -> {
                 RemotePushPayLoad payload = RemotePushPayLoad.of(

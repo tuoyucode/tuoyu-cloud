@@ -10,7 +10,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *     <li>spanId：16 位小写十六进制，每个执行位置（服务、异步线程）各自生成；</li>
  *     <li>标志：2 位十六进制，本项目只原样传递（自己生成时为 01）。</li>
  * </ul>
- * 采用 W3C 格式是为了 1.1 接入 OpenTelemetry 时，现有服务产生的请求头可以直接被识别（ADR 0007 第 3.1 节）。
+ * 采用 W3C 格式是为了 1.1 接入 OpenTelemetry 时，现有服务产生的请求头可以直接被识别。
  *
  * @param traceId 链路 ID
  * @param spanId  当前执行位置的 ID

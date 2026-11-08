@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * 优雅停机（ADR 0007 第 4 节）：停机时先下线、再排空请求，然后才由 Spring 停止 RPC、消息消费与线程池
+ * 优雅停机：停机时先下线、再排空请求，然后才由 Spring 停止 RPC、消息消费与线程池
  *
  * @author tuoyu
  */

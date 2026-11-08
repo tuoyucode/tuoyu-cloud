@@ -18,7 +18,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * OSS翻译实现。文件服务不可用时翻译为空，不影响主流程（统一降级 RemoteFallback，单体与微服务行为一致，ADR 0007）
+ * OSS翻译实现。文件服务不可用时翻译为空，不影响主流程（统一降级 RemoteFallback，单体与微服务行为一致）
  *
  * @author Lion Li
  */

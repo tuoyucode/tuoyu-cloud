@@ -1,5 +1,5 @@
 spring:
-  # 数据库迁移（Flyway，见 docs/adr/0004-数据库迁移.md）：tuoyu-cloud 库由本服务负责迁移，脚本在 tuoyu-modules/tuoyu-system 的 db/migration/cloud/mysql 与 db/migration/cloud/postgresql（按 TUOYU_DB_TYPE）
+  # 数据库迁移（Flyway）：tuoyu-cloud 库由本服务负责迁移，脚本在 tuoyu-modules/tuoyu-system 的 db/migration/cloud/mysql 与 db/migration/cloud/postgresql（按 TUOYU_DB_TYPE）
   # 支持 MySQL 与 PostgreSQL，连接其他数据库时自动跳过；关闭：TUOYU_FLYWAY_ENABLED=false（关闭后新增的迁移脚本需手工执行）
   # 已有数据库首次启用前，必须先执行完 deploy/sql/upgrade 下的全部升级脚本，再按基线版本 1 接入
   flyway:

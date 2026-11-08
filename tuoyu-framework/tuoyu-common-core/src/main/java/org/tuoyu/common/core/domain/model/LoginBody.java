@@ -35,7 +35,7 @@ public class LoginBody implements Serializable {
     private String clientSecret;
 
     /**
-     * 租户。开启多租户时必填（用户名在租户内唯一，登录先确定租户，ADR 0006 第 5 节）；关闭时忽略
+     * 租户。开启多租户时必填（用户名在租户内唯一，登录先确定租户）；关闭时忽略
      */
     private String tenantId;
 

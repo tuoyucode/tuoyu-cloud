@@ -101,7 +101,7 @@ java tools/secrets/GenerateEnv.java
 - 使用已有的数据库、Redis、Nacos 时，请把 `.env` 中对应的地址和口令改成实际值。如果 Nacos 与其他项目共用，建议新建独立的命名空间，并设置 `TUOYU_NACOS_NAMESPACE`。
 - 初始化数据库后，按工具输出的提示执行一条 `UPDATE` 语句，同步任务调度的令牌。
 - 管理员账号为 `admin`，首次启动时口令设置为 `.env` 中的 `TUOYU_ADMIN_INITIAL_PASSWORD`（种子数据中的口令不能使用）。登录后可在个人中心修改。
-- 接口加密只需要后端私钥（`TUOYU_API_CRYPTO_PRIVATE_KEY`）。前端运行时从 `/auth/crypto/public-key` 获取公钥，不需要配置任何密钥。协议见 [docs/adr/0001-接口加密.md](docs/adr/0001-接口加密.md)。
+- 接口加密只需要后端私钥（`TUOYU_API_CRYPTO_PRIVATE_KEY`）。前端运行时从 `/auth/crypto/public-key` 获取公钥，不需要配置任何密钥。
 - 文件存储（OSS）的访问密钥需要在管理界面的“文件配置”中填写。
 
 全部变量及说明见 [.env.example](.env.example)。生产环境请改用真实的环境变量或密钥管理服务注入，不要使用 `.env` 文件。

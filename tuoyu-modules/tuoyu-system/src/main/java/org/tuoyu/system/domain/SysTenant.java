@@ -12,7 +12,7 @@ import java.io.Serial;
 import java.time.LocalDateTime;
 
 /**
- * 租户（ADR 0006）。平台共享的表：主键就是 tenant_id，本身不按租户隔离
+ * 租户。平台共享的表：主键就是 tenant_id，本身不按租户隔离
  *
  * @author tuoyu
  */

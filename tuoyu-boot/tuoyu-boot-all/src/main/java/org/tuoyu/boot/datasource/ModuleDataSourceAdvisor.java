@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 单体中按模块切换数据源（ADR 0005 第 5 节第 3 条）。
+ * 单体中按模块切换数据源。
  * <p>
  * 单体保持与微服务相同的库划分：system、resource、gen 等使用 tuoyu-cloud，workflow 使用 tuoyu-workflow。
  * 调用某个模块的 Bean（Controller、Service 等 {@code @Component}）时，切换到该模块的数据源，调用结束后恢复。

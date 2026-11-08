@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Supplier;
 
 /**
- * 需要容错的跨模块调用（ADR 0007 第 5 节）：调用失败时返回降级值，记录日志与计数，不影响主流程。
+ * 需要容错的跨模块调用：调用失败时返回降级值，记录日志与计数，不影响主流程。
  * <pre>{@code
  * String url = RemoteFallback.call("resource.file-url", () -> remoteFileService.selectUrlByIds(ids), "");
  * RemoteFallback.run("resource.message.welcome", () -> remoteMessageService.publishMessage(userIds, text));
@@ -22,11 +22,11 @@ import java.util.function.Supplier;
  * 规则：
  * <ul>
  *     <li><b>只用于结果可有可无的调用</b>（提示消息、通知邮件、显示用的翻译）。权限、数据权限、租户、登录、写入业务数据等
- *     调用不能降级，异常必须原样到达调用方（ADR 0005 第 3.5 节）；</li>
+ *     调用不能降级，异常必须原样到达调用方；</li>
  *     <li>在调用线程中执行，不切换线程：登录、租户等上下文与直接调用完全相同，两种部署方式的语义一致。
  *     任何 {@link RuntimeException}（提供方的业务异常、微服务中的超时与网络错误）都触发降级；{@link Error} 不降级；</li>
  *     <li>超时：微服务中由 Dubbo 的调用超时负责（{@code TUOYU_DUBBO_TIMEOUT}，默认 3 秒），超时异常触发降级；
- *     单体中是进程内调用，没有超时（ADR 0005 第 3.5 节）；</li>
+ *     单体中是进程内调用，没有超时；</li>
  *     <li>日志：同一名称每分钟最多一条 WARN（附带期间的失败次数），其余为 DEBUG，避免依赖的服务故障时刷屏；</li>
  *     <li>计数：{@link #counts()}；有 Micrometer 时同时记入指标 {@value #METRIC}（标签 {@code call}），可在 Prometheus 中告警。</li>
  * </ul>

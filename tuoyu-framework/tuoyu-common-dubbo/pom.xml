@@ -21,7 +21,7 @@
             <artifactId>tuoyu-common-json</artifactId>
         </dependency>
 
-        <!-- 跨模块调用抽象：本模块是它在微服务方式下的 Dubbo 实现（ADR 0005） -->
+        <!-- 跨模块调用抽象：本模块是它在微服务方式下的 Dubbo 实现 -->
         <dependency>
             <groupId>org.tuoyu</groupId>
             <artifactId>tuoyu-common-rpc</artifactId>

@@ -25,7 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * 租户套餐管理（ADR 0006 第 7 节）。只有平台（默认租户）中的用户可以使用；关闭多租户时拒绝
+ * 租户套餐管理。只有平台（默认租户）中的用户可以使用；关闭多租户时拒绝
  *
  * @author tuoyu
  */

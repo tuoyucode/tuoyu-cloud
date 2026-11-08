@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
- * 停机的前半段：在 Spring 开始停止各个组件<b>之前</b>，先下线、再排空 HTTP 请求（ADR 0007 第 4.2 节）。
+ * 停机的前半段：在 Spring 开始停止各个组件<b>之前</b>，先下线、再排空 HTTP 请求。
  * <ol>
  *     <li>健康检查改为“不接收流量”（readiness 为 REFUSING_TRAFFIC，/actuator/health 返回 503）；</li>
  *     <li>执行全部 {@link OfflineAction}（从注册中心注销等）；</li>

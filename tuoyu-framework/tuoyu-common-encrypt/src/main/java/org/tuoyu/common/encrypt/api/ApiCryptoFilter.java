@@ -33,7 +33,7 @@ import java.util.Enumeration;
 import java.util.Set;
 
 /**
- * 接口加密过滤器，协议见 docs/adr/0001-接口加密.md
+ * 接口加密过滤器
  * <ul>
  *     <li>带 {@value #HEADER} 请求头的请求：解密请求体，校验时间窗口与 nonce，再把明文交给后续处理；</li>
  *     <li>标注了 {@link ApiEncrypt} 的接口：必须是加密请求；{@code response = true} 时用请求中的 AES 密钥加密响应。</li>

@@ -263,7 +263,7 @@ public class RedisMessageChannelBinder extends AbstractBinder<MessageChannel, Co
         }
 
         /**
-         * 优雅停止（ADR 0007 第 4 节）：不再读取新消息，等待正在处理的一批完成（处理完的会确认）；
+         * 优雅停止：不再读取新消息，等待正在处理的一批完成（处理完的会确认）；
          * 超过 spring.cloud.bus.redis.shutdown-timeout 才中断。未确认的消息由其他实例按 claim-idle-timeout 认领重新处理
          */
         @Override

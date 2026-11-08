@@ -21,7 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 接口加密协议 v1 的客户端实现（docs/adr/0001-接口加密.md），只用 JDK 的 JCE，不依赖后端代码。
+ * 接口加密协议 v1 的客户端实现，只用 JDK 的 JCE，不依赖后端代码。
  * <p>
  * 请求：客户端为每个请求随机生成 32 字节 AES 密钥、12 字节 iv、16 字节 nonce，
  * 正文用 AES-256-GCM 加密（AAD 为 {@code tuoyu-api-crypto/v1/request|kid|ts|nonce}），

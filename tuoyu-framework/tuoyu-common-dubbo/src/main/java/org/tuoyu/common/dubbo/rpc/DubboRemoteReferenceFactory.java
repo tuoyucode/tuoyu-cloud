@@ -26,7 +26,7 @@ public class DubboRemoteReferenceFactory implements RemoteReferenceFactory {
         ReferenceConfig<T> reference = new ReferenceConfig<>(moduleModel);
         reference.setInterface(api);
         reference.setCheck(false);
-        // 不重试（ADR 0007 第 5 节）：框架无法判断接口是否幂等，超时的调用可能已在提供方执行
+        // 不重试：框架无法判断接口是否幂等，超时的调用可能已在提供方执行
         reference.setRetries(0);
         moduleModel.getConfigManager().addReference(reference);
         // 第一次调用时才取引用：容器启动阶段 Dubbo 模块可能尚未启动

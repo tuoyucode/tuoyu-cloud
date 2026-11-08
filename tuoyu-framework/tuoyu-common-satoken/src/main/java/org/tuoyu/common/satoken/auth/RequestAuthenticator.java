@@ -14,7 +14,7 @@ import org.tuoyu.common.satoken.utils.LoginHelper;
 import java.util.List;
 
 /**
- * 请求的登录校验，网关与各服务共用（ADR 0005 第 5 节：登录校验下沉到各服务）：
+ * 请求的登录校验，网关与各服务共用（登录校验下沉到各服务）：
  * <ol>
  *     <li>白名单中的路径不校验；</li>
  *     <li>必须已登录；</li>

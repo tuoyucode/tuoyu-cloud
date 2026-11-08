@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DisplayName("ADR 0005 登录校验：白名单、必须登录、客户端 ID 一致、客户端可访问路径与 IP 白名单")
+@DisplayName("登录校验：白名单、必须登录、客户端 ID 一致、客户端可访问路径与 IP 白名单")
 class RequestAuthenticatorTest {
 
     private static final String CLIENT_ID = "client-1";

@@ -11,7 +11,7 @@
     <artifactId>tuoyu-common-flyway</artifactId>
 
     <description>
-        tuoyu-common-flyway 数据库迁移：每个库由一个服务负责，1.0 支持 MySQL 与 PostgreSQL（见 docs/adr/0004-数据库迁移.md）
+        tuoyu-common-flyway 数据库迁移：每个库由一个服务负责，1.0 支持 MySQL 与 PostgreSQL
     </description>
 
     <dependencies>

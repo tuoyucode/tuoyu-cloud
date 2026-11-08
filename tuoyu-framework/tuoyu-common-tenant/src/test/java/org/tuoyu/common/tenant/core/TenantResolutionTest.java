@@ -38,7 +38,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 当前租户的确定顺序、失败闭合与忽略租户（ADR 0006 第 3、4 节）
+ * 当前租户的确定顺序、失败闭合与忽略租户
  */
 @DisplayName("多租户：当前租户的确定、缺少租户时拒绝、忽略租户的注解")
 class TenantResolutionTest {

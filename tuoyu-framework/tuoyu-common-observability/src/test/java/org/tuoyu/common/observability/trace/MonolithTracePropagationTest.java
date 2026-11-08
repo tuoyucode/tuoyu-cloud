@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * 单体方式（同一个 Spring 容器）：跨模块调用经过本地调用代理、异步任务经过 TaskDecorator 与 ThreadUtils，traceId 都保持不变
  */
-@DisplayName("链路透传：单体方式下的跨模块调用与异步任务（ADR 0007）")
+@DisplayName("链路透传：单体方式下的跨模块调用与异步任务")
 class MonolithTracePropagationTest {
 
     private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";

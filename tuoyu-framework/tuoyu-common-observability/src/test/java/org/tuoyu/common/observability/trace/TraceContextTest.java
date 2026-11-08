@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-@DisplayName("链路上下文：写入 MDC 并在结束后恢复，线程复用时不串号（ADR 0007）")
+@DisplayName("链路上下文：写入 MDC 并在结束后恢复，线程复用时不串号")
 class TraceContextTest {
 
     private static final String SAMPLE = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";

@@ -9,7 +9,7 @@ import org.tuoyu.system.mapper.SysTenantMapper;
 import org.tuoyu.system.mapper.SysUserMapper;
 
 /**
- * 租户用户数上限（ADR 0006 第 7 节）：新增、导入、注册用户前检查当前租户的用户数。
+ * 租户用户数上限：新增、导入、注册用户前检查当前租户的用户数。
  * 上限为空表示不限；未开启多租户时不检查。并发新增时可能短暂超出 1 ~ 2 个，不做加锁
  *
  * @author tuoyu

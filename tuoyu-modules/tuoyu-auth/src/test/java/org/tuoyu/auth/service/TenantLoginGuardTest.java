@@ -19,7 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@DisplayName("ADR 0006 登录先确定租户：未指定、不存在、停用、过期时拒绝，通过后在该租户中执行")
+@DisplayName("登录先确定租户：未指定、不存在、停用、过期时拒绝，通过后在该租户中执行")
 class TenantLoginGuardTest {
 
     private final RemoteTenantService remoteTenantService = mock(RemoteTenantService.class);

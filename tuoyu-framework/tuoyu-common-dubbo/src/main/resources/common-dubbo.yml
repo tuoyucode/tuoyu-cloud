@@ -29,11 +29,11 @@ dubbo:
       timeout: ${spring.data.redis.timeout}
   # 提供者相关配置
   provider:
-    # 关闭 Dubbo 默认的异常过滤器，改用 tuoyuException：框架与 JDK 的异常原样传回调用方（ADR 0005 第 3.5 节）
+    # 关闭 Dubbo 默认的异常过滤器，改用 tuoyuException：框架与 JDK 的异常原样传回调用方
     filter: -exception
     # 不重试（见下方 consumer.retries）
     retries: 0
-  # 消费者相关配置（调用的默认值统一在这里，ADR 0007 第 5 节）
+  # 消费者相关配置（调用的默认值统一在这里）
   consumer:
     # 结果缓存(LRU算法)
     # 会有数据不一致问题 建议在注解局部开启

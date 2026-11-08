@@ -13,7 +13,7 @@ import java.security.spec.MGF1ParameterSpec;
 import java.util.Base64;
 
 /**
- * 接口加密协议 v1 的加解密实现（RSA-OAEP-256 + AES-256-GCM），协议见 docs/adr/0001-接口加密.md。
+ * 接口加密协议 v1 的加解密实现（RSA-OAEP-256 + AES-256-GCM）。
  * <p>
  * 只负责密码学部分；时间窗口与 nonce 防重放由 {@link ApiCryptoFilter} 在解密成功后检查。
  * 客户端方向的方法（{@link #encryptRequest}、{@link #decryptResponse}）是协议的参考实现，供测试使用。

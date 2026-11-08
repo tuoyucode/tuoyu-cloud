@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 转发时把链路带给下游（ADR 0007 第 3.2 节）：写入网关本次请求的 {@code traceparent}，
+ * 转发时把链路带给下游：写入网关本次请求的 {@code traceparent}，
  * 下游服务继续同一条链路（traceId 相同），父节点是网关。
  * <p>
  * 客户端带来的 traceparent 已由入口过滤器按配置决定是否采信，这里总是用网关确定的值覆盖，

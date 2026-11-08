@@ -39,7 +39,7 @@ public class SysNoticeVo implements Serializable {
     private String noticeType;
 
     /**
-     * 公告内容（纯文本：前端编辑器为多行文本框、按文本展示。改用富文本编辑器时再标注 @RichText，见 ADR 0003）
+     * 公告内容（纯文本：前端编辑器为多行文本框、按文本展示。改用富文本编辑器时再标注 @RichText）
      */
     private String noticeContent;
 

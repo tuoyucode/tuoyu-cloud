@@ -56,12 +56,12 @@ public class GatewayConfig {
             "X-Requested-With", "Content-Language", "Content-Type",
             "Authorization", HeaderNames.CLIENT_ID, "credential", "X-XSRF-TOKEN",
             "isToken", "token", "Admin-Token", "App-Token", "X-Tuoyu-Encrypted",
-            // W3C 链路头：前端可以带上自己生成的 traceparent（ADR 0007）
+            // W3C 链路头：前端可以带上自己生成的 traceparent
             "traceparent"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"));
         // 携带凭据的跨域请求中，浏览器不认 "*"，需要读取的响应头要显式列出
-        // X-Trace-Id：排查问题时前端可以读取并展示（ADR 0007）
+        // X-Trace-Id：排查问题时前端可以读取并展示
         config.setExposedHeaders(List.of("*", "X-Tuoyu-Encrypted", "Content-Disposition", "X-Trace-Id"));
         config.setMaxAge(18000L);
 

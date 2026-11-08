@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 /**
- * 缓存按租户隔离（ADR 0006 第 6 节）：缓存键加 {@code 租户:} 前缀；平台共享的缓存（字典、参数等）与没有当前租户时不加
+ * 缓存按租户隔离：缓存键加 {@code 租户:} 前缀；平台共享的缓存（字典、参数等）与没有当前租户时不加
  *
  * @author tuoyu
  */

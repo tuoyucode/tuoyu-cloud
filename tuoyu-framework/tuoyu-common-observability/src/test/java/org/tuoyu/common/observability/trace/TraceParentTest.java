@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("链路标识：W3C traceparent 的生成与解析（ADR 0007）")
+@DisplayName("链路标识：W3C traceparent 的生成与解析")
 class TraceParentTest {
 
     private static final String SAMPLE = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";

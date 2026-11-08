@@ -9,7 +9,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import java.lang.reflect.Proxy;
 
 /**
- * 本地调用代理：包装同一容器中的实现（ADR 0005 第 3.5 节）
+ * 本地调用代理：包装同一容器中的实现
  *
  * @author tuoyu
  */

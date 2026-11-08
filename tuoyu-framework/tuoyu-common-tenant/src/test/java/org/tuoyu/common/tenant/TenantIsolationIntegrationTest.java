@@ -46,7 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * 跨租户越权测试（CI 必跑，ADR 0006 第 8 节）：在真实的 MySQL 上，通过 MyBatis-Plus 与本模块的租户规则读写，
+ * 跨租户越权测试（CI 必跑）：在真实的 MySQL 上，通过 MyBatis-Plus 与本模块的租户规则读写，
  * 租户 A 的查询、按 ID 查询、更新、删除都碰不到租户 B 的数据。
  * <p>
  * 需要 Docker：本机没有 Docker 时跳过；CI（CI=true）中必须执行。

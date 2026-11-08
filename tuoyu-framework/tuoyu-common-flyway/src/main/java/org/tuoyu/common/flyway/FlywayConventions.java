@@ -5,7 +5,7 @@ import org.flywaydb.core.api.configuration.FluentConfiguration;
 import java.util.regex.Pattern;
 
 /**
- * 数据库迁移约定（见 docs/adr/0004-数据库迁移.md）。
+ * 数据库迁移约定。
  * <p>
  * 这些约定由框架固定，在 spring.flyway.* 配置之后应用，配置无法改变它们：
  * <ul>

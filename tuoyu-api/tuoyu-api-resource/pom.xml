@@ -16,7 +16,7 @@
     </description>
 
     <dependencies>
-        <!-- @RemoteApi：跨模块调用契约（ADR 0005） -->
+        <!-- @RemoteApi：跨模块调用契约 -->
         <dependency>
             <groupId>org.tuoyu</groupId>
             <artifactId>tuoyu-common-rpc</artifactId>

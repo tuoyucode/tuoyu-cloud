@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 文件上传配置（见 docs/adr/0003-上传-XSS-脱敏与字段加密.md）
+ * 文件上传配置
  *
  * @author tuoyu
  */

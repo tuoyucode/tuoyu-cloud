@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("跨模块调用的统一降级（ADR 0007 第 5 节）")
+@DisplayName("跨模块调用的统一降级")
 class RemoteFallbackTest {
 
     @BeforeEach

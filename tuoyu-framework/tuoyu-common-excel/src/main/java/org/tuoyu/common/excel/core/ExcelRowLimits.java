@@ -7,7 +7,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 /**
- * Excel 导出 / 导入的行数上限（见 docs/adr/0004-数据库迁移.md 第 2 节）。
+ * Excel 导出 / 导入的行数上限。
  * <p>
  * 超过上限时拒绝并提示，不截断数据：
  * <ul>

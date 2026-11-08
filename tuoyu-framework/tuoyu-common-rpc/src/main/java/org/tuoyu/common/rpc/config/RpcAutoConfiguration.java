@@ -10,7 +10,7 @@ import org.tuoyu.common.core.context.ContextPropagators;
 import org.tuoyu.common.rpc.support.RemoteApiRegistrar;
 
 /**
- * 跨模块调用抽象的自动配置（ADR 0005）
+ * 跨模块调用抽象的自动配置
  *
  * @author tuoyu
  */

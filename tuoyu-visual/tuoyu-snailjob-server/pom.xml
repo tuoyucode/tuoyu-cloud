@@ -59,7 +59,7 @@
             <artifactId>tuoyu-common-observability</artifactId>
         </dependency>
 
-        <!-- 数据库迁移：本服务负责 tuoyu-job 库（见 docs/adr/0004-数据库迁移.md） -->
+        <!-- 数据库迁移：本服务负责 tuoyu-job 库 -->
         <dependency>
             <groupId>org.tuoyu</groupId>
             <artifactId>tuoyu-common-flyway</artifactId>

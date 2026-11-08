@@ -22,7 +22,7 @@ public class SysOperLog implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 所属租户（ADR 0006）：插入时由框架按当前租户填写
+     * 所属租户：插入时由框架按当前租户填写
      */
     private String tenantId;
 

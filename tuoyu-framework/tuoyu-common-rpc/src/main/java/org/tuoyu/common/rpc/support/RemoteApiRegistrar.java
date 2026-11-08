@@ -30,7 +30,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * 为每个 {@link RemoteApi} 接口决定注入什么（ADR 0005 第 3.3 节）：
+ * 为每个 {@link RemoteApi} 接口决定注入什么：
  * <ul>
  *     <li>容器中有一个本地实现：注册本地调用代理（primary）；</li>
  *     <li>没有本地实现：微服务方式下注册远程引用（primary），单体方式下拒绝启动；</li>

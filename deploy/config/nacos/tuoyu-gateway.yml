@@ -14,7 +14,7 @@ spring:
     loadbalancer:
       cache:
         # 服务实例列表的缓存有效期（Spring Cloud 默认 35 秒）。服务停机时先从注册中心注销，
-        # 网关最多在这段时间后不再转发给它；须小于各服务的 tuoyu.shutdown.offline-delay（默认 5 秒，ADR 0007）
+        # 网关最多在这段时间后不再转发给它；须小于各服务的 tuoyu.shutdown.offline-delay（默认 5 秒）
         ttl: 3s
     gateway:
       # 不要配置 spring.cloud.gateway.server.webmvc.trusted-proxies：网关向下游转发的客户端地址由

@@ -21,9 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * 依赖规则（见 docs/adr/0005-RPC抽象与两种部署方式.md 第 4 节）。
+ * 模块之间的依赖规则：跨模块调用只经由对方的 api 包，业务代码不使用 Dubbo，mybatis 层不依赖认证与 RPC，
+ * 当前用户统一经由 UserContext 读取。
  * <p>
- * 读取各模块编译后的类（target/classes），所以本模块在构建顺序的最后。新增规则或调整规则时同步修改 ADR 0005。
+ * 读取各模块编译后的类（target/classes），所以本模块在构建顺序的最后。
  */
 @DisplayName("依赖规则（ArchUnit）")
 class ArchitectureTest {
@@ -55,7 +56,7 @@ class ArchitectureTest {
     }
 
     @Test
-    @DisplayName("业务模块与 tuoyu-api 不使用 Dubbo（跨模块调用经 tuoyu-common-rpc，ADR 0005）")
+    @DisplayName("业务模块与 tuoyu-api 不使用 Dubbo（跨模块调用经 tuoyu-common-rpc）")
     void modulesDoNotUseDubbo() {
         ArchRule rule = noClasses().that().resideInAnyPackage(modulePackages())
             .should().dependOnClassesThat().resideInAPackage("org.apache.dubbo..")
@@ -110,7 +111,7 @@ class ArchitectureTest {
             .and().resideOutsideOfPackages("org.tuoyu.common.dubbo..", "org.tuoyu.common.loadbalance..",
                 "org.tuoyu.common.seata..")
             .should().dependOnClassesThat().resideInAPackage("org.apache.dubbo..")
-            .because("单体包中不包含 Dubbo（ADR 0005 第 3.7 节）")
+            .because("单体包中不包含 Dubbo")
             .check(classes);
     }
 
@@ -119,7 +120,7 @@ class ArchitectureTest {
     void loginHelperStaysInAuthentication() {
         noClasses().that().resideOutsideOfPackages("org.tuoyu.common.satoken..", "org.tuoyu.auth..")
             .should().dependOnClassesThat().haveFullyQualifiedName("org.tuoyu.common.satoken.utils.LoginHelper")
-            .because("LoginHelper 处理登录、登出与会话，业务与其他框架代码读取当前用户用 core 的 UserContext（ADR 0008）")
+            .because("LoginHelper 处理登录、登出与会话，业务与其他框架代码读取当前用户用 core 的 UserContext")
             .check(classes);
     }
 

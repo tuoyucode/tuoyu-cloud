@@ -18,7 +18,7 @@ import org.springframework.util.StringUtils;
 import java.util.Map;
 
 /**
- * 数据库迁移自动配置：只有负责某个库的服务才依赖本模块（见 docs/adr/0004-数据库迁移.md）。
+ * 数据库迁移自动配置：只有负责某个库的服务才依赖本模块。
  * <p>
  * 开关为 spring.flyway.enabled（仓库配置写作 ${TUOYU_FLYWAY_ENABLED:true}）。
  * 单体在一个进程中负责多个库：主库由 spring.flyway.* 连接，其他库写在 tuoyu.flyway.additional 中，

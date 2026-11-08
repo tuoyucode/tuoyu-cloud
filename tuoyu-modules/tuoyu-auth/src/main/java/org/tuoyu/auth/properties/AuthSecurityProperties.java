@@ -8,7 +8,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 /**
- * 认证加固配置，设计见 docs/adr/0002-认证加固与可信代理.md。
+ * 认证加固配置。
  * <p>
  * 由 Nacos 刷新时自动重新绑定，修改后无需重启。
  *

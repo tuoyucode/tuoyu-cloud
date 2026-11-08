@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.PropertySource;
 
 /**
- * dubbo 配置类：微服务方式下跨模块调用的 RPC 实现（ADR 0005）。业务模块不直接使用 Dubbo
+ * dubbo 配置类：微服务方式下跨模块调用的 RPC 实现。业务模块不直接使用 Dubbo
  */
 @AutoConfiguration
 @EnableConfigurationProperties(DubboCustomProperties.class)
@@ -46,7 +46,7 @@ public class DubboConfiguration {
     }
 
     /**
-     * 远程引用（ADR 0005）：本服务中没有实现的 {@code @RemoteApi} 接口通过它注入
+     * 远程引用：本服务中没有实现的 {@code @RemoteApi} 接口通过它注入
      */
     @Bean
     public RemoteReferenceFactory dubboRemoteReferenceFactory(BeanFactory beanFactory) {

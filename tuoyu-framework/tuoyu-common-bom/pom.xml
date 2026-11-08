@@ -264,7 +264,7 @@
                 <version>${revision}</version>
             </dependency>
 
-            <!-- 跨模块调用抽象：单体中本地调用，微服务中走 Dubbo（ADR 0005） -->
+            <!-- 跨模块调用抽象：单体中本地调用，微服务中走 Dubbo -->
             <dependency>
                 <groupId>org.tuoyu</groupId>
                 <artifactId>tuoyu-common-rpc</artifactId>
@@ -278,7 +278,7 @@
                 <version>${revision}</version>
             </dependency>
 
-            <!-- 多租户（ADR 0006） -->
+            <!-- 多租户 -->
             <dependency>
                 <groupId>org.tuoyu</groupId>
                 <artifactId>tuoyu-common-tenant</artifactId>

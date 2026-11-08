@@ -20,7 +20,7 @@ import java.util.Arrays;
 /**
  * 提供方异常处理（取代 Dubbo 默认的 exception 过滤器，配置中以 {@code -exception} 关闭默认的）。
  * <p>
- * 让异常尽量原样到达调用方，与单体中的本地调用一致（ADR 0005 第 3.5 节）。只有调用方可能没有的异常类才转换：
+ * 让异常尽量原样到达调用方，与单体中的本地调用一致。只有调用方可能没有的异常类才转换：
  * <ul>
  *     <li>原样传回：受检异常、方法签名中声明的异常、JDK 异常、{@code org.tuoyu.common.core} 中的异常（各服务都有）、
  *     与接口在同一个 jar 中的异常、Dubbo 的 RpcException；</li>

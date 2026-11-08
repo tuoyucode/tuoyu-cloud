@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.time.Duration;
 
 /**
- * 优雅停机配置（ADR 0007 第 4 节）。仓库内的默认值在公共配置 application-common.yml 中
+ * 优雅停机配置。仓库内的默认值在公共配置 application-common.yml 中
  *
  * @author tuoyu
  */

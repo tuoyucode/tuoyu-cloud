@@ -6,7 +6,7 @@ import org.tuoyu.common.encrypt.enums.EncodeType;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 加解密属性配置类（见 docs/adr/0003-上传-XSS-脱敏与字段加密.md）
+ * 加解密属性配置类
  *
  * @author 老马
  * @version 4.6.0

@@ -27,7 +27,7 @@ import org.tuoyu.system.service.ISysTenantService;
 import java.util.Arrays;
 
 /**
- * 租户管理（ADR 0006 第 7 节）。只有平台（默认租户）中的用户可以使用；关闭多租户时拒绝
+ * 租户管理。只有平台（默认租户）中的用户可以使用；关闭多租户时拒绝
  *
  * @author tuoyu
  */

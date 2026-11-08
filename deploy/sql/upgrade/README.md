@@ -4,7 +4,7 @@
 
 ## MySQL、PostgreSQL：Flyway 迁移（2026-10-28 起）
 
-接入 Flyway 后（设计见 `docs/adr/0004-数据库迁移.md`），MySQL 与 PostgreSQL 的表结构与种子数据改动**只写成迁移脚本**，不再在本目录新增这两种数据库的升级脚本，也不再修改 `deploy/sql` 下它们的全新安装脚本：
+接入 Flyway 后，MySQL 与 PostgreSQL 的表结构与种子数据改动**只写成迁移脚本**，不再在本目录新增这两种数据库的升级脚本，也不再修改 `deploy/sql` 下它们的全新安装脚本：
 
 | 库 | 负责迁移的服务 | 迁移脚本目录（`mysql` 与 `postgresql` 各一套） |
 |---|---|---|
@@ -34,7 +34,7 @@ Oracle 不在 1.0 的支持范围内，Flyway 连接 Oracle 时自动跳过迁�
 | `20261024-menu` | 新增“安全中心”菜单；删除“项目官网”“测试菜单”与请假申请示例（菜单、角色授权、`test_leave` 表）；菜单图标改为 Iconify。含 MySQL、PostgreSQL 脚本（接入 Flyway 前的升级，已包含在 V1 基线中） |
 | `20261024-gen` | 代码生成的前端模板默认改为 `vben`。含 MySQL、PostgreSQL 脚本（同上） |
 | `20261028-menu` | 删除“批量强退”按钮（`monitor:online:batchLogout`，没有对应接口）及其角色授权。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V2__remove_batch_logout_menu.sql` 完成 |
-| `20261029-tenant` | 多租户（ADR 0006）：10 张表增加 `tenant_id`，新增租户、租户套餐、套餐菜单三张表与默认租户，新增“租户管理”“租户套餐”菜单。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V3__tenant.sql` 完成 |
+| `20261029-tenant` | 多租户：10 张表增加 `tenant_id`，新增租户、租户套餐、套餐菜单三张表与默认租户，新增“租户管理”“租户套餐”菜单。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V3__tenant.sql` 完成 |
 | `20261029-perms` | 菜单权限码与接口对齐：“流程设计”页面的权限码由已删除的请假示例 `workflow:leave:edit` 改为 `workflow:definition:edit`。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V4__align_permissions.sql` 完成 |
 | `20261030-menu` | 删除“流程表达式定义导出”按钮（`workflow:spel:export`，没有对应接口）及其角色授权与套餐菜单。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V5__remove_spel_export_menu.sql` 完成 |
 | `20261101-users` | 删除演示账号 `test`、`test1`（口令为公开的 666666）及其角色、岗位关联与第三方绑定，演示角色保留。只有 Oracle 脚本，MySQL、PostgreSQL 由迁移脚本 `V6__remove_demo_users.sql` 完成 |

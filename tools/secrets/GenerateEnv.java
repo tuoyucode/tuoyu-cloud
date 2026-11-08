@@ -73,7 +73,7 @@ public class GenerateEnv {
         env.put("TUOYU_API_DOCS_ENABLED", "true");
         env.put("TUOYU_GATEWAY_DISCOVERY_LOCATOR", "true");
         env.put("TUOYU_SQL_LOG_ENABLED", "true");
-        // 停机时不等待下线（ADR 0007），本地重启更快；TUOYU_SHUTDOWN_TIMEOUT、TUOYU_DUBBO_SHUTDOWN_WAIT、TUOYU_DUBBO_TIMEOUT 使用默认值
+        // 停机时不等待下线，本地重启更快；TUOYU_SHUTDOWN_TIMEOUT、TUOYU_DUBBO_SHUTDOWN_WAIT、TUOYU_DUBBO_TIMEOUT 使用默认值
         env.put("TUOYU_SHUTDOWN_OFFLINE_DELAY", "0s");
         env.put("# ---------- Nacos ----------", null);
         env.put("TUOYU_NACOS_SERVER", "127.0.0.1:8848");

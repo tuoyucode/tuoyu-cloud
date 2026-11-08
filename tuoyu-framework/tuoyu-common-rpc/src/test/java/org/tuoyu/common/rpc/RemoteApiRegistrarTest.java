@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("跨模块调用：注入规则与本地调用代理（ADR 0005）")
+@DisplayName("跨模块调用：注入规则与本地调用代理")
 class RemoteApiRegistrarTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()

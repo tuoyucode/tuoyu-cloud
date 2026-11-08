@@ -6,7 +6,7 @@ import org.tuoyu.system.api.domain.vo.RemoteTenantVo;
 import java.util.List;
 
 /**
- * 租户服务（ADR 0006）。查询租户本身不受租户隔离限制
+ * 租户服务。查询租户本身不受租户隔离限制
  *
  * @author tuoyu
  */

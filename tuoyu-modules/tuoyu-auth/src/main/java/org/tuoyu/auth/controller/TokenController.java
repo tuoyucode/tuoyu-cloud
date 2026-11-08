@@ -107,7 +107,7 @@ public class TokenController {
         // 读取本次请求刚建立的登录会话中的用户
         Long userId = LoginHelper.getUserId();
         String tenantId = loginTenantId.get();
-        // 欢迎消息只是提示：推送失败不影响登录（统一降级，单体与微服务行为一致，ADR 0007）。
+        // 欢迎消息只是提示：推送失败不影响登录（统一降级，单体与微服务行为一致）。
         // 定时线程池不透传上下文，要明确指定租户，否则开启多租户时消息因缺少租户写入失败
         scheduledExecutorService.schedule(() -> TenantHelper.dynamic(tenantId, () -> RemoteFallback.run("resource.message.welcome",
             () -> remoteMessageService.publishMessage(List.of(userId), DateUtils.getTodayHour(new Date()) + "好，欢迎登录 TuoYu-Cloud 后台管理系统"))),
@@ -220,7 +220,7 @@ public class TokenController {
 
     /**
      * 登录页的租户（免登录）：未开启多租户时 enabled 为 false，登录页不显示租户；
-     * 开启时返回可选择的租户，某个租户绑定了当前访问域名时只返回它（ADR 0006 第 5 节）
+     * 开启时返回可选择的租户，某个租户绑定了当前访问域名时只返回它
      *
      * @param domain 访问域名，可以为空
      */

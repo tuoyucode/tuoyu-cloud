@@ -19,7 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("优雅停机：先下线、再排空请求，然后才停止 RPC 等组件（ADR 0007）")
+@DisplayName("优雅停机：先下线、再排空请求，然后才停止 RPC 等组件")
 class GracefulShutdownCoordinatorTest {
 
     @Test
