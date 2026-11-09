@@ -298,6 +298,31 @@ class MigrationScriptsTest {
         }
     }
 
+    @Test
+    @DisplayName("业务模块在自己的单体接入声明中登记附加迁移，地址指向它负责的库，随 TUOYU_DB_TYPE 切换")
+    void businessModulesDeclareMonolithMigration() throws IOException {
+        Path configDir = root.resolve("deploy/config/nacos");
+        for (Owner owner : OWNERS) {
+            if (!owner.module().startsWith("tuoyu-business/")) {
+                continue;
+            }
+            Path declaration = root.resolve(owner.module()).resolve("src/main/resources/META-INF/tuoyu/monolith-module.yml");
+            assertTrue(Files.isRegularFile(declaration), owner.module() + " 缺少单体接入声明 " + declaration);
+            for (Vendor vendor : Vendor.values()) {
+                StandardEnvironment environment = environmentOf(configDir, List.of(MONOLITH_CONFIG),
+                    vendor == Vendor.MYSQL ? Map.of() : Map.of("TUOYU_DB_TYPE", vendor.id));
+                for (PropertySource<?> source : new YamlPropertySourceLoader().load(declaration.toString(),
+                    new FileSystemResource(declaration))) {
+                    environment.getPropertySources().addLast(source);
+                }
+                String url = environment.getProperty("tuoyu.flyway.additional." + owner.migration() + ".url");
+                assertEquals(environment.getProperty("datasource." + owner.datasourceKey() + ".url"), url,
+                    declaration + " 中的附加迁移地址应引用 datasource." + owner.datasourceKey() + ".url");
+                assertTrue(url.startsWith(vendor.urlPrefix) && url.contains("/" + owner.database() + "?"), url);
+            }
+        }
+    }
+
     /**
      * pom 中是否以依赖的形式引入了 tuoyu-common-flyway（BOM 中的版本声明单独排除）
      */

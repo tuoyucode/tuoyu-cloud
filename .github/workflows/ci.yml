@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ master, dev ]
+    branches: [ master, dev, business ]
   pull_request:
-    branches: [ master, dev ]
+    branches: [ master, dev, business ]
   workflow_dispatch:
 
 # 同一分支有新提交时，取消尚未完成的旧构建
@@ -27,12 +27,19 @@ env:
   TRIVY_SHA256: 2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a
 
 jobs:
-  # 规则检查：测试不允许被跳过；仓库内不得出现明文口令
+  # 规则检查：测试不允许被跳过；仓库内不得出现明文口令；框架与业务放在各自的分支上
   guard:
     name: 规则检查
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 业务分支要与 dev 比较，需要完整历史
+          fetch-depth: 0
+
+      - name: 框架与业务分开（见 CONTRIBUTING.md“分支”）
+        # push 时检查当前分支，PR 时按合并的目标分支检查
+        run: python3 tools/ci/check_branch_scope.py "${{ github.base_ref || github.ref_name }}"
 
       - name: 禁止在 pom 中跳过测试
         run: |
@@ -263,9 +270,9 @@ jobs:
         run: |
           set -euo pipefail
           [ -f "$MONOLITH_DIR/Dockerfile" ] || { echo "::error::缺少单体的 Dockerfile：$MONOLITH_DIR/Dockerfile"; exit 1; }
-          # 各模块目录下的 Dockerfile（deploy 下是中间件，扩展模块不在默认构建中），构建上下文为模块目录；
+          # 各模块目录下的 Dockerfile（deploy 下是中间件，扩展模块与业务模块不在默认构建中），构建上下文为模块目录；
           # 单体例外：要把 deploy/config/nacos 放进镜像，构建上下文是仓库根目录
-          mapfile -t dockerfiles < <(git ls-files '*Dockerfile' | grep -vE '^(deploy|tuoyu-extensions)/' | sort)
+          mapfile -t dockerfiles < <(git ls-files '*Dockerfile' | grep -vE '^(deploy|tuoyu-extensions|tuoyu-business)/' | sort)
           tag="ci-${GITHUB_SHA::12}"
           for dockerfile in "${dockerfiles[@]}"; do
             dir=$(dirname "$dockerfile")

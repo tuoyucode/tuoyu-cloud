@@ -26,6 +26,24 @@ TuoYu-Cloud 是一个通用的 Java 微服务框架，**同一套代码既可以
    - 新增依赖前先确认协议，不引入 GPL、AGPL 依赖。带 FOSS 例外条款的数据库驱动（例如 MySQL Connector/J）可以作为 Maven 依赖使用，但不放进仓库。
    - LGPL 依赖默认不引入。确实无法避免时（例如被必须使用的组件直接依赖、排除后功能失效），只允许未修改、作为 Maven 依赖使用，并且要先经维护者确认、登记在 `tools/ci/license-exceptions.txt` 并写明原因（CI 的协议检查据此放行，未登记的一律阻断）、在 README 的“许可证”一节列出库名、协议与源码地址。能排除的先排除。
    - 目前的 LGPL 例外：`aviator`（SnailJob 服务端的条件表达式引擎）、`simple-http`（JustAuth 的 HTTP 请求层，第三方登录使用）。
+8. **框架与业务分开。** `dev` / `master` 只放框架；业务模块只放在 `business` 分支，框架的改动先进 `dev`，再合并到 `business`，不反向合并。详见下一节，CI 会检查。
+
+## 分支
+
+框架不面向具体业务，所以框架与基于它构建的业务系统放在两条分支上，框架可以单独发布，业务系统以后也可以整体拆成独立仓库。
+
+| 分支 | 内容 | 用途 |
+|---|---|---|
+| `master` | 框架 | 发布版本 |
+| `dev` | 框架 | 日常开发，合并到 `master` 后发布 |
+| `business` | `dev` 的全部内容加上业务模块 | 业务系统（目前是制造执行 MES）的开发 |
+
+- **框架的改动只进 `dev`**：框架模块与框架自带的模块（auth、system 等）、业务模块需要的新框架能力、文档与 CI。从 `dev` 开功能分支，合回 `dev`。在 `business` 上发现框架的缺陷，也回到 `dev` 修。
+- **业务的改动只进 `business`**：从 `business` 开功能分支，合回 `business`。业务代码与业务文档放在 `tuoyu-business/` 下；放在其他位置的业务文件、接入业务模块必须改动的框架文件（构建 profile、网关路由、数据源、守护测试中的登记等），逐个登记在 `tools/ci/business-scope.txt` 中。
+- **只能由 `dev` 合并到 `business`**（`git merge dev`），框架的改动通过合并进入业务分支；不要把 `business` 合并、也不要把其中的提交挑到 `dev` / `master`。
+- 一次改动两边都涉及时，拆成两个提交：先在 `dev` 提交框架部分，合并到 `business` 后再提交业务部分。
+- **新增业务模块**：先在 `dev` 上把它的路径登记到 `tools/ci/business-scope.txt`（`business:`，需要时加 `integration:`），再在 `business` 上添加代码。
+- CI 在规则检查中执行 `tools/ci/check_branch_scope.py`：`dev` / `master` 上出现业务文件即失败；`business` 上相对 `dev` 改动了未登记的框架文件即失败。提交前可以在本地执行 `python tools/ci/check_branch_scope.py <当前分支>`。
 
 ## 构建与检查
 
@@ -34,6 +52,7 @@ TuoYu-Cloud 是一个通用的 Java 微服务框架，**同一套代码既可以
 ```bash
 mvn clean verify                 # 完整构建，提交前必须通过
 mvn clean verify -P extensions   # 改动了可选扩展模块（tuoyu-extensions，默认不参与构建）时
+mvn clean verify -P business     # business 分支上改动了业务模块（tuoyu-business，默认不参与构建）时
 ```
 
 - 运行环境不在构建时决定：同一份产物通过 `TUOYU_PROFILES_ACTIVE` 选择环境（默认 `dev`）。
@@ -68,9 +87,9 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 
 ## 两种部署方式
 
-- **微服务**：各业务模块单独启动，可执行 jar 为 `target/<模块>-exec.jar`（普通 jar 供单体依赖），Dockerfile 复制它。
+- **微服务**：各服务模块单独启动，可执行 jar 为 `target/<模块>-exec.jar`（普通 jar 供单体依赖），Dockerfile 复制它。
 - **单体**：`tuoyu-boot/tuoyu-boot-all`（`target/tuoyu-boot-all.jar`，端口 8081，与网关相同），不需要 Nacos，从 `TUOYU_CONFIG_DIR`（默认 `deploy/config/nacos`）读取与 Nacos 相同的配置文件，最后加载单体专用的 `tuoyu-boot-all.yml`。pom 中排除 Dubbo、Nacos、Seata（`MonolithAssemblyTest` 检查）。
-- 单体的 URL 前缀表（`tuoyu.monolith.path-prefixes`）与网关路由一一对应（`ModulePathPrefixConsistencyTest`），新增业务模块或网关路由时两边一起改。
+- 单体的 URL 前缀表（`tuoyu.monolith.path-prefixes`）与网关路由一一对应（`ModulePathPrefixConsistencyTest`），新增框架模块或网关路由时两边一起改（业务模块用单体接入声明，见“业务模块”）。
 - 一个 Controller 在单体中只有一个前缀：system 的 `controller.monitor` 包只挂在 `/monitor` 下（微服务中网关同时转发 `/system`、`/monitor`），前端调用这些接口一律用 `/monitor/...`。
 - 单体按模块切换数据源（`tuoyu.monolith.datasource-routes`），访问数据库的模块都要登记。
 - SnailJob 服务端在单体部署中作为第二个进程运行（`compose-monolith.yml`）。
@@ -136,7 +155,7 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 ## 跨模块调用
 
 - 跨模块调用只能通过 `tuoyu-api-*` 中标注 `@RemoteApi` 的接口。调用方用普通的构造器注入，不加注解：容器中有实现时注入本地调用代理，否则在微服务中注入 Dubbo 引用；单体中缺少实现时拒绝启动。
-- 提供方是普通的 `@Service`，由 `tuoyu-common-dubbo` 统一导出。业务模块与 api 中不能出现 Dubbo（`@DubboReference`、`@DubboService`、`@EnableDubbo`、mock、stub），ArchUnit 检查。
+- 提供方是普通的 `@Service`，由 `tuoyu-common-dubbo` 统一导出。各模块（`tuoyu-modules`、`tuoyu-business`）与 api 中不能出现 Dubbo（`@DubboReference`、`@DubboService`、`@EnableDubbo`、mock、stub），ArchUnit 检查。
 - 语义：跨模块调用不参与调用方事务；异常原样到达调用方（Dubbo 中框架异常连同错误码传回，调用方没有的异常只传回错误编号，不带原消息）；参数校验由提供方负责（实现类 `@Validated`、接口参数 `@Valid`）；参数与返回值按值语义使用，不修改对方的对象。
 - 结果可有可无的调用（例如推送提示消息、翻译文件地址）用 `RemoteFallback.call` / `run` 降级，名称写成 `提供方模块.用途`。权限、租户、登录、写入数据等调用不能降级。Dubbo 超时为 `TUOYU_DUBBO_TIMEOUT`（默认 3000 毫秒），远程引用固定不重试。
 - 当前用户、权限要求、租户分别来自 core 中的 `UserContext`（实现方提供 `UserContextProvider`）、`PermissionContext`、`TenantContext`。需要跨线程、跨服务传递的上下文实现 `ContextPropagator`（只传字符串），`@Async` 与 `ThreadUtils` 的虚拟线程会自动恢复。
@@ -164,6 +183,16 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 - 用户名在租户内唯一；租户内只能使用套餐中的菜单（读取时取交集，角色授权时服务端校验）。
 - 越权测试 `TenantIsolationIntegrationTest`（Testcontainers）在 CI 中必须执行。
 
+## 业务模块
+
+业务模块是基于框架构建的具体业务系统，在 `business` 分支的 `tuoyu-business` 下（见“分支”），由 profile `business` 启用，默认构建与默认镜像都不包含它们。框架与框架自带的模块不能依赖业务模块（ArchUnit 检查）。下面是框架为业务模块提供的接入方式，业务模块自己的说明写在 `tuoyu-business/README.md`。
+
+- **库**：每个业务模块用自己的库，由模块自己的 Flyway 迁移（`db/migration/<库名>/{mysql,postgresql}`，规则同“数据库脚本”），`deploy/sql` 下放同一份全新安装脚本；`datasource.yml` 中登记连接（`datasource.<库名>`），Nacos 中的服务配置把 `spring.flyway` 与主数据源指向它。docker 的初始化脚本只建库。
+- **菜单与权限码**：菜单表属于 `tuoyu-system`，业务模块不写它的迁移脚本，而是在 `META-INF/tuoyu/menus/<模块标识>.json` 中声明（依赖 `tuoyu-common-menu`），服务启动后经 `RemoteMenuService` 登记：按菜单 ID 只写入不存在的菜单，已存在的不覆盖、不删除；权限码必须以 `<模块标识>:` 开头，否则整批拒绝。菜单 ID 由模块固定分配号段。`@SaCheckPermission` 的权限码可以来自这里（`ControllerAuthAnnotationTest` 同时读取迁移脚本与这些文件）。新菜单只有超级管理员默认可见，其他角色在角色管理中授权，租户套餐需要另外勾选。
+- **网关与单体**：网关在 `tuoyu-gateway.yml` 中写路由（模块未部署时返回 503）；单体不改配置与启动类，由模块在 `META-INF/tuoyu/monolith-module.yml` 中声明 URL 前缀、包与数据源（`tuoyu.monolith.modules.<名称>`），以及按名称合并的数据源与附加迁移（`spring.datasource.dynamic.datasource.<名称>`、`tuoyu.flyway.additional.<库名>`）。`tuoyu-boot-all` 在 profile `business` 下加入业务模块的依赖，启动时读取所有这类声明，扫描声明的包。`ModulePathPrefixConsistencyTest` 把这些声明与网关路由一起核对。
+- **部署**：可执行 jar、Dockerfile 与其他服务相同；compose 中的业务服务放在 profile `business` 下（`--profile business`）。
+- 业务模块需要的通用能力（例如菜单登记、单体接入声明）写在框架中、先提交到 `dev`，让放在 `business` 分支或独立仓库中的业务系统都能使用。
+
 ## 目录结构
 
 | 目录 | 内容 |
@@ -171,11 +200,12 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 | `tuoyu-framework` | 框架公共组件，子模块的 artifactId 为 `tuoyu-common-*` |
 | `tuoyu-api` | 服务间接口契约 |
 | `tuoyu-gateway` | 网关 |
-| `tuoyu-modules` | 业务模块：auth、system、resource、workflow、gen、job |
+| `tuoyu-modules` | 框架自带的模块：auth、system、resource、workflow、gen、job |
 | `tuoyu-visual` | 监控与调度控制台 |
 | `tuoyu-boot` | 启动器（单体 `tuoyu-boot-all`） |
 | `tuoyu-e2e` | 端到端测试 |
 | `tuoyu-extensions` | 可选扩展 |
+| `tuoyu-business` | 业务模块（只在 `business` 分支，`-P business` 启用） |
 | `tuoyu-architecture` | 依赖规则检查 |
 | `deploy` | SQL、Nacos 配置、部署脚本 |
 | `tools` | 工具脚本 |

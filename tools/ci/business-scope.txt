@@ -1,0 +1,37 @@
+# 框架与业务的分支范围（见 CONTRIBUTING.md“分支”），由 check_branch_scope.py 在 CI 中检查。
+#
+#   business:     业务模块的文件，只能出现在 business 分支；dev / master 上出现即失败
+#   integration:  接入业务模块时需要改动的框架文件，business 分支可以改；其他框架文件一律在 dev 上改
+#
+# 以 / 结尾的表示目录，可以用 * 通配。新增业务模块时，先在 dev 上登记它的路径，再在 business 上添加代码。
+
+# 业务模块的源码、文档、迁移脚本都在这个目录下
+business: tuoyu-business/
+
+# 制造执行（MES）放在业务目录以外的文件
+business: deploy/config/nacos/tuoyu-mes.yml
+business: deploy/sql/tuoyu-mes.sql
+business: deploy/sql/postgres/postgres_tuoyu_mes.sql
+business: .run/tuoyu-mes.run.xml
+business: tuoyu-e2e/src/test/java/org/tuoyu/e2e/MesFlowIT.java
+
+# 构建：根 pom 的 business profile，单体与依赖规则检查在该 profile 下带上业务模块
+integration: pom.xml
+integration: tuoyu-boot/tuoyu-boot-all/pom.xml
+integration: tuoyu-architecture/pom.xml
+
+# 守护测试中登记业务模块：包与 URL 前缀、依赖规则、迁移脚本
+integration: tuoyu-architecture/src/test/java/org/tuoyu/architecture/ArchitectureTest.java
+integration: tuoyu-architecture/src/test/java/org/tuoyu/architecture/ControllerAuthAnnotationTest.java
+integration: tuoyu-framework/tuoyu-common-flyway/src/test/java/org/tuoyu/common/flyway/MigrationScriptsTest.java
+
+# CI：业务模块的构建任务
+integration: .github/workflows/ci.yml
+
+# 部署：数据源、网关路由、compose 与建库脚本
+integration: deploy/config/nacos/datasource.yml
+integration: deploy/config/nacos/tuoyu-gateway.yml
+integration: deploy/docker/compose-full.yml
+integration: deploy/docker/README.md
+integration: deploy/docker/mysql/init/01-create-databases.sql
+integration: deploy/docker/postgres/init/01-create-databases.sql

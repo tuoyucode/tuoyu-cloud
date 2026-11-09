@@ -30,9 +30,19 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class ArchitectureTest {
 
     /**
-     * 业务模块的根包
+     * 框架自带的模块的根包；tuoyu-business 下的业务模块按编译后的类自动加入（见 importClasses）
      */
-    private static final List<String> MODULES = List.of("auth", "system", "resource", "workflow", "gen", "job");
+    private static final List<String> FRAMEWORK_MODULES = List.of("auth", "system", "resource", "workflow", "gen", "job");
+
+    /**
+     * 参与模块间规则的全部模块：框架自带的模块加上业务模块
+     */
+    private static List<String> modules;
+
+    /**
+     * 业务模块（tuoyu-business 下）的包，例如 org.tuoyu.xxx..；没有构建业务模块时为空
+     */
+    private static String[] businessPackages;
 
     private static JavaClasses classes;
 
@@ -43,16 +53,35 @@ class ArchitectureTest {
             root = root.getParent();
         }
         assertNotNull(root, "未找到仓库根目录");
+        // 只有业务分支上才有 tuoyu-business/pom.xml；从业务分支切回框架分支后残留的编译产物不读取
+        boolean businessBranch = Files.isRegularFile(root.resolve("tuoyu-business/pom.xml"));
         List<Path> outputs;
         try (Stream<Path> dirs = Files.walk(root, 4)) {
             outputs = dirs.filter(p -> p.endsWith(Path.of("target", "classes")) && Files.isDirectory(p))
                 .filter(p -> !p.toString().contains("tuoyu-extensions") && !p.toString().contains("tuoyu-architecture"))
+                .filter(p -> businessBranch || !p.toString().contains("tuoyu-business"))
                 .toList();
         }
         assertFalse(outputs.isEmpty(), "没有找到各模块编译后的类，请先完整构建（mvn clean verify）");
         classes = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPaths(outputs);
+
+        // 业务模块（-P business 时构建）的根包取自它们编译后的类：org.tuoyu.<模块>
+        List<Path> businessOutputs = outputs.stream()
+            .filter(p -> p.toString().replace('\\', '/').contains("/tuoyu-business/"))
+            .toList();
+        List<String> businessModules = businessOutputs.isEmpty() ? List.of() : new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+            .importPaths(businessOutputs).stream()
+            .map(JavaClass::getPackageName)
+            .filter(name -> name.startsWith("org.tuoyu."))
+            .map(name -> name.split("\\.")[2])
+            .distinct()
+            .sorted()
+            .toList();
+        modules = Stream.concat(FRAMEWORK_MODULES.stream(), businessModules.stream()).toList();
+        businessPackages = businessModules.stream().map(m -> "org.tuoyu." + m + "..").toArray(String[]::new);
     }
 
     @Test
@@ -67,8 +96,8 @@ class ArchitectureTest {
     @Test
     @DisplayName("模块之间只能通过对方的 api 包访问")
     void modulesOnlyDependOnApis() {
-        for (String module : MODULES) {
-            for (String other : MODULES) {
+        for (String module : modules) {
+            for (String other : modules) {
                 if (module.equals(other)) {
                     continue;
                 }
@@ -116,6 +145,20 @@ class ArchitectureTest {
     }
 
     @Test
+    @DisplayName("框架与框架自带的模块不依赖业务模块（tuoyu-business）")
+    void frameworkDoesNotDependOnBusiness() {
+        if (businessPackages.length == 0) {
+            // 框架分支（dev / master）上没有业务模块
+            return;
+        }
+        noClasses().that().resideOutsideOfPackages(businessPackages)
+            .should().dependOnClassesThat().resideInAnyPackage(businessPackages)
+            .because("业务模块基于框架构建、可以单独发布，框架不能反过来引用它们；业务模块提供给其他模块的能力放在自己的 api 中")
+            .allowEmptyShould(true)
+            .check(classes);
+    }
+
+    @Test
     @DisplayName("LoginHelper 只在 tuoyu-common-satoken 与 tuoyu-auth 中使用，其他代码通过 UserContext 取当前用户")
     void loginHelperStaysInAuthentication() {
         noClasses().that().resideOutsideOfPackages("org.tuoyu.common.satoken..", "org.tuoyu.auth..")
@@ -125,15 +168,15 @@ class ArchitectureTest {
     }
 
     private static String[] modulePackages() {
-        return MODULES.stream().map(m -> "org.tuoyu." + m + "..").toArray(String[]::new);
+        return modules.stream().map(m -> "org.tuoyu." + m + "..").toArray(String[]::new);
     }
 
     private static String[] apiRootPackages() {
-        return MODULES.stream().map(m -> "org.tuoyu." + m + ".api").toArray(String[]::new);
+        return modules.stream().map(m -> "org.tuoyu." + m + ".api").toArray(String[]::new);
     }
 
     private static String[] apiPackages() {
-        return MODULES.stream().map(m -> "org.tuoyu." + m + ".api..").toArray(String[]::new);
+        return modules.stream().map(m -> "org.tuoyu." + m + ".api..").toArray(String[]::new);
     }
 
     private static com.tngtech.archunit.base.DescribedPredicate<JavaClass> implementationOf(String module) {

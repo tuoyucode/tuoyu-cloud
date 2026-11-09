@@ -39,6 +39,12 @@
 - **工作流**：流程变量、作废、终止、催办、撤销等接口按参数上的约束校验必填项，缺少时返回 400。
 - **代码生成**：只提供 Vben 前端模板（Element Plus 与 React 模板删除，已有业务表由迁移 V7 改为 `vben`）；生成的后端代码按上述写法输出；代码生成详情接口返回 `{ info, columns }`。
 
+### 业务模块的接入能力
+
+- **框架与业务分开**：`dev` / `master` 只有框架，从这里发布；基于框架构建的业务系统（`tuoyu-business` 下的模块与前端的业务页面）放在长期分支 `business`，单向合并框架的改动；CI 检查两边的范围（`tools/ci/check_branch_scope.py`）。框架不能依赖业务模块（ArchUnit 检查）。
+- **菜单登记**（`tuoyu-common-menu`，`RemoteMenuService`）：业务模块在 `META-INF/tuoyu/menus/<模块>.json` 中声明菜单与权限码，启动后登记到菜单表；只写入不存在的菜单，权限码必须以模块标识开头；tuoyu-system 暂时不可用时按间隔重试。
+- **单体接入声明**：业务模块在 `META-INF/tuoyu/monolith-module.yml` 中声明 URL 前缀、包与数据源（以及按名称合并的数据源、附加迁移），单体加入依赖即可，不需要改单体的配置与启动类。
+
 ### 两种部署方式
 
 - **单体启动器** `tuoyu-boot-all`：一个进程包含全部业务模块，跨模块调用是进程内调用；不需要 Nacos、Dubbo，配置与微服务方式是同一套文件；URL 与经过网关时完全相同；各模块仍使用自己的库（tuoyu-cloud、tuoyu-workflow）。

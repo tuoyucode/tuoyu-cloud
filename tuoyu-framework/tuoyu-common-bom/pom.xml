@@ -54,6 +54,13 @@
                 <version>${revision}</version>
             </dependency>
 
+            <!-- 业务模块的菜单登记 -->
+            <dependency>
+                <groupId>org.tuoyu</groupId>
+                <artifactId>tuoyu-common-menu</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
             <!-- 通用service实现模块 -->
             <dependency>
                 <groupId>org.tuoyu</groupId>
