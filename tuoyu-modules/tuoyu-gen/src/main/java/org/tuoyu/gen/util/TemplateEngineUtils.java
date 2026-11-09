@@ -83,6 +83,7 @@ public class TemplateEngineUtils {
      * @return 模板上下文
      */
     public static Dict buildContext(GenTable genTable) {
+        fillBlankColumnComments(genTable);
         // 构建上下文
         Dict context = new Dict();
         String moduleName = genTable.getModuleName();
@@ -145,6 +146,23 @@ public class TemplateEngineUtils {
         }
 
         return context;
+    }
+
+    /**
+     * 没有注释的字段用字段名作为注释。模板中的代码注释、表单标签与文案都取自字段注释，
+     * 数据库中的列没有注释（或编辑时清空了注释）时，渲染会因取不到值而失败
+     *
+     * @param genTable 代码生成业务表对象
+     */
+    private static void fillBlankColumnComments(GenTable genTable) {
+        if (CollUtil.isEmpty(genTable.getColumns())) {
+            return;
+        }
+        for (GenTableColumn column : genTable.getColumns()) {
+            if (StringUtils.isBlank(column.getColumnComment())) {
+                column.setColumnComment(column.getColumnName());
+            }
+        }
     }
 
     /**
@@ -366,21 +384,24 @@ public class TemplateEngineUtils {
     }
 
     /**
-     * Vben 模板的输出路径，与前端仓库 apps/web-antd/src 下的目录一一对应
+     * Vben 模板的输出路径，与前端仓库的根目录一一对应：接口在共享包 packages/shared/src/api 下，
+     * 页面与文案在应用 apps/web-antd/src 下
      */
     private static String getVbenFileName(String template, String moduleName, String businessName) {
         String root = GenConstants.FRONTEND_TYPE_VBEN;
-        String pageDir = StringUtils.format("{}/views/{}/{}", root, moduleName, businessName);
+        String apiDir = root + "/packages/shared/src/api";
+        String appDir = root + "/apps/web-antd/src";
+        String pageDir = StringUtils.format("{}/views/{}/{}", appDir, moduleName, businessName);
         String kebabName = StringUtils.replace(StringUtils.toUnderScoreCase(businessName), "_", "-");
         return switch (template) {
-            case GenConstants.VBEN_API_TEMPLATE_PATH -> StringUtils.format("{}/api/{}/{}.ts", root, moduleName, businessName);
+            case GenConstants.VBEN_API_TEMPLATE_PATH -> StringUtils.format("{}/{}/{}.ts", apiDir, moduleName, businessName);
             case GenConstants.VBEN_DATA_TEMPLATE_PATH -> pageDir + "/data.ts";
             case GenConstants.VBEN_DRAWER_TEMPLATE_PATH -> pageDir + "/" + kebabName + "-drawer.vue";
             case GenConstants.VBEN_INDEX_TEMPLATE_PATH, GenConstants.VBEN_INDEX_TREE_TEMPLATE_PATH -> pageDir + "/index.vue";
             case GenConstants.VBEN_LOCALE_ZH_TEMPLATE_PATH ->
-                StringUtils.format("{}/locales/langs/zh-CN/{}/{}.json", root, moduleName, businessName);
+                StringUtils.format("{}/locales/langs/zh-CN/{}/{}.json", appDir, moduleName, businessName);
             case GenConstants.VBEN_LOCALE_EN_TEMPLATE_PATH ->
-                StringUtils.format("{}/locales/langs/en-US/{}/{}.json", root, moduleName, businessName);
+                StringUtils.format("{}/locales/langs/en-US/{}/{}.json", appDir, moduleName, businessName);
             default -> throw new ServiceException(StringUtils.format("未知的 Vben 模板: {}", template));
         };
     }

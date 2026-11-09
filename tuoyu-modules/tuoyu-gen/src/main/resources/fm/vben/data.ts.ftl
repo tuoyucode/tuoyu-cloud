@@ -11,26 +11,31 @@
 <#if (column.insert || column.edit) && column.htmlType == 'checkbox'><#assign multipleFieldNames = multipleFieldNames + [column.javaField]></#if>
 <#if column.query && column.htmlType == 'datetime' && column.queryType == 'BETWEEN'><#assign rangeFields = rangeFields + [column]></#if>
 </#list>
+import type { ${ClassName}Api } from '@tuoyu/shared/api/${moduleName}/${businessName}';
+
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { ${ClassName}Api } from '#/api/${moduleName}/${businessName}';
 
-<#-- 两个接口导入按路径字母顺序排列（前端 lint 规则） -->
-<#assign apiPath = "#/api/" + moduleName + "/" + businessName>
-<#assign dictFirst = (["#/api/system/dict", apiPath]?sort[0] == "#/api/system/dict")>
+<#-- 共享包的导入按路径字母顺序排列（前端 lint 规则） -->
+<#assign apiPath = "@tuoyu/shared/api/" + moduleName + "/" + businessName>
+<#assign dictPath = "@tuoyu/shared/api/system/dict">
+<#assign dictFirst = ([dictPath, apiPath]?sort[0] == dictPath)>
 <#if hasDictColumn && dictFirst>
-import { getDictOptions } from '#/api/system/dict';
+import { getDictOptions } from '${dictPath}';
 </#if>
 <#if table.tree>
 import { list${ClassName} } from '${apiPath}';
 </#if>
 <#if hasDictColumn && !dictFirst>
-import { getDictOptions } from '#/api/system/dict';
+import { getDictOptions } from '${dictPath}';
+</#if>
+<#if table.tree>
+import { listToTree } from '@tuoyu/shared/utils/tree';
+</#if>
+<#if hasDictColumn || table.tree>
+
 </#if>
 import { $t } from '#/locales';
-<#if table.tree>
-import { listToTree } from '#/utils/tree';
-</#if>
 
 /** 查询条件：一行最多 4 个 */
 export function useSearchSchema(): VbenFormSchema[] {
@@ -158,6 +163,10 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'RadioGroup',
       // 选项在抽屉打开时从字典加载（loadFormOptions）
       componentProps: { options: [] },
+<#if enableStatus && column.javaField == statusField>
+      // 新增时默认为启用状态
+      defaultValue: ${statusActiveValue},
+</#if>
 <#elseif column.htmlType == 'checkbox' && column.dictType?has_content>
       component: 'CheckboxGroup',
       // 选项在抽屉打开时从字典加载（loadFormOptions）；后端以逗号分隔的字符串保存

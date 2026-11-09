@@ -90,7 +90,8 @@ class ControllerAuthAnnotationTest {
         "org.tuoyu.system.", "/system",
         "org.tuoyu.resource.", "/resource",
         "org.tuoyu.workflow.", "/workflow",
-        "org.tuoyu.gen.", "/tool");
+        "org.tuoyu.gen.", "/tool",
+        "org.tuoyu.mes.", "/mes");
 
     /**
      * 路径中的 Spring 占位符 {@code ${key:默认值}}：框架中的 Controller 用它配置完整路径
@@ -105,6 +106,11 @@ class ControllerAuthAnnotationTest {
      * 迁移脚本中形如 'system:user:list' 的权限码
      */
     private static final Pattern PERMISSION_CODE = Pattern.compile("'([a-zA-Z]+:[a-zA-Z]+:[a-zA-Z]+)'");
+
+    /**
+     * 菜单声明（JSON）中的权限码
+     */
+    private static final Pattern MENU_PERMISSION = Pattern.compile("\"perms\"\\s*:\\s*\"([a-zA-Z]+:[a-zA-Z]+:[a-zA-Z]+)\"");
 
     private static Path repositoryRoot;
 
@@ -183,12 +189,14 @@ class ControllerAuthAnnotationTest {
     }
 
     @Test
-    @DisplayName("@SaCheckPermission 的权限码都在菜单种子数据中（MySQL、PostgreSQL 迁移脚本）")
+    @DisplayName("@SaCheckPermission 的权限码都在菜单种子数据中（MySQL、PostgreSQL 迁移脚本，业务模块的菜单声明）")
     void permissionsExistInMenuSeeds() throws IOException {
         List<String> violations = new ArrayList<>();
         for (String database : List.of("mysql", "postgresql")) {
             Set<String> seeded = seededPermissions(repositoryRoot.resolve(Path.of(
                 "tuoyu-modules", "tuoyu-system", "src", "main", "resources", "db", "migration", "cloud", database)));
+            // 业务模块的权限码在模块自己的菜单声明中，启动时登记到菜单表
+            seeded.addAll(moduleMenuPermissions());
             assertFalse(seeded.isEmpty(), "没有读取到 " + database + " 菜单种子数据中的权限码");
             for (JavaClass controller : controllers()) {
                 List<JavaAnnotation<?>> annotations = new ArrayList<>(controller.getAnnotations());
@@ -368,6 +376,27 @@ class ControllerAuthAnnotationTest {
     /**
      * 迁移脚本（V1 基线及之后的版本）中出现过的权限码。按文本提取，已被后续脚本删除的权限码也会计入，足以发现漏写的按钮菜单
      */
+    /**
+     * 业务模块（tuoyu-business 下）的菜单声明 META-INF/tuoyu/menus/*.json 中的权限码
+     */
+    private static Set<String> moduleMenuPermissions() throws IOException {
+        Set<String> result = new HashSet<>();
+        Path business = repositoryRoot.resolve("tuoyu-business");
+        if (!Files.isDirectory(business)) {
+            return result;
+        }
+        try (Stream<Path> files = Files.walk(business, 8)) {
+            for (Path file : files.filter(p -> p.toString().replace('\\', '/').contains("src/main/resources/META-INF/tuoyu/menus/")
+                && p.getFileName().toString().endsWith(".json")).toList()) {
+                Matcher matcher = MENU_PERMISSION.matcher(Files.readString(file));
+                while (matcher.find()) {
+                    result.add(matcher.group(1));
+                }
+            }
+        }
+        return result;
+    }
+
     private static Set<String> seededPermissions(Path migrationDir) throws IOException {
         assertTrue(Files.isDirectory(migrationDir), "未找到迁移脚本目录：" + migrationDir);
         Set<String> result = new HashSet<>();

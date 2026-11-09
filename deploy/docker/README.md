@@ -40,9 +40,17 @@ docker compose --env-file .env -f deploy/docker/compose-core.yml up -d --build
 docker compose --env-file .env -f deploy/docker/compose-full.yml up -d --build
 ```
 
+制造执行（MES，业务模块 `tuoyu-business/tuoyu-mes`）默认不构建、不启动。需要时先用 `mvn clean verify -P business` 构建，再加上 `--profile business`：
+
+```bash
+docker compose --env-file .env -f deploy/docker/compose-full.yml --profile business up -d --build
+```
+
+它在系统服务健康后启动，用 Flyway 在 `tuoyu-mes` 库中建表，并把菜单登记到系统服务（超级管理员刷新页面即可看到“制造执行”菜单，其他角色需要在角色管理中授权）。单体要包含 MES 时，用 `-P business` 构建单体即可，不需要改配置。
+
 启动顺序由健康检查保证：
 
-1. MySQL 首次启动（数据卷为空）时执行 `mysql/init`，创建 `tuoyu-cloud`、`tuoyu-workflow`、`tuoyu-job` 三个库；表由各负责服务启动时的 Flyway 迁移创建；
+1. MySQL 首次启动（数据卷为空）时执行 `mysql/init`，创建 `tuoyu-cloud`、`tuoyu-workflow`、`tuoyu-job`、`tuoyu-mes` 四个库（`tuoyu-mes` 只有部署制造执行时才用到）；表由各负责服务启动时的 Flyway 迁移创建；
 2. Nacos 2.x 单机模式、开启鉴权。一次性任务 `nacos-init` 用 `.env` 中的 `TUOYU_NACOS_PASSWORD` 初始化管理员 `nacos` 的口令，并导入 `deploy/config/nacos` 下的配置（只新建不存在的配置，不覆盖已有配置）；
 3. 各服务在 MySQL、Redis 健康且 `nacos-init` 成功后启动；网关在认证、系统、资源都健康后启动；
 4. full 中的一次性任务 `snailjob-token-init` 在 SnailJob 服务端健康（`tuoyu-job` 库已迁移）后，把执行器令牌的占位值替换为 `.env` 中的 `TUOYU_SNAILJOB_TOKEN`，之后再启动执行器 `tuoyu-job`。

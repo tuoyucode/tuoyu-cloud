@@ -39,6 +39,11 @@ datasource:
     url: ${datasource.dialect.${datasource.db-type}.url-prefix}tuoyu-workflow${datasource.dialect.${datasource.db-type}.workflow-url-params}
     username: ${TUOYU_DB_USERNAME:root}
     password: ${TUOYU_DB_PASSWORD}
+  # 制造执行（tuoyu-business/tuoyu-mes，可选业务模块）
+  mes:
+    url: ${datasource.dialect.${datasource.db-type}.url-prefix}tuoyu-mes${datasource.dialect.${datasource.db-type}.url-params}
+    username: ${TUOYU_DB_USERNAME:root}
+    password: ${TUOYU_DB_PASSWORD}
 
 mybatis-plus:
   sql-log:

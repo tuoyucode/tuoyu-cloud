@@ -1,0 +1,11 @@
+tuoyu:
+  monolith:
+    modules:
+      demo:
+        prefix: /demo
+        packages: [ org.tuoyu.demo ]
+        datasource: demo
+  flyway:
+    additional:
+      demo:
+        url: jdbc:demo

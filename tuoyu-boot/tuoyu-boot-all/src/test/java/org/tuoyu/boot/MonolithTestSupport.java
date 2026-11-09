@@ -13,7 +13,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * 单体测试的公共方法：读取仓库中的配置文件（deploy/config/nacos 下）
@@ -51,6 +53,33 @@ public final class MonolithTestSupport {
             environment.getPropertySources().addLast(source);
         }
         return environment;
+    }
+
+    /**
+     * 业务模块（tuoyu-business 下）源码中的单体接入声明
+     */
+    public static List<Path> moduleDeclarations() throws IOException {
+        Path business = root().resolve("tuoyu-business");
+        if (!Files.isDirectory(business)) {
+            return List.of();
+        }
+        try (Stream<Path> modules = Files.list(business)) {
+            return modules.map(module -> module.resolve("src/main/resources/META-INF/tuoyu/monolith-module.yml"))
+                .filter(Files::isRegularFile)
+                .sorted()
+                .toList();
+        }
+    }
+
+    /**
+     * 把业务模块的单体接入声明加入环境，优先级低于已加载的配置（与单体启动时相同）
+     */
+    public static void addModuleDeclarations(StandardEnvironment environment) throws IOException {
+        for (Path file : moduleDeclarations()) {
+            for (PropertySource<?> source : new YamlPropertySourceLoader().load(file.toString(), new FileSystemResource(file))) {
+                environment.getPropertySources().addLast(source);
+            }
+        }
     }
 
     /**

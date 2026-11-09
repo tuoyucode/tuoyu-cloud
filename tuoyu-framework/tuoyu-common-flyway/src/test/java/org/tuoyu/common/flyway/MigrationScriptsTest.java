@@ -142,7 +142,13 @@ class MigrationScriptsTest {
             Vendor.MYSQL, new Baseline("deploy/sql/tuoyu-job.sql",
                 "4cbb6b30c77bff515644a49daafbc0a1a1384b5d118211e1b085e193e810644f"),
             Vendor.POSTGRESQL, new Baseline("deploy/sql/postgres/postgres_tuoyu_job.sql",
-                "64bee0de32712d9da2e43d79f52376481b551240fdd707df047e4ea704b3f6b7"))));
+                "64bee0de32712d9da2e43d79f52376481b551240fdd707df047e4ea704b3f6b7"))),
+        // 业务模块（tuoyu-business，-P business 时构建）：脚本按目录检查，与是否构建无关
+        new Owner("tuoyu-business/tuoyu-mes", "mes", "tuoyu-mes.yml", "mes", "tuoyu-mes", Map.of(
+            Vendor.MYSQL, new Baseline("deploy/sql/tuoyu-mes.sql",
+                "bdeed03af9608157fe782b6a7cbd96cf57f1b885bf996bb85e21f6b5a00c0dfc"),
+            Vendor.POSTGRESQL, new Baseline("deploy/sql/postgres/postgres_tuoyu_mes.sql",
+                "671ccc1d6b9094225f88cd604ed71af721198ecda56d53973f190fa7790abb36"))));
 
     private static Path root;
 
@@ -295,6 +301,31 @@ class MigrationScriptsTest {
             assertEquals(environment.getProperty("datasource." + workflow.datasourceKey() + ".url"), url,
                 MONOLITH_CONFIG + " 中工作流库的迁移地址应引用 datasource.workflow.url");
             assertTrue(url.startsWith(vendor.urlPrefix) && url.contains("/" + workflow.database() + "?"), url);
+        }
+    }
+
+    @Test
+    @DisplayName("业务模块在自己的单体接入声明中登记附加迁移，地址指向它负责的库，随 TUOYU_DB_TYPE 切换")
+    void businessModulesDeclareMonolithMigration() throws IOException {
+        Path configDir = root.resolve("deploy/config/nacos");
+        for (Owner owner : OWNERS) {
+            if (!owner.module().startsWith("tuoyu-business/")) {
+                continue;
+            }
+            Path declaration = root.resolve(owner.module()).resolve("src/main/resources/META-INF/tuoyu/monolith-module.yml");
+            assertTrue(Files.isRegularFile(declaration), owner.module() + " 缺少单体接入声明 " + declaration);
+            for (Vendor vendor : Vendor.values()) {
+                StandardEnvironment environment = environmentOf(configDir, List.of(MONOLITH_CONFIG),
+                    vendor == Vendor.MYSQL ? Map.of() : Map.of("TUOYU_DB_TYPE", vendor.id));
+                for (PropertySource<?> source : new YamlPropertySourceLoader().load(declaration.toString(),
+                    new FileSystemResource(declaration))) {
+                    environment.getPropertySources().addLast(source);
+                }
+                String url = environment.getProperty("tuoyu.flyway.additional." + owner.migration() + ".url");
+                assertEquals(environment.getProperty("datasource." + owner.datasourceKey() + ".url"), url,
+                    declaration + " 中的附加迁移地址应引用 datasource." + owner.datasourceKey() + ".url");
+                assertTrue(url.startsWith(vendor.urlPrefix) && url.contains("/" + owner.database() + "?"), url);
+            }
         }
     }
 

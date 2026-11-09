@@ -130,6 +130,16 @@
             </modules>
         </profile>
         <!--
+            业务模块（tuoyu-business，例如制造执行 MES）默认不参与构建：框架本身不面向具体业务。
+            mvn clean verify -P business。单体 tuoyu-boot-all 与依赖规则检查 tuoyu-architecture 在该 profile 下同时带上业务模块
+        -->
+        <profile>
+            <id>business</id>
+            <modules>
+                <module>tuoyu-business</module>
+            </modules>
+        </profile>
+        <!--
             端到端测试：访问一个已经运行的系统（微服务经网关，或单体），默认不参与构建。
             mvn -P e2e -pl tuoyu-e2e verify -Dtuoyu.e2e.base-url=http://localhost:8081（管理员口令用环境变量 TUOYU_E2E_PASSWORD 传入）
         -->

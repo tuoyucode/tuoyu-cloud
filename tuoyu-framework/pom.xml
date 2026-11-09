@@ -49,6 +49,7 @@
         <module>tuoyu-common-rpc</module>
         <module>tuoyu-common-tenant</module>
         <module>tuoyu-common-observability</module>
+        <module>tuoyu-common-menu</module>
     </modules>
 
     <artifactId>tuoyu-framework</artifactId>

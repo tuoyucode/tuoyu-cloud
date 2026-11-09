@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.StandardEnvironment;
 import org.tuoyu.boot.MonolithTestSupport;
+import org.tuoyu.boot.module.MonolithModules;
 
 import java.io.IOException;
 import java.util.List;
@@ -119,9 +120,12 @@ class ModulePathPrefixConsistencyTest {
 
     private static List<ModulePathPrefixProperties.PathPrefix> monolithPrefixes() throws IOException {
         StandardEnvironment environment = MonolithTestSupport.load("tuoyu-boot-all.yml");
-        return Binder.get(environment)
+        List<ModulePathPrefixProperties.PathPrefix> builtIn = Binder.get(environment)
             .bind("tuoyu.monolith.path-prefixes", Bindable.listOf(ModulePathPrefixProperties.PathPrefix.class))
             .orElseThrow(() -> new AssertionError("tuoyu-boot-all.yml 中没有 URL 前缀表"));
+        // 业务模块（tuoyu-business 下）在自己的 jar 中声明前缀，不论单体是否带上它们，网关中都有对应的路由
+        MonolithTestSupport.addModuleDeclarations(environment);
+        return ModulePathPrefixConfiguration.combine(builtIn, MonolithModules.bind(environment));
     }
 
 }

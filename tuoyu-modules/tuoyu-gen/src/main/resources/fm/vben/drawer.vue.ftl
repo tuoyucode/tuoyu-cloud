@@ -2,20 +2,20 @@
 <#assign i18n = moduleName + "." + businessName>
 <#assign pk = pkColumn.javaField>
 <script lang="ts" setup>
-import type { ${ClassName}Api } from '#/api/${moduleName}/${businessName}';
+import type { ${ClassName}Api } from '@tuoyu/shared/api/${moduleName}/${businessName}';
 
 import { computed, ref } from 'vue';
 
 import { useVbenDrawer } from '@vben/common-ui';
 
-import { message } from 'ant-design-vue';
-
-import { useVbenForm } from '#/adapter/form';
 import {
   add${ClassName},
   get${ClassName},
   update${ClassName},
-} from '#/api/${moduleName}/${businessName}';
+} from '@tuoyu/shared/api/${moduleName}/${businessName}';
+import { message } from 'ant-design-vue';
+
+import { useVbenForm } from '#/adapter/form';
 import { $t } from '#/locales';
 
 import { loadFormOptions, multipleFields, useFormSchema } from './data';

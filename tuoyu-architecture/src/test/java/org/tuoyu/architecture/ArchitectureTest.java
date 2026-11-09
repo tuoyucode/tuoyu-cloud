@@ -32,7 +32,12 @@ class ArchitectureTest {
     /**
      * 业务模块的根包
      */
-    private static final List<String> MODULES = List.of("auth", "system", "resource", "workflow", "gen", "job");
+    private static final List<String> MODULES = List.of("auth", "system", "resource", "workflow", "gen", "job", "mes");
+
+    /**
+     * 业务模块（tuoyu-business 下）的包
+     */
+    private static final String[] BUSINESS_PACKAGES = {"org.tuoyu.mes.."};
 
     private static JavaClasses classes;
 
@@ -112,6 +117,16 @@ class ArchitectureTest {
                 "org.tuoyu.common.seata..")
             .should().dependOnClassesThat().resideInAPackage("org.apache.dubbo..")
             .because("单体包中不包含 Dubbo")
+            .check(classes);
+    }
+
+    @Test
+    @DisplayName("框架与框架自带的模块不依赖业务模块（tuoyu-business）")
+    void frameworkDoesNotDependOnBusiness() {
+        noClasses().that().resideOutsideOfPackages(BUSINESS_PACKAGES)
+            .should().dependOnClassesThat().resideInAnyPackage(BUSINESS_PACKAGES)
+            .because("业务模块基于框架构建、可以单独发布，框架不能反过来引用它们；业务模块提供给其他模块的能力放在自己的 api 中")
+            .allowEmptyShould(true)
             .check(classes);
     }
 

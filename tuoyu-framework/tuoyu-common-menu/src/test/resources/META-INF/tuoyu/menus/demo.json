@@ -1,0 +1,8 @@
+{
+  "module": "demo",
+  "menus": [
+    { "menuId": 9000000000000000001, "parentId": 0, "menuName": "示例", "menuType": "M", "path": "demo", "icon": "lucide:box" },
+    { "menuId": 9000000000000000002, "parentId": 9000000000000000001, "menuName": "示例数据", "menuType": "C",
+      "path": "item", "component": "demo/item/index", "perms": "demo:item:list" }
+  ]
+}

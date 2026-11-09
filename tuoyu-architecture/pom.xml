@@ -29,4 +29,25 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <!--
+            -P business：业务模块放在本模块之前构建，规则检查读取得到它们编译后的类。
+            依赖只用于决定构建顺序，测试读取的是各模块的 target/classes
+        -->
+        <profile>
+            <id>business</id>
+            <dependencies>
+                <dependency>
+                    <groupId>org.tuoyu</groupId>
+                    <artifactId>tuoyu-mes</artifactId>
+                    <version>${revision}</version>
+                    <scope>test</scope>
+                    <exclusions>
+                        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+                    </exclusions>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+
 </project>
