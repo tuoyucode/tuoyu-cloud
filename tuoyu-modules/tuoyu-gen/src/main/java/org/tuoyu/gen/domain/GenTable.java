@@ -266,7 +266,20 @@ public class GenTable extends BaseEntity {
      * @return 基类公共字段返回 {@code true}
      */
     public boolean isSuperColumn(String javaField) {
+        if (isTenant() && StringUtils.equalsIgnoreCase(javaField, GenConstants.TENANT_FIELD)) {
+            return true;
+        }
         return isSuperColumn(this.tplCategory, javaField);
+    }
+
+    /**
+     * 判断业务表是否按租户隔离（有 tenant_id 列）：实体继承 TenantEntity，租户由框架填写，生成的代码中不出现。
+     *
+     * @return 按租户隔离返回 {@code true}
+     */
+    public boolean isTenant() {
+        return columns != null && columns.stream()
+            .anyMatch(column -> StringUtils.equalsIgnoreCase(column.getJavaField(), GenConstants.TENANT_FIELD));
     }
 
     /**

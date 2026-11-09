@@ -41,7 +41,8 @@ import java.util.List;
 @Validated
 @RequiredArgsConstructor
 @RestController
-@RequestMapping("/${moduleName}/${businessName}")
+<#-- 模块前缀（例如 /system）由网关或单体按模块添加，这里只写业务路径 -->
+@RequestMapping("/${businessName}")
 public class ${ClassName}Controller {
 
     private final I${ClassName}Service ${className}Service;

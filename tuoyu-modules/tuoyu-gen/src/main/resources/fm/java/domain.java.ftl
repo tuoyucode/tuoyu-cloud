@@ -1,6 +1,10 @@
 package ${packageName}.domain;
 
+<#if table.tenant>
+import org.tuoyu.common.mybatis.core.domain.TenantEntity;
+<#else>
 import org.tuoyu.common.mybatis.core.domain.BaseEntity;
+</#if>
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -19,7 +23,7 @@ import java.io.Serial;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("${tableName}")
-public class ${ClassName} extends BaseEntity {
+public class ${ClassName} extends <#if table.tenant>TenantEntity<#else>BaseEntity</#if> {
 
     @Serial
     private static final long serialVersionUID = 1L;

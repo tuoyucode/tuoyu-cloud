@@ -128,6 +128,12 @@ public interface GenConstants {
         "serial2", "serial4", "serial8", "bigserial", "money", "smallmoney"};
 
     /**
+     * 由框架填充的列：审计字段（BaseEntity）与租户（TenantEntity）。导入时默认不新增、不修改、不查询、不返回
+     */
+    String[] COLUMNNAME_FRAMEWORK_FILLED = {"create_dept", "create_by", "create_time", "update_by", "update_time",
+        "tenant_id"};
+
+    /**
      * BO对象 不需要添加字段
      */
     String[] COLUMNNAME_NOT_ADD = {"del_flag", "version"};
@@ -140,8 +146,7 @@ public interface GenConstants {
     /**
      * VO对象 不需要返回字段
      */
-    String[] COLUMNNAME_NOT_LIST = {"create_dept", "create_by", "create_time", "del_flag", "update_by",
-        "update_time", "version"};
+    String[] COLUMNNAME_NOT_LIST = {"del_flag", "version"};
 
     /**
      * BO对象 不需要查询字段
@@ -152,6 +157,11 @@ public interface GenConstants {
      * Entity基类字段
      */
     String[] BASE_ENTITY = {"createDept", "createBy", "createTime", "updateBy", "updateTime"};
+
+    /**
+     * 租户字段：表中有这一列时实体继承 TenantEntity，由框架在插入时填写、更新时不改动
+     */
+    String TENANT_FIELD = "tenantId";
 
     /**
      * 文本框

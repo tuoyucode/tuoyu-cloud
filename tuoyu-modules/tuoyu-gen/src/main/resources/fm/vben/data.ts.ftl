@@ -163,6 +163,10 @@ export function useFormSchema(): VbenFormSchema[] {
       component: 'RadioGroup',
       // 选项在抽屉打开时从字典加载（loadFormOptions）
       componentProps: { options: [] },
+<#if enableStatus && column.javaField == statusField>
+      // 新增时默认为启用状态
+      defaultValue: ${statusActiveValue},
+</#if>
 <#elseif column.htmlType == 'checkbox' && column.dictType?has_content>
       component: 'CheckboxGroup',
       // 选项在抽屉打开时从字典加载（loadFormOptions）；后端以逗号分隔的字符串保存
