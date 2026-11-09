@@ -5,6 +5,8 @@ import org.apache.dubbo.common.constants.CommonConstants;
 import org.apache.dubbo.common.extension.Activate;
 import org.apache.dubbo.rpc.*;
 import org.apache.dubbo.rpc.service.GenericService;
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.core.exception.base.BaseException;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.dubbo.enumd.RequestLogEnum;
 import org.tuoyu.common.dubbo.properties.DubboCustomProperties;
@@ -69,7 +71,13 @@ public class DubboRequestFilter implements Filter {
         long elapsed = System.currentTimeMillis() - startTime;
         // 如果发生异常且调用的不是泛化服务，则记录异常日志
         if (result.hasException() && !invoker.getInterface().equals(GenericService.class)) {
-            log.error("DUBBO - 服务异常: {},Exception={}", baselog, result.getException());
+            Throwable exception = result.getException();
+            if (isBusinessException(exception)) {
+                // 业务异常（例如账号不存在、数据不存在）是预期的结果，与 Web 层一致只记一行 WARN
+                log.warn("DUBBO - 业务异常: {},Message={}", baselog, exception.getMessage());
+            } else {
+                log.error("DUBBO - 服务异常: {}", baselog, exception);
+            }
         } else {
             // 根据日志级别输出服务响应信息
             if (properties.getLogLevel() == RequestLogEnum.INFO) {
@@ -79,6 +87,13 @@ public class DubboRequestFilter implements Filter {
             }
         }
         return result;
+    }
+
+    /**
+     * 是否为业务异常：{@link ServiceException} 与 {@link BaseException}（例如账号、验证码类异常）
+     */
+    static boolean isBusinessException(Throwable exception) {
+        return exception instanceof ServiceException || exception instanceof BaseException;
     }
 
 }
