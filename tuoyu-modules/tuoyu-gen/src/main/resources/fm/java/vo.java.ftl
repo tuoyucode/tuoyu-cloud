@@ -32,12 +32,14 @@ public class ${ClassName}Vo implements Serializable {
     private static final long serialVersionUID = 1L;
 
 <#list columns as column>
-<#if column.list>
+<#-- 修改时抽屉从详情接口读取原值，可修改但不在列表中显示的字段也要返回；只有列表中的字段参与导出 -->
+<#if column.list || (column.edit && !column.pk && !table.isSuperColumn(column.javaField))>
     /**
      * ${column.columnComment}
      */
 <#assign parentheseIndex = column.columnComment?index_of("（")>
-<#if column.dictType?has_content>
+<#if !column.list>
+<#elseif column.dictType?has_content>
     @ExcelProperty(value = "${column.columnLabel}", converter = ExcelDictConvert.class)
     @ExcelDictFormat(dictType = "${column.dictType}")
 <#elseif parentheseIndex != -1>

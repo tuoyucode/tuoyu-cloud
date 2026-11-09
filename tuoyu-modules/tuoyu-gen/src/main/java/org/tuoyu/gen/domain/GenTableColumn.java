@@ -368,7 +368,9 @@ public class GenTableColumn extends BaseEntity {
     public static boolean isSuperColumn(String javaField) {
         return StringUtils.equalsAnyIgnoreCase(javaField,
             // BaseEntity
-            "createBy", "createTime", "updateBy", "updateTime",
+            "createDept", "createBy", "createTime", "updateBy", "updateTime",
+            // TenantEntity
+            GenConstants.TENANT_FIELD,
             // TreeEntity
             "parentName", "parentId");
     }

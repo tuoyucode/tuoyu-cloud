@@ -78,20 +78,22 @@ public class GenUtils {
             column.setHtmlType(GenConstants.TYPE_BOOLEAN.equals(column.getJavaType()) ? GenConstants.HTML_SWITCH : GenConstants.HTML_INPUT_NUMBER);
         }
 
+        // 由框架填充的列（审计字段、租户）不出现在新增、修改、查询与返回中
+        boolean frameworkFilled = arraysContains(GenConstants.COLUMNNAME_FRAMEWORK_FILLED, columnName);
         // BO对象 默认插入勾选
-        if (!arraysContains(GenConstants.COLUMNNAME_NOT_ADD, columnName) && !column.isPk()) {
+        if (!frameworkFilled && !arraysContains(GenConstants.COLUMNNAME_NOT_ADD, columnName) && !column.isPk()) {
             column.setIsInsert(GenConstants.REQUIRE);
         }
         // BO对象 默认编辑勾选
-        if (!arraysContains(GenConstants.COLUMNNAME_NOT_EDIT, columnName)) {
+        if (!frameworkFilled && !arraysContains(GenConstants.COLUMNNAME_NOT_EDIT, columnName)) {
             column.setIsEdit(GenConstants.REQUIRE);
         }
         // VO对象 默认返回勾选
-        if (!arraysContains(GenConstants.COLUMNNAME_NOT_LIST, columnName)) {
+        if (!frameworkFilled && !arraysContains(GenConstants.COLUMNNAME_NOT_LIST, columnName)) {
             column.setIsList(GenConstants.REQUIRE);
         }
         // BO对象 默认查询勾选
-        if (!arraysContains(GenConstants.COLUMNNAME_NOT_QUERY, columnName) && !column.isPk()) {
+        if (!frameworkFilled && !arraysContains(GenConstants.COLUMNNAME_NOT_QUERY, columnName) && !column.isPk()) {
             column.setIsQuery(GenConstants.REQUIRE);
         }
 
@@ -217,7 +219,8 @@ public class GenUtils {
         if (StringUtils.equalsAny(dataType, "bit", "boolean", "bool")) {
             return true;
         }
-        if (StringUtils.equalsAny(dataType, "tinyint", "number", "numeric", "decimal", "char", "nchar")
+        // char(1) 不当作布尔：框架中的状态类字段是 '0' / '1' 字符，配合字典使用
+        if (StringUtils.equalsAny(dataType, "tinyint", "number", "numeric", "decimal")
             && columnLength == 1 && isSwitchColumn(columnName)) {
             return true;
         }
