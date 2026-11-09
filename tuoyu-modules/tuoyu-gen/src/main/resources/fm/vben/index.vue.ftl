@@ -6,8 +6,9 @@
 <#assign nameField = pk>
 <#list columns as column><#if column.list && !column.pk && column.javaType == 'String'><#assign nameField = column.javaField><#break></#if></#list>
 <script lang="ts" setup>
+import type { ${ClassName}Api } from '@tuoyu/shared/api/${moduleName}/${businessName}';
+
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { ${ClassName}Api } from '#/api/${moduleName}/${businessName}';
 
 import { ref } from 'vue';
 
@@ -16,9 +17,6 @@ import { Page, useVbenDrawer } from '@vben/common-ui';
 import { formatDate } from '@vben/utils';
 </#if>
 
-import { Button, message, Modal, Popconfirm<#if enableStatus>, Switch</#if> } from 'ant-design-vue';
-
-import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
 <#if enableStatus>
   change${ClassName}Status,
@@ -28,10 +26,13 @@ import {
 </#if>
   list${ClassName},
   remove${ClassName},
-} from '#/api/${moduleName}/${businessName}';
+} from '@tuoyu/shared/api/${moduleName}/${businessName}';
+import { toPageQuery } from '@tuoyu/shared/utils/page-query';
+import { hasPermission } from '@tuoyu/shared/utils/permission';
+import { Button, message, Modal, Popconfirm<#if enableStatus>, Switch</#if> } from 'ant-design-vue';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
-import { toPageQuery } from '#/utils/page-query';
-import { hasPermission } from '#/utils/permission';
 
 <#-- 两个本地导入按路径字母顺序排列（前端 lint 规则） -->
 <#if (["./data", "./" + kebab + "-drawer.vue"]?sort[0] == "./data")>

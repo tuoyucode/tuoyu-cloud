@@ -80,17 +80,22 @@ class VbenTemplateTest {
     void shouldRenderCrudPage() throws IOException {
         Map<String, String> files = render(postTable());
 
-        assertEquals(List.of("vben/api/system/postDemo.ts", "vben/views/system/postDemo/data.ts",
-            "vben/views/system/postDemo/post-demo-drawer.vue", "vben/views/system/postDemo/index.vue",
-            "vben/locales/langs/zh-CN/system/postDemo.json", "vben/locales/langs/en-US/system/postDemo.json"),
+        // vben 目录与前端仓库的根目录一一对应：接口在共享包，页面与文案在应用
+        assertEquals(List.of(
+                "vben/packages/shared/src/api/system/postDemo.ts",
+                "vben/apps/web-antd/src/views/system/postDemo/data.ts",
+                "vben/apps/web-antd/src/views/system/postDemo/post-demo-drawer.vue",
+                "vben/apps/web-antd/src/views/system/postDemo/index.vue",
+                "vben/apps/web-antd/src/locales/langs/zh-CN/system/postDemo.json",
+                "vben/apps/web-antd/src/locales/langs/en-US/system/postDemo.json"),
             List.copyOf(files.keySet()));
 
-        String api = files.get("vben/api/system/postDemo.ts");
+        String api = files.get("vben/packages/shared/src/api/system/postDemo.ts");
         assertTrue(api.contains("const BASE = '/system/postDemo';"));
         assertTrue(api.contains("export function exportPostDemo("));
         assertTrue(api.contains("export function changePostDemoStatus("));
 
-        String data = files.get("vben/views/system/postDemo/data.ts");
+        String data = files.get("vben/apps/web-antd/src/views/system/postDemo/data.ts");
         assertTrue(data.contains("api: () => getDictOptions('sys_normal_disable')"));
         assertTrue(data.contains("cellRender: { name: 'CellDict', props: { dictType: 'sys_normal_disable' } }")
             || data.contains("slots: { default: 'status' }"));
@@ -98,22 +103,22 @@ class VbenTemplateTest {
         assertTrue(data.contains("component: 'Textarea'"));
         assertTrue(data.contains("rules: 'required'"));
 
-        String index = files.get("vben/views/system/postDemo/index.vue");
+        String index = files.get("vben/apps/web-antd/src/views/system/postDemo/index.vue");
         assertTrue(index.contains("hasPermission('system:postDemo:export')"));
         assertTrue(index.contains("import PostDemoDrawer from './post-demo-drawer.vue';"));
         // 分页参数用 toPageQuery 生成（page、pageSize、sort），结果读 items
         assertTrue(index.contains("...toPageQuery(page),"));
-        assertTrue(index.contains("import { toPageQuery } from '#/utils/page-query';"));
+        assertTrue(index.contains("import { toPageQuery } from '@tuoyu/shared/utils/page-query';"));
         assertFalse(index.contains("pageNum"));
-        assertTrue(api.contains("import type { PageQuery, PageResult } from '#/api/types';"));
+        assertTrue(api.contains("import type { PageQuery, PageResult } from '../types';"));
         // 生成的 TS 中可以有模板字符串 ${...}，但不能有未替换的模板变量
         files.values().forEach(content -> assertFalse(
             content.matches("(?s).*\\$\\{(ClassName|className|BusinessName|businessName|moduleName|functionName|column|pk|i18n|D)[.}].*"),
             "生成的代码中不应残留未替换的模板变量"));
-        assertTrue(files.get("vben/api/system/postDemo.ts").contains("`${BASE}/list`"));
+        assertTrue(files.get("vben/packages/shared/src/api/system/postDemo.ts").contains("`${BASE}/list`"));
 
-        assertTrue(files.get("vben/locales/langs/zh-CN/system/postDemo.json").contains("\"postName\": \"岗位名称\""));
-        assertTrue(files.get("vben/locales/langs/en-US/system/postDemo.json").contains("\"postName\": \"Post name\""));
+        assertTrue(files.get("vben/apps/web-antd/src/locales/langs/zh-CN/system/postDemo.json").contains("\"postName\": \"岗位名称\""));
+        assertTrue(files.get("vben/apps/web-antd/src/locales/langs/en-US/system/postDemo.json").contains("\"postName\": \"Post name\""));
         files.values().forEach(content -> assertFalse(content.contains("<#"), "不应残留模板指令"));
     }
 
@@ -122,18 +127,18 @@ class VbenTemplateTest {
     void shouldRenderTreePage() throws IOException {
         Map<String, String> files = render(deptTable());
 
-        String index = files.get("vben/views/system/deptDemo/index.vue");
+        String index = files.get("vben/apps/web-antd/src/views/system/deptDemo/index.vue");
         assertTrue(index.contains("parentField: 'parentId'"));
         assertTrue(index.contains("rowField: 'deptId'"));
         assertTrue(index.contains("onCreate(row)"));
         assertTrue(index.contains("items: await listDeptDemo(formValues),"));
         assertFalse(index.contains("rows:"));
 
-        String data = files.get("vben/views/system/deptDemo/data.ts");
+        String data = files.get("vben/apps/web-antd/src/views/system/deptDemo/data.ts");
         assertTrue(data.contains("listToTree(await listDeptDemo(), 'deptId', 'parentId')"));
         assertTrue(data.contains("treeNode: true"));
 
-        String api = files.get("vben/api/system/deptDemo.ts");
+        String api = files.get("vben/packages/shared/src/api/system/deptDemo.ts");
         assertTrue(api.contains("requestClient.get<DeptDemoApi.DeptDemo[]>"));
         assertFalse(api.contains("PageResult"));
         assertFalse(api.contains("PageQuery"));
