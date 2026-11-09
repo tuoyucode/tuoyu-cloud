@@ -10,8 +10,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Role;
 import org.springframework.core.env.Environment;
+import org.tuoyu.boot.module.MonolithModules;
 
 import javax.sql.DataSource;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +42,16 @@ public class ModuleDataSourceConfiguration {
     @Bean
     @Role(BeanDefinition.ROLE_INFRASTRUCTURE)
     static ModuleDataSourceAdvisor moduleDataSourceAdvisor(Environment environment) {
-        List<Route> routes = Binder.get(environment).bind(ROUTES, Bindable.listOf(Route.class)).orElse(List.of());
+        List<Route> routes = new ArrayList<>(Binder.get(environment).bind(ROUTES, Bindable.listOf(Route.class)).orElse(List.of()));
+        // 业务模块在自己的 jar 中声明数据源（MonolithModule），没有声明数据源的模块沿用调用方的数据源
+        MonolithModules.bind(environment).values().forEach(module -> {
+            if (module.getDatasource() != null && !module.getDatasource().isBlank()) {
+                Route route = new Route();
+                route.setDatasource(module.getDatasource());
+                route.setPackages(module.getPackages());
+                routes.add(route);
+            }
+        });
         return new ModuleDataSourceAdvisor(toMap(routes));
     }
 

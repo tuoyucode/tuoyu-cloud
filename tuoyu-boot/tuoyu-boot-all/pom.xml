@@ -98,6 +98,29 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <!--
+            -P business：单体同时带上业务模块。业务模块在自己的 jar 中声明 URL 前缀、包与数据源
+            （META-INF/tuoyu/monolith-module.yml），加入依赖即可，不需要改单体的配置与启动类
+        -->
+        <profile>
+            <id>business</id>
+            <dependencies>
+                <dependency>
+                    <groupId>org.tuoyu</groupId>
+                    <artifactId>tuoyu-mes</artifactId>
+                    <version>${revision}</version>
+                    <exclusions>
+                        <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-dubbo</artifactId></exclusion>
+                        <exclusion><groupId>org.tuoyu</groupId><artifactId>tuoyu-common-seata</artifactId></exclusion>
+                        <exclusion><groupId>org.apache.dubbo</groupId><artifactId>*</artifactId></exclusion>
+                        <exclusion><groupId>com.alibaba.cloud</groupId><artifactId>*</artifactId></exclusion>
+                        <exclusion><groupId>org.apache.seata</groupId><artifactId>*</artifactId></exclusion>
+                    </exclusions>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
     <build>
         <finalName>${project.artifactId}</finalName>
         <plugins>

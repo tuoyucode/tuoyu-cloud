@@ -34,6 +34,7 @@ TuoYu-Cloud 是一个通用的 Java 微服务框架，**同一套代码既可以
 ```bash
 mvn clean verify                 # 完整构建，提交前必须通过
 mvn clean verify -P extensions   # 改动了可选扩展模块（tuoyu-extensions，默认不参与构建）时
+mvn clean verify -P business     # 改动了业务模块（tuoyu-business，默认不参与构建）或它们依赖的框架能力时
 ```
 
 - 运行环境不在构建时决定：同一份产物通过 `TUOYU_PROFILES_ACTIVE` 选择环境（默认 `dev`）。
@@ -58,7 +59,8 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 - MySQL、PostgreSQL 由 Flyway 迁移。表结构与种子数据的改动只写成迁移脚本 `V<n>__<小写说明>.sql`，两种数据库各一份（版本号与说明相同），放在负责该库的服务的 `src/main/resources/db/migration/<库名>/mysql` 与 `.../postgresql` 下：
   - `tuoyu-cloud` 库：`tuoyu-system`，库名 `cloud`；
   - `tuoyu-workflow` 库：`tuoyu-workflow`，库名 `workflow`；
-  - `tuoyu-job` 库：`tuoyu-snailjob-server`，库名 `job`。
+  - `tuoyu-job` 库：`tuoyu-snailjob-server`，库名 `job`；
+  - `tuoyu-mes` 库：业务模块 `tuoyu-business/tuoyu-mes`，库名 `mes`（见“业务模块”）。
 - 库名由服务 `application.yml` 中的 `tuoyu.flyway.database` 指定。按库分目录是为了单体：单体在一个进程中迁移 cloud 与 workflow 两个库（`tuoyu.flyway.additional`）。
 - 两种数据库的 `V1__baseline.sql` 与 `deploy/sql` 下对应的全新安装脚本已冻结、逐字一致，不能修改（`MigrationScriptsTest` 校验）。已经发布的迁移脚本也不要再改。
 - Oracle 不由 Flyway 管理：修改 `deploy/sql/oracle` 下的全新安装脚本，并在 `deploy/sql/upgrade/<日期>-<说明>/` 新增可重复执行的升级脚本（规则见该目录的 README）。
@@ -164,6 +166,16 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 - 用户名在租户内唯一；租户内只能使用套餐中的菜单（读取时取交集，角色授权时服务端校验）。
 - 越权测试 `TenantIsolationIntegrationTest`（Testcontainers）在 CI 中必须执行。
 
+## 业务模块
+
+`tuoyu-business` 下是基于框架构建的具体业务系统（目前是制造执行 `tuoyu-mes`），由 profile `business` 启用，默认构建与默认镜像都不包含它们。框架不面向业务：框架与框架自带的模块不能依赖业务模块（ArchUnit 检查）。
+
+- **库**：每个业务模块用自己的库，由模块自己的 Flyway 迁移（`db/migration/<库名>/{mysql,postgresql}`，规则同“数据库脚本”），`deploy/sql` 下放同一份全新安装脚本；`datasource.yml` 中登记连接（`datasource.<库名>`），Nacos 中的服务配置把 `spring.flyway` 与主数据源指向它。docker 的初始化脚本只建库。
+- **菜单与权限码**：菜单表属于 `tuoyu-system`，业务模块不写它的迁移脚本，而是在 `META-INF/tuoyu/menus/<模块标识>.json` 中声明（依赖 `tuoyu-common-menu`），服务启动后经 `RemoteMenuService` 登记：按菜单 ID 只写入不存在的菜单，已存在的不覆盖、不删除；权限码必须以 `<模块标识>:` 开头，否则整批拒绝。菜单 ID 由模块固定分配（MES 用 `1762000000000000000` 起的号段）。`@SaCheckPermission` 的权限码可以来自这里（`ControllerAuthAnnotationTest` 同时读取迁移脚本与这些文件）。新菜单只有超级管理员默认可见，其他角色在角色管理中授权，租户套餐需要另外勾选。
+- **网关与单体**：网关在 `tuoyu-gateway.yml` 中写路由（模块未部署时返回 503）；单体不改配置与启动类，由模块在 `META-INF/tuoyu/monolith-module.yml` 中声明 URL 前缀、包与数据源（`tuoyu.monolith.modules.<名称>`），以及按名称合并的数据源与附加迁移（`spring.datasource.dynamic.datasource.<名称>`、`tuoyu.flyway.additional.<库名>`）。`tuoyu-boot-all` 在 profile `business` 下加入业务模块的依赖，启动时读取所有这类声明，扫描声明的包。`ModulePathPrefixConsistencyTest` 把这些声明与网关路由一起核对。
+- **部署**：可执行 jar、Dockerfile 与其他服务相同；compose 中的业务服务放在 profile `business` 下（`--profile business`）。
+- 业务模块需要的通用能力（例如菜单登记、单体接入声明）写在框架中、单独提交，让以后放在独立仓库中的业务系统也能使用。
+
 ## 目录结构
 
 | 目录 | 内容 |
@@ -176,6 +188,7 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 | `tuoyu-boot` | 启动器（单体 `tuoyu-boot-all`） |
 | `tuoyu-e2e` | 端到端测试 |
 | `tuoyu-extensions` | 可选扩展 |
+| `tuoyu-business` | 业务模块（制造执行 MES），`-P business` 启用 |
 | `tuoyu-architecture` | 依赖规则检查 |
 | `deploy` | SQL、Nacos 配置、部署脚本 |
 | `tools` | 工具脚本 |

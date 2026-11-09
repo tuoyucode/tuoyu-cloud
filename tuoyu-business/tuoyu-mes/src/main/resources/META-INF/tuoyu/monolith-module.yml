@@ -1,0 +1,28 @@
+# 制造执行（MES）接入单体（tuoyu-boot-all）的方式，微服务方式不读取本文件
+# URL 前缀与网关路由 /mes/** 相同；组件、Mapper 都在 org.tuoyu.mes 下；使用 tuoyu-mes 库
+# 部署方可以在 tuoyu-boot-all.yml 中覆盖这里的任何一项（例如数据源地址）
+tuoyu:
+  monolith:
+    modules:
+      mes:
+        prefix: /mes
+        packages: [ org.tuoyu.mes ]
+        datasource: mes
+  # tuoyu-mes 库在主库之后迁移
+  flyway:
+    additional:
+      mes:
+        url: ${datasource.mes.url}
+        user: ${datasource.mes.username}
+        password: ${datasource.mes.password}
+
+spring:
+  datasource:
+    dynamic:
+      datasource:
+        mes:
+          type: ${spring.datasource.type}
+          driver-class-name: ${datasource.driver-class-name}
+          url: ${datasource.mes.url}
+          username: ${datasource.mes.username}
+          password: ${datasource.mes.password}
