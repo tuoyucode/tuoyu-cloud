@@ -195,7 +195,7 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 
 ## 前端
 
-前端基于官方 Vben Admin 5 + Ant Design Vue，只使用框架层，业务页面全部原创，接口契约以本仓库的后端代码为准。代码生成器只输出 Vben 风格的页面，目录与前端仓库 `apps/web-antd/src/` 一一对应。菜单种子数据中的 `component` 填前端 `views` 下的页面路径，图标用 Iconify 名称（例如 `lucide:user`）。
+前端基于官方 Vben Admin 5 + Ant Design Vue，只使用框架层，业务页面全部原创，接口契约以本仓库的后端代码为准。代码生成器只输出 Vben 风格的页面，目录与前端仓库的根目录一一对应（接口在共享包 `packages/shared/src/api`，页面与文案在 `apps/web-antd/src`）。菜单种子数据中的 `component` 填前端 `views` 下的页面路径，图标用 Iconify 名称（例如 `lucide:user`）。
 
 ## 命名
 

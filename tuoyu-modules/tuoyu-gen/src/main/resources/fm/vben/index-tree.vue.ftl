@@ -3,20 +3,21 @@
 <#assign pk = pkColumn.javaField>
 <#assign kebab = businessName?replace("([A-Z])", "-$1", "r")?lower_case>
 <script lang="ts" setup>
+import type { ${ClassName}Api } from '@tuoyu/shared/api/${moduleName}/${businessName}';
+
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
-import type { ${ClassName}Api } from '#/api/${moduleName}/${businessName}';
 
 import { Page, useVbenDrawer } from '@vben/common-ui';
 
-import { Button, message, Popconfirm } from 'ant-design-vue';
-
-import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import {
   list${ClassName},
   remove${ClassName},
-} from '#/api/${moduleName}/${businessName}';
+} from '@tuoyu/shared/api/${moduleName}/${businessName}';
+import { hasPermission } from '@tuoyu/shared/utils/permission';
+import { Button, message, Popconfirm } from 'ant-design-vue';
+
+import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
-import { hasPermission } from '#/utils/permission';
 
 <#-- 两个本地导入按路径字母顺序排列（前端 lint 规则） -->
 <#if (["./data", "./" + kebab + "-drawer.vue"]?sort[0] == "./data")>

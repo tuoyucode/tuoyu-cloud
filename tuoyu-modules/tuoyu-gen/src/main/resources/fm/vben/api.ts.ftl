@@ -3,10 +3,10 @@
 <#-- 生成代码中的模板字符串：${D}{x} 输出为 ${x} -->
 <#assign D = "$">
 <#if table.crud>
-import type { PageQuery, PageResult } from '#/api/types';
+import type { PageQuery, PageResult } from '../types';
 
 </#if>
-import { <#if enableExport>exportExcel, </#if>requestClient } from '#/api/request';
+import { <#if enableExport>exportExcel, </#if>requestClient } from '../request';
 
 export namespace ${ClassName}Api {
   /** ${functionName} */
