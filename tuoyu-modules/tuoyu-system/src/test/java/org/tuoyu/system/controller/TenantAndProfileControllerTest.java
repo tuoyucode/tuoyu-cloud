@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.mock.web.MockMultipartFile;
+import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
@@ -16,6 +18,8 @@ import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.support.CurrentUserStub;
 import org.tuoyu.common.tenant.core.DynamicTenantStore;
 import org.tuoyu.common.tenant.core.TenantHelper;
+import org.tuoyu.resource.api.RemoteFileService;
+import org.tuoyu.resource.api.domain.RemoteFile;
 import org.tuoyu.system.controller.system.SysProfileController;
 import org.tuoyu.system.controller.system.SysTenantController;
 import org.tuoyu.system.domain.bo.SysTenantBo;
@@ -153,7 +157,11 @@ class TenantAndProfileControllerTest {
     class Profile {
 
         private final PasswordHasher hasher = new PasswordHasher(PasswordHasher.MIN_COST);
-        private final SysProfileController controller = new SysProfileController(userService, hasher);
+        private final RemoteFileService remoteFileService = mock(RemoteFileService.class);
+        private final SysProfileController controller = new SysProfileController(userService, hasher, remoteFileService);
+
+        /** PNG 文件头（签名与 IHDR 块开头） */
+        private static final byte[] PNG = {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0x0D, 'I', 'H', 'D', 'R'};
 
         private void me(String rawPassword) {
             SysUserVo vo = new SysUserVo();
@@ -219,6 +227,47 @@ class TenantAndProfileControllerTest {
             ArgumentCaptor<SysUserBo> updated = ArgumentCaptor.forClass(SysUserBo.class);
             verify(userService).updateUserProfile(updated.capture());
             assertEquals("", updated.getValue().getPhoneNumber());
+        }
+
+        @Test
+        @DisplayName("上传头像：图片经文件服务存储后写入本人的头像，返回访问地址")
+        void uploadAvatar() throws Exception {
+            RemoteFile stored = new RemoteFile();
+            stored.setOssId(900L);
+            stored.setUrl("https://oss.example.com/avatar.png");
+            when(remoteFileService.upload(Mockito.eq("me.png"), any())).thenReturn(stored);
+
+            ApiResult<SysProfileController.ProfileAvatarVo> result =
+                controller.avatar(new MockMultipartFile("file", "me.png", "image/png", PNG));
+
+            assertEquals("https://oss.example.com/avatar.png", result.getData().avatarUrl());
+            verify(userService).updateUserAvatar(100L, 900L);
+        }
+
+        @Test
+        @DisplayName("上传头像：超过 2MB 时返回 413，不调用文件服务")
+        void avatarTooLarge() {
+            byte[] content = new byte[2 * 1024 * 1024 + 1];
+            System.arraycopy(PNG, 0, content, 0, PNG.length);
+
+            ServiceException e = assertThrows(ServiceException.class,
+                () -> controller.avatar(new MockMultipartFile("file", "big.png", "image/png", content)));
+
+            assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, e.getCode());
+            verify(remoteFileService, never()).upload(any(), any());
+        }
+
+        @Test
+        @DisplayName("上传头像：只接受 jpg、jpeg、png、webp，内容与扩展名不符时拒绝，不调用文件服务")
+        void avatarTypeChecked() {
+            assertThrows(ServiceException.class,
+                () -> controller.avatar(new MockMultipartFile("file", "doc.pdf", "application/pdf", "%PDF-1.7".getBytes())));
+            assertThrows(ServiceException.class,
+                () -> controller.avatar(new MockMultipartFile("file", "fake.png", "image/png", "<html></html>".getBytes())));
+            assertThrows(ServiceException.class,
+                () -> controller.avatar(new MockMultipartFile("file", "empty.png", "image/png", new byte[0])));
+            verify(remoteFileService, never()).upload(any(), any());
+            verify(userService, never()).updateUserAvatar(any(), any());
         }
 
         @Test

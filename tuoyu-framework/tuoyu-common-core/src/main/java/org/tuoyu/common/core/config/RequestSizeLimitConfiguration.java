@@ -46,21 +46,31 @@ public class RequestSizeLimitConfiguration {
     public FilterRegistrationBean<RequestSizeLimitFilter> requestSizeLimitFilter(RequestLimitProperties properties,
                                                                                  Environment environment,
                                                                                  ObjectProvider<TraceIdSource> traceIdSource) {
-        Binder binder = Binder.get(environment);
-        long maxRequest = binder.bind("spring.servlet.multipart.max-request-size", DataSize.class)
-            .orElse(DEFAULT_MULTIPART_MAX_REQUEST_SIZE).toBytes();
-        // 没有配置单个文件上限时只看整个请求的上限
-        long maxFile = binder.bind("spring.servlet.multipart.max-file-size", DataSize.class)
-            .map(DataSize::toBytes).orElse(-1L);
         TraceIdSource traceId = () -> traceIdSource.getIfAvailable(() -> TraceIdSource.NONE).currentTraceId();
         RequestSizeLimitFilter filter = new RequestSizeLimitFilter(properties.getMaxBodySize().toBytes(),
-            multipartLimit(maxRequest, maxFile), traceId);
+            uploadLimit(environment), traceId);
         FilterRegistrationBean<RequestSizeLimitFilter> registration = new FilterRegistrationBean<>(filter);
         registration.setName("requestSizeLimitFilter");
         registration.addUrlPatterns("/*");
         registration.setDispatcherTypes(DispatcherType.REQUEST);
         registration.setOrder(ORDER);
         return registration;
+    }
+
+    /**
+     * 当前配置下上传请求（每次一个文件）的上限，字节；负数表示不限制。
+     * 上传接口向前端提供的上限也取这个值，与这里的过滤规则一致
+     *
+     * @param environment 当前服务的配置
+     */
+    public static long uploadLimit(Environment environment) {
+        Binder binder = Binder.get(environment);
+        long maxRequest = binder.bind("spring.servlet.multipart.max-request-size", DataSize.class)
+            .orElse(DEFAULT_MULTIPART_MAX_REQUEST_SIZE).toBytes();
+        // 没有配置单个文件上限时只看整个请求的上限
+        long maxFile = binder.bind("spring.servlet.multipart.max-file-size", DataSize.class)
+            .map(DataSize::toBytes).orElse(-1L);
+        return multipartLimit(maxRequest, maxFile);
     }
 
     /**

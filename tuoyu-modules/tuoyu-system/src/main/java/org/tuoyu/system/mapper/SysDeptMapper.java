@@ -9,15 +9,12 @@ import org.tuoyu.common.mybatis.annotation.DataPermission;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysDept;
-import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.domain.SysRoleDept;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import static org.tuoyu.common.core.constant.SystemConstants.NORMAL;
 
 /**
  * 部门管理 数据层
@@ -93,7 +90,8 @@ public interface SysDeptMapper extends BaseMapper<SysDept>, MPJBaseMapper<SysDep
     }
 
     /**
-     * 根据角色ID查询部门树信息
+     * 根据角色ID查询部门树信息（编辑角色的数据权限时回显已分配的部门）。
+     * 不按角色状态过滤：停用的角色同样回显，否则在停用期间保存会把已分配的部门清空
      *
      * @param roleId            角色ID
      * @param deptCheckStrictly 部门树选择项是否关联显示
@@ -104,9 +102,7 @@ public interface SysDeptMapper extends BaseMapper<SysDept>, MPJBaseMapper<SysDep
             .distinct()
             .select(SysDept::getDeptId, SysDept::getParentId, SysDept::getOrderNum)
             .leftJoin(SysRoleDept.class, "srd", SysRoleDept::getDeptId, SysDept::getDeptId)
-            .leftJoin(SysRole.class, "sr", SysRole::getRoleId, SysRoleDept::getRoleId)
             .eq("srd", SysRoleDept::getRoleId, roleId)
-            .eq("sr", SysRole::getStatus, NORMAL)
             .orderByAsc("d", SysDept::getParentId)
             .orderByAsc("d", SysDept::getOrderNum)
             .build());

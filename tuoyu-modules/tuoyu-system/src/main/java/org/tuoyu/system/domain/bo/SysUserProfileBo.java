@@ -56,11 +56,6 @@ public class SysUserProfileBo implements Serializable {
     private String gender;
 
     /**
-     * 头像 OSS ID
-     */
-    private Long avatar;
-
-    /**
      * 请求参数
      */
     private Map<String, Object> params = new HashMap<>();

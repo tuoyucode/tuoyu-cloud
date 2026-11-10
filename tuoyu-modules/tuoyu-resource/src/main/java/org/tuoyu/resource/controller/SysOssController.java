@@ -4,6 +4,7 @@ package org.tuoyu.resource.controller;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
+import org.tuoyu.common.core.config.RequestSizeLimitConfiguration;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.json.utils.JsonUtils;
@@ -12,9 +13,12 @@ import org.tuoyu.common.log.enums.AuditAction;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.resource.domain.SysOssExt;
 import org.tuoyu.resource.domain.bo.SysOssBo;
+import org.tuoyu.resource.config.UploadProperties;
+import org.tuoyu.resource.domain.vo.SysOssUploadConfigVo;
 import org.tuoyu.resource.domain.vo.SysOssUploadVo;
 import org.tuoyu.resource.domain.vo.SysOssVo;
 import org.tuoyu.resource.service.ISysOssService;
+import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -37,6 +41,8 @@ import java.util.List;
 public class SysOssController {
 
     private final ISysOssService ossService;
+    private final UploadProperties uploadProperties;
+    private final Environment environment;
 
     /**
      * 查询OSS对象存储列表
@@ -57,6 +63,17 @@ public class SysOssController {
     public ApiResult<List<SysOssVo>> listByIds(@NotEmpty(message = "主键不能为空") @PathVariable Long[] ossIds) {
         List<SysOssVo> list = ossService.listByIds(Arrays.asList(ossIds));
         return ApiResult.ok(list);
+    }
+
+    /**
+     * 上传限制：当前生效的扩展名白名单（随配置刷新）与单个文件的上限。前端的可选类型与上传前提示以它为准，
+     * 只在服务端维护一份
+     */
+    @SaCheckPermission("system:oss:upload")
+    @GetMapping("/upload-config")
+    public ApiResult<SysOssUploadConfigVo> uploadConfig() {
+        List<String> extensions = uploadProperties.validator().allowedExtensions().stream().sorted().toList();
+        return ApiResult.ok(new SysOssUploadConfigVo(extensions, RequestSizeLimitConfiguration.uploadLimit(environment)));
     }
 
     /**

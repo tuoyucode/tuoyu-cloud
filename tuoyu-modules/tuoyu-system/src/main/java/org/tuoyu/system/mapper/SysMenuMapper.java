@@ -108,7 +108,9 @@ public interface SysMenuMapper extends BaseMapper<SysMenu>, MPJBaseMapper<SysMen
     }
 
     /**
-     * 根据角色ID查询菜单树信息
+     * 根据角色ID查询菜单树信息（编辑角色权限时回显已分配的菜单）。
+     * 不按角色状态过滤：停用的角色同样回显，否则在停用期间保存权限会把已分配的菜单清空；
+     * 登录时的权限另行计算，停用角色不生效
      *
      * @param roleId            角色ID
      * @param menuCheckStrictly 菜单树选择项是否关联显示
@@ -119,9 +121,7 @@ public interface SysMenuMapper extends BaseMapper<SysMenu>, MPJBaseMapper<SysMen
             .distinct()
             .select(SysMenu::getMenuId, SysMenu::getParentId, SysMenu::getOrderNum)
             .leftJoin(SysRoleMenu.class, "srm", SysRoleMenu::getMenuId, SysMenu::getMenuId)
-            .leftJoin(SysRole.class, "sr", SysRole::getRoleId, SysRoleMenu::getRoleId)
             .eq("srm", SysRoleMenu::getRoleId, roleId)
-            .eq("sr", SysRole::getStatus, SystemConstants.NORMAL)
             .orderByAsc("m", SysMenu::getParentId)
             .orderByAsc("m", SysMenu::getOrderNum)
             .build());

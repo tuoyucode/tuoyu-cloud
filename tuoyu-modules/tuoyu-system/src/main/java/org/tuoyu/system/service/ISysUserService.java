@@ -206,6 +206,14 @@ public interface ISysUserService {
     void updateUserProfile(SysUserBo user);
 
     /**
+     * 修改用户的头像（个人中心上传头像后调用）
+     *
+     * @param userId 用户ID
+     * @param avatar 头像的 OSS ID
+     */
+    void updateUserAvatar(Long userId, Long avatar);
+
+    /**
      * 重置用户密码
      *
      * @param userId   用户ID

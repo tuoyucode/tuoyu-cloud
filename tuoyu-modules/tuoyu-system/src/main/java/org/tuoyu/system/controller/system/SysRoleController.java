@@ -236,13 +236,14 @@ public class SysRoleController {
     }
 
     /**
-     * 获取对应角色部门树列表
+     * 获取对应角色部门树列表。角色须在当前用户的数据范围内（含租户隔离），与读取角色的菜单一致
      *
      * @param roleId 角色ID
      */
     @SaCheckPermission("system:role:list")
     @GetMapping(value = "/deptTree/{roleId}")
     public ApiResult<DeptTreeSelectVo> roleDeptTreeselect(@PathVariable("roleId") Long roleId) {
+        roleService.checkRoleDataScope(roleId);
         DeptTreeSelectVo treeSelect = new DeptTreeSelectVo(
             deptService.selectDeptListByRoleId(roleId),
             deptService.selectDeptTreeList(new SysDeptBo()));
