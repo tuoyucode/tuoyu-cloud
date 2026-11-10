@@ -11,7 +11,8 @@ TuoYu-Cloud is a general-purpose framework for enterprise back-office systems. I
 
 > ⚠️ **Preview (1.0.0-alpha).** APIs and directory layout may still change; not recommended for production yet.
 
-**User manual:** [https://docs.ctoolhub.com](https://docs.ctoolhub.com)
+- User manual: [https://docs.ctoolhub.com](https://docs.ctoolhub.com)
+- Frontend repository: [tuoyu-cloud-frontend](https://gitee.com/tuoyucode/tuoyu-cloud-frontend)
 
 ## Goals
 
@@ -44,10 +45,6 @@ Database schemas are migrated automatically on startup (Flyway; create the empty
 - **docker compose:** core, full and monolith stacks plus optional add-ons such as Nginx; see [deploy/docker/README.md](deploy/docker/README.md) (in Chinese).
 
 No secrets are stored in the repository. Generate a local `.env` with `java tools/secrets/GenerateEnv.java`; see [.env.example](.env.example) for all variables. On startup every service runs self-checks and, in production, refuses to start with weak passwords, published keys or unsafe settings.
-
-## Related repositories
-
-- Frontend: [tuoyu-cloud-frontend](https://gitee.com/tuoyucode/tuoyu-cloud-frontend)
 
 ## License
 
