@@ -64,7 +64,8 @@ public interface FlwTaskMapper extends MPJBaseMapper<FlowTask> {
         return QueryBuilder.lambdaJoin("a", FlowUser.class)
             .select(FlowUser::getProcessedBy, FlowUser::getCreateTime)
             .select("b", FlowHisTask::getId, FlowHisTask::getUpdateTime, FlowHisTask::getFormCustom,
-                FlowHisTask::getFormPath, FlowHisTask::getNodeName, FlowHisTask::getNodeCode)
+                FlowHisTask::getNodeName, FlowHisTask::getNodeCode)
+            .selectAs("COALESCE(NULLIF(TRIM(b.form_path), ''), NULLIF(TRIM(d.form_path), ''))", FlowTaskVo::getFormPath)
             .select("c", FlowInstance::getBusinessId, FlowInstance::getFlowStatus, FlowInstance::getCreateBy)
             .select("d", FlowDefinition::getFlowName, FlowDefinition::getFlowCode, FlowDefinition::getCategory,
                 FlowDefinition::getVersion)

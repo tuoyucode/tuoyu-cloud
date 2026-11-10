@@ -43,7 +43,7 @@ public interface IFlwInstanceService {
      * @param businessId 业务id
      * @return 结果
      */
-    FlowInstanceVo queryByBusinessId(Long businessId);
+    FlowInstanceVo queryByBusinessId(String businessId);
 
     /**
      * 按照业务id查询流程实例
