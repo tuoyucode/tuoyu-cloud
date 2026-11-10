@@ -11,7 +11,8 @@ TuoYu-Cloud 是一个通用的企业级后台开发框架，提供权限、组�
 
 > ⚠️ **项目处于预览阶段（1.0.0-alpha）**，接口和目录结构仍可能调整，暂不建议用于生产环境。
 
-**使用手册**：[https://docs.ctoolhub.com](https://docs.ctoolhub.com)
+- 使用手册：[https://docs.ctoolhub.com](https://docs.ctoolhub.com)
+- 前端仓库：[tuoyu-cloud-frontend](https://gitee.com/tuoyucode/tuoyu-cloud-frontend)
 
 ---
 
@@ -148,10 +149,6 @@ java tools/nacos/ImportNacosConfig.java --apply --overwrite  # 导入，并覆�
 | P9 | 没有开启完整 SQL 日志 | 警告 | 拒绝启动 |
 
 仓库中的配置默认就是生产安全的。生成工具会在本地 `.env` 中打开接口文档等开发便利项，生产环境不要设置这些变量。确需跳过某项检查时，只能按编号跳过，例如 `tuoyu.selfcheck.skip=P4`。各服务的自检结果汇总在管理界面“系统监控 → 安全中心”。
-
-## 相关仓库
-
-- 前端：[tuoyu-cloud-frontend](https://gitee.com/tuoyucode/tuoyu-cloud-frontend)
 
 ## 参与贡献
 

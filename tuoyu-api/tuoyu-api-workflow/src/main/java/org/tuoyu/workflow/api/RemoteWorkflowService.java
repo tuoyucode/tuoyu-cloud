@@ -68,6 +68,16 @@ public interface RemoteWorkflowService {
     Long getInstanceIdByBusinessId(String businessId);
 
     /**
+     * 校验当前用户能否查看业务对应的流程，规则与审批记录、流程图相同：发起人、办理过或正在办理的人、
+     * 抄送人，以及有流程实例或任务管理权限的人可以查看。业务模块据此向流程参与人开放审批中的业务详情，
+     * 不要求对方有业务模块的查询权限。
+     *
+     * @param businessId 业务id
+     * @throws org.tuoyu.common.core.exception.ServiceException 没有对应的流程实例（错误码 404）或无权查看（错误码 403）
+     */
+    void checkReadAccess(String businessId);
+
+    /**
      * 启动流程
      *
      * @param startProcess 参数
