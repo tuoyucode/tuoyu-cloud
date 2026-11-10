@@ -366,6 +366,15 @@ class SystemControllerTest {
             when(deptService.selectDeptListByRoleId(9L)).thenReturn(List.of(10L));
             assertEquals(List.of(10L), controller.roleDeptTreeselect(9L).getData().checkedKeys());
         }
+
+        @Test
+        @DisplayName("读取角色的部门树前校验角色的数据范围，不在范围内时不读取")
+        void roleDeptTreeChecksDataScope() {
+            doThrow(new ServiceException("没有权限访问角色数据！")).when(roleService).checkRoleDataScope(77L);
+
+            assertThrows(ServiceException.class, () -> controller.roleDeptTreeselect(77L));
+            verify(deptService, never()).selectDeptListByRoleId(77L);
+        }
     }
 
     @Nested

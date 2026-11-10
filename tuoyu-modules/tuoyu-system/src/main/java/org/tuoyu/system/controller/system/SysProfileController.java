@@ -5,8 +5,10 @@ import org.tuoyu.common.core.context.UserContext;
 import cn.hutool.core.bean.BeanUtil;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.core.upload.UploadFileValidator;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.encrypt.annotation.ApiEncrypt;
 import org.tuoyu.common.encrypt.password.PasswordHasher;
@@ -14,13 +16,21 @@ import org.tuoyu.common.log.annotation.OperationLog;
 import org.tuoyu.common.log.enums.AuditAction;
 import org.tuoyu.common.mybatis.helper.DataPermissionHelper;
 import org.tuoyu.common.redis.annotation.PreventResubmit;
+import org.tuoyu.resource.api.RemoteFileService;
+import org.tuoyu.resource.api.domain.RemoteFile;
 import org.tuoyu.system.domain.bo.SysUserBo;
 import org.tuoyu.system.domain.bo.SysUserProfileBo;
 import org.tuoyu.system.domain.vo.ProfileUserVo;
 import org.tuoyu.system.domain.vo.SysUserVo;
 import org.tuoyu.system.service.ISysUserService;
+import org.springframework.http.MediaType;
+import org.springframework.util.unit.DataSize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * 个人信息 业务处理（仅登录：只读写当前用户本人的信息）
@@ -34,8 +44,19 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/user/profile")
 public class SysProfileController {
 
+    /**
+     * 头像只接受常见图片，按文件头校验（与文件服务的上传白名单无关）
+     */
+    private static final UploadFileValidator AVATAR_VALIDATOR = UploadFileValidator.of(List.of("jpg", "jpeg", "png", "webp"));
+
+    /**
+     * 头像的大小上限
+     */
+    private static final long AVATAR_MAX_SIZE = DataSize.ofMegabytes(2).toBytes();
+
     private final ISysUserService userService;
     private final PasswordHasher passwordHasher;
+    private final RemoteFileService remoteFileService;
 
     /**
      * 个人信息
@@ -69,6 +90,36 @@ public class SysProfileController {
         }
         DataPermissionHelper.ignore(() -> userService.updateUserProfile(user));
         return ApiResult.ok();
+    }
+
+    /**
+     * 上传本人的头像：jpg、jpeg、png、webp，不超过 2MB，按文件头校验。
+     * 不需要文件上传权限，只能设置本人的头像；文件存入默认的对象存储
+     *
+     * @param file 头像图片
+     */
+    @OperationLog(module = "个人信息", action = AuditAction.UPDATE)
+    @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResult<ProfileAvatarVo> avatar(@RequestPart("file") MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new ServiceException("请选择头像图片");
+        }
+        if (file.getSize() > AVATAR_MAX_SIZE) {
+            throw new ServiceException("头像图片不能超过 2MB", HttpStatus.PAYLOAD_TOO_LARGE);
+        }
+        UploadFileValidator.ValidatedFile validated = AVATAR_VALIDATOR.validate(file.getOriginalFilename(), file);
+        RemoteFile uploaded = remoteFileService.upload(validated.filename(), file.getBytes());
+        Long userId = UserContext.userId();
+        DataPermissionHelper.ignore(() -> userService.updateUserAvatar(userId, uploaded.getOssId()));
+        return ApiResult.ok(new ProfileAvatarVo(uploaded.getUrl()));
+    }
+
+    /**
+     * 上传头像的结果
+     *
+     * @param avatarUrl 头像的访问地址
+     */
+    public record ProfileAvatarVo(String avatarUrl) {
     }
 
     /**

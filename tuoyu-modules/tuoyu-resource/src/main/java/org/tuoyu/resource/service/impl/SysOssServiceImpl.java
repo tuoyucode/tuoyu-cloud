@@ -34,6 +34,7 @@ import org.tuoyu.resource.mapper.SysOssMapper;
 import org.tuoyu.resource.config.UploadProperties;
 import org.tuoyu.resource.service.ISysOssService;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpHeaders;
@@ -220,6 +221,29 @@ public class SysOssServiceImpl implements ISysOssService {
             ossExt.setFileSize(file.getSize());
             ossExt.setContentType(validated.mediaType());
             // 保存文件信息
+            return buildResultEntity(validated.filename(), suffix, instance.clientId(), result, ossExt);
+        } catch (IOException e) {
+            throw new ServiceException(e.getMessage());
+        } catch (S3StorageException e) {
+            throw storageUnavailable(instance.clientId(), e);
+        }
+    }
+
+    @Override
+    public SysOssVo upload(String originalName, byte[] content) {
+        if (content == null || content.length == 0) {
+            throw new ServiceException("上传文件不能为空");
+        }
+        ByteArrayResource source = new ByteArrayResource(content);
+        UploadFileValidator.ValidatedFile validated = uploadProperties.validator().validate(originalName, source);
+        String suffix = "." + validated.extension();
+        OssClient instance = defaultStorage();
+        String pathKey = instance.buildPathKey(TenantHelper.currentTenantId(), suffix);
+        try (InputStream inputStream = source.getInputStream()) {
+            PutObjectResult result = instance.upload(pathKey, inputStream, content.length, Options.builder().setContentType(validated.mediaType()));
+            SysOssExt ossExt = new SysOssExt();
+            ossExt.setFileSize((long) content.length);
+            ossExt.setContentType(validated.mediaType());
             return buildResultEntity(validated.filename(), suffix, instance.clientId(), result, ossExt);
         } catch (IOException e) {
             throw new ServiceException(e.getMessage());

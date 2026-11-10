@@ -32,11 +32,19 @@ public class TraceAutoConfiguration {
     public static final int FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE;
 
     /**
-     * 当前 traceId：不依赖本模块的组件（请求大小限制、服务的登录校验）写错误响应时使用
+     * 当前 traceId：不依赖本模块的组件（请求大小限制、服务的登录校验）写错误响应时使用。
+     * core 是可选依赖（SnailJob 服务端等不依赖它），所以放在按类存在与否生效的嵌套配置中：外层配置类的方法签名不能出现
+     * core 的类型，否则 Spring 解析配置类时就要加载它
      */
-    @Bean
-    public TraceIdSource traceIdSource() {
-        return TraceContext::traceId;
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "org.tuoyu.common.core.web.TraceIdSource")
+    static class TraceIdSourceConfiguration {
+
+        @Bean
+        public TraceIdSource traceIdSource() {
+            return TraceContext::traceId;
+        }
+
     }
 
     /**

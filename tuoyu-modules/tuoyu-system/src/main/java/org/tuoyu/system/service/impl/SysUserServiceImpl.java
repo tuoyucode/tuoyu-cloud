@@ -436,13 +436,22 @@ public class SysUserServiceImpl implements ISysUserService {
     public void updateUserProfile(SysUserBo user) {
         int rows = userMapper.update(Wrappers.<SysUser>lambdaUpdate()
             .set(user.getNickName() != null, SysUser::getNickName, user.getNickName())
-            .set(user.getAvatar() != null, SysUser::getAvatar, user.getAvatar())
             .set(user.getPhoneNumber() != null, SysUser::getPhoneNumber, user.getPhoneNumber())
             .set(user.getEmail() != null, SysUser::getEmail, user.getEmail())
             .set(user.getGender() != null, SysUser::getGender, user.getGender())
             .eq(SysUser::getUserId, user.getUserId()));
         if (rows == 0) {
             throw new ServiceException("修改个人信息异常，请联系管理员");
+        }
+    }
+
+    @Override
+    public void updateUserAvatar(Long userId, Long avatar) {
+        int rows = userMapper.update(Wrappers.<SysUser>lambdaUpdate()
+            .set(SysUser::getAvatar, avatar)
+            .eq(SysUser::getUserId, userId));
+        if (rows == 0) {
+            throw new ServiceException("修改头像失败，用户不存在");
         }
     }
 

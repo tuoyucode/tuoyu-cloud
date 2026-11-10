@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.tuoyu.common.core.web.RequestSizeLimitFilter;
@@ -89,6 +90,17 @@ class RequestSizeLimitConfigurationTest {
         filter.doFilter(request, response, (req, res) -> {
         });
         return response.getStatus();
+    }
+
+    @Test
+    @DisplayName("对外提供的上传上限与过滤规则相同：取两者中较小的，没有单文件上限时取整个请求的，未配置时为 Spring 默认值")
+    void uploadLimitMatchesFilterRule() {
+        assertEquals(5 * 1024, RequestSizeLimitConfiguration.uploadLimit(new MockEnvironment()
+            .withProperty("spring.servlet.multipart.max-request-size", "8KB")
+            .withProperty("spring.servlet.multipart.max-file-size", "5KB")));
+        assertEquals(8 * 1024, RequestSizeLimitConfiguration.uploadLimit(new MockEnvironment()
+            .withProperty("spring.servlet.multipart.max-request-size", "8KB")));
+        assertEquals(10 * 1024 * 1024, RequestSizeLimitConfiguration.uploadLimit(new MockEnvironment()));
     }
 
 }

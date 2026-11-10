@@ -111,6 +111,35 @@ class SysOssServiceImplUploadTest {
     }
 
     @Test
+    @DisplayName("按内容上传（其他模块经远程接口调用）：同样按白名单与文件头校验，不通过时不写入对象存储")
+    void byteUploadIsValidated() {
+        assertThrows(ServiceException.class, () -> service.upload("avatar.png",
+            "<html></html>".getBytes(StandardCharsets.UTF_8)));
+        assertThrows(ServiceException.class, () -> service.upload("index.html", "<p>x</p>".getBytes(StandardCharsets.UTF_8)));
+        assertThrows(ServiceException.class, () -> service.upload("empty.png", new byte[0]));
+        verifyNoInteractions(client, mapper);
+    }
+
+    @Test
+    @DisplayName("按内容上传：通过校验后写入对象存储并登记，类型与大小取服务端的值")
+    void byteUploadStores() {
+        when(client.buildPathKey(isNull(), anyString())).thenAnswer(invocation -> "2026/11/10/uuid" + invocation.getArgument(1));
+        when(client.clientId()).thenReturn("minio");
+        when(client.upload(anyString(), any(InputStream.class), anyLong(), any(Options.class)))
+            .thenReturn(PutObjectResult.form("http://oss/2026/11/10/uuid.png", "2026/11/10/uuid.png", "etag", PNG.length));
+
+        SysOssVo vo = service.upload("me.png", PNG);
+
+        ArgumentCaptor<Options> options = ArgumentCaptor.forClass(Options.class);
+        verify(client).upload(eq("2026/11/10/uuid.png"), any(InputStream.class), eq((long) PNG.length), options.capture());
+        assertEquals("image/png", options.getValue().getContentType());
+        ArgumentCaptor<SysOss> saved = ArgumentCaptor.forClass(SysOss.class);
+        verify(mapper).insert(saved.capture());
+        assertTrue(saved.getValue().getExt1().contains("\"fileSize\":" + PNG.length), saved.getValue().getExt1());
+        assertEquals("me.png", vo.getOriginalName());
+    }
+
+    @Test
     @DisplayName("对象键扩展名与媒体类型取校验后的值，不采信客户端声明")
     void storeWithServerSideTypes() {
         when(client.buildPathKey(isNull(), anyString())).thenAnswer(invocation -> "2026/10/27/uuid" + invocation.getArgument(1));

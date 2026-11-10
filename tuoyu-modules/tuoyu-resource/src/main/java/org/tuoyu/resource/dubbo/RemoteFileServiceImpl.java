@@ -47,4 +47,9 @@ public class RemoteFileServiceImpl implements RemoteFileService {
         List<SysOssVo> sysOssVos = sysOssService.listByIds(StringUtils.splitTo(ossIds, Convert::toLong));
         return BeanMapper.mapList(sysOssVos, RemoteFile.class);
     }
+
+    @Override
+    public RemoteFile upload(String originalName, byte[] content) {
+        return BeanMapper.map(sysOssService.upload(originalName, content), RemoteFile.class);
+    }
 }

@@ -72,6 +72,16 @@ public interface ISysOssService {
     SysOssVo upload(MultipartFile file, SysOssExt ossExt);
 
     /**
+     * 上传文件内容到对象存储服务，并保存文件信息到数据库（供其他模块经远程接口上传，例如用户头像）。
+     * 与上传接口同样按白名单与文件头校验
+     *
+     * @param originalName 原始文件名（据此取扩展名）
+     * @param content      文件内容
+     * @return 上传成功后的 SysOssVo 对象，包含文件信息
+     */
+    SysOssVo upload(String originalName, byte[] content);
+
+    /**
      * 上传文件到对象存储服务，并保存文件信息到数据库
      *
      * @param file 要上传的文件对象
