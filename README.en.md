@@ -5,11 +5,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 ![JDK](https://img.shields.io/badge/JDK-21-green.svg)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-blue.svg)
-![Status](https://img.shields.io/badge/status-in%20development-orange.svg)
+![Status](https://img.shields.io/badge/status-preview-orange.svg)
 
 TuoYu-Cloud is a general-purpose framework for enterprise back-office systems. It ships with ready-to-use building blocks such as permissions, organizations, workflow, code generation, object storage, and message push. **The same codebase can be deployed as a monolith or as microservices**, so teams can evolve smoothly as their business grows.
 
-> ⚠️ **Early development.** APIs and directory layout may still change; not recommended for production yet. The first public preview, `1.0.0-alpha.1`, is in progress.
+> ⚠️ **Preview (1.0.0-alpha).** APIs and directory layout may still change; not recommended for production yet.
 
 ## Goals
 
@@ -17,24 +17,31 @@ TuoYu-Cloud is a general-purpose framework for enterprise back-office systems. I
 |---|---|
 | **Secure by default** | No plaintext secrets in the repository; in production, startup self-checks refuse to boot with weak passwords, default keys, or exposed sensitive endpoints |
 | **Monolith and microservices in one** | In-process calls in monolith mode, Dubbo in microservice mode, with no changes to business code |
-| **Pluggable multi-tenancy** | Off by default with zero intrusion; when enabled, it covers the database, cache, sessions, messaging, async and scheduled jobs |
-| **Verifiable quality** | CI always runs the tests (no skipping), architecture rules are checked automatically, and database changes are managed with Flyway |
-| **Cloud native** | Containerized deployment, health checks, tracing, graceful shutdown |
+| **Pluggable multi-tenancy** | Off by default with zero intrusion; when enabled, it covers the database, cache, sessions, async and scheduled jobs, and cross-service calls |
+| **Verifiable quality** | CI always runs the tests (no skipping), architecture rules are checked automatically, both deployment modes have end-to-end tests, and database changes are managed with Flyway |
+| **Cloud native** | Containerized deployment, health checks, a trace ID across the gateway and all services, graceful shutdown |
 | **Fully open source** | MIT licensed, no commercial edition, no paywalled features |
 
 ## Tech stack
 
-JDK 21 · Spring Boot 4.1 · Spring Cloud 2025.1 · Nacos · Apache Dubbo 3 · Sa-Token · MyBatis-Plus · Redis / Redisson · Warm-Flow · SnailJob
+JDK 21 · Spring Boot 4.1 · Spring Cloud 2025.1 · Nacos 2.x · Apache Dubbo 3 · Sa-Token · MyBatis-Plus · Redis / Redisson · Warm-Flow · SnailJob · Flyway · MySQL 8 / PostgreSQL
 
 ## Quick start
 
-**Requirements:** JDK 21, Maven 3.9, MySQL 8 or PostgreSQL (set `TUOYU_DB_TYPE=postgresql`), Redis 6+, Nacos 3
+**Requirements:** JDK 21, Maven 3.9, MySQL 8 or PostgreSQL (set `TUOYU_DB_TYPE=postgresql`), Redis 6+; the microservice mode also needs Nacos 2.x (verified with 2.5), the monolith does not
 
 ```bash
 mvn clean verify
 ```
 
-Database schemas are migrated automatically on startup (Flyway; create the empty databases first), or you can initialize them by hand with the scripts in `deploy/sql`. Nacos configuration is in `deploy/config/nacos`. Full deployment docs are being written.
+Database schemas are migrated automatically on startup (Flyway; create the empty databases first), or you can initialize them by hand with the scripts in `deploy/sql`. Nacos configuration is in `deploy/config/nacos`.
+
+- **Monolith:** run `tuoyu-boot/tuoyu-boot-all` (port 8081). It needs no Nacos and reads the files in `deploy/config/nacos` directly.
+- **Microservices:** import the Nacos configuration (`java tools/nacos/ImportNacosConfig.java --apply`), then start tuoyu-system, tuoyu-auth, tuoyu-resource and tuoyu-gateway (port 8081).
+- **Dev environment:** `./dev help` (`.\dev.ps1 help` on Windows) lists the commands for generating `.env`, preparing MySQL, Redis and Nacos, and running the monolith.
+- **docker compose:** core, full and monolith stacks plus optional add-ons such as Nginx; see [deploy/docker/README.md](deploy/docker/README.md) (in Chinese).
+
+No secrets are stored in the repository. Generate a local `.env` with `java tools/secrets/GenerateEnv.java`; see [.env.example](.env.example) for all variables. On startup every service runs self-checks and, in production, refuses to start with weak passwords, published keys or unsafe settings.
 
 ## Related repositories
 
