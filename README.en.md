@@ -11,6 +11,8 @@ TuoYu-Cloud is a general-purpose framework for enterprise back-office systems. I
 
 > ⚠️ **Preview (1.0.0-alpha).** APIs and directory layout may still change; not recommended for production yet.
 
+**User manual:** [https://docs.ctoolhub.com](https://docs.ctoolhub.com)
+
 ## Goals
 
 | Goal | Description |

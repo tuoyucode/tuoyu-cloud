@@ -11,6 +11,8 @@ TuoYu-Cloud 是一个通用的企业级后台开发框架，提供权限、组�
 
 > ⚠️ **项目处于预览阶段（1.0.0-alpha）**，接口和目录结构仍可能调整，暂不建议用于生产环境。
 
+**使用手册**：[https://docs.ctoolhub.com](https://docs.ctoolhub.com)
+
 ---
 
 ## 设计目标
