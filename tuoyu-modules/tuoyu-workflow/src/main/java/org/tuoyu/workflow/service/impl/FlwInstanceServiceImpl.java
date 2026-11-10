@@ -120,8 +120,8 @@ public class FlwInstanceServiceImpl implements IFlwInstanceService {
      * @return 结果
      */
     @Override
-    public FlowInstanceVo queryByBusinessId(Long businessId) {
-        FlowInstance instance = this.selectInstByBusinessId(Convert.toStr(businessId));
+    public FlowInstanceVo queryByBusinessId(String businessId) {
+        FlowInstance instance = this.selectInstByBusinessId(businessId);
         if (ObjectUtil.isNull(instance)) {
             throw new ServiceException(ExceptionCons.NOT_FOUNT_INSTANCE);
         }

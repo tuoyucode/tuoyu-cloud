@@ -32,7 +32,8 @@ public interface FlwHisTaskMapper extends MPJBaseMapper<FlowHisTask> {
                 FlowHisTask::getDefinitionId, FlowHisTask::getInstanceId)
             .selectAs(FlowHisTask::getFlowStatus, FlowHisTaskVo::getFlowTaskStatus)
             .select(FlowHisTask::getMessage, FlowHisTask::getExt, FlowHisTask::getCreateTime,
-                FlowHisTask::getUpdateTime, FlowHisTask::getFormCustom, FlowHisTask::getFormPath)
+                FlowHisTask::getUpdateTime, FlowHisTask::getFormCustom)
+            .selectAs("COALESCE(NULLIF(TRIM(a.form_path), ''), NULLIF(TRIM(c.form_path), ''))", FlowHisTaskVo::getFormPath)
             .select("b", FlowInstance::getFlowStatus, FlowInstance::getBusinessId, FlowInstance::getCreateBy)
             .select("c", FlowDefinition::getFlowName, FlowDefinition::getFlowCode, FlowDefinition::getCategory,
                 FlowDefinition::getVersion)

@@ -513,6 +513,11 @@ public class FlwTaskServiceImpl implements IFlwTaskService {
         flowTaskVo.setFlowCode(definition.getFlowCode());
         flowTaskVo.setFlowName(definition.getFlowName());
         flowTaskVo.setBusinessId(instance.getBusinessId());
+        // 任务上没有表单路径时取流程定义的，与待办、已办列表一致
+        if (StringUtils.isBlank(flowTaskVo.getFormPath())) {
+            flowTaskVo.setFormPath(StringUtils.trimToNull(definition.getFormPath()));
+            flowTaskVo.setFormCustom(definition.getFormCustom());
+        }
         FlowNode flowNode = this.getByNodeCode(flowTaskVo.getNodeCode(), instance.getDefinitionId());
         if (ObjectUtil.isNull(flowNode)) {
             throw new NullPointerException("当前【" + flowTaskVo.getNodeCode() + "】节点编码不存在");

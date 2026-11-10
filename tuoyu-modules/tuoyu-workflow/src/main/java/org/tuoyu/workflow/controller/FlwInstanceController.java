@@ -70,7 +70,7 @@ public class FlwInstanceController {
      */
     @GetMapping("/getInfo/{businessId}")
     @SaCheckPermission("workflow:instance:query")
-    public ApiResult<FlowInstanceVo> getInfo(@PathVariable Long businessId) {
+    public ApiResult<FlowInstanceVo> getInfo(@PathVariable String businessId) {
         return ApiResult.ok(flwInstanceService.queryByBusinessId(businessId));
     }
 
