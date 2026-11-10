@@ -2,7 +2,7 @@
 #
 # 构建上下文是仓库根目录（不是本模块目录），以便把 deploy/config/nacos 下的配置一起放进镜像：
 #   mvn -pl tuoyu-boot/tuoyu-boot-all -am package
-#   docker build -f tuoyu-boot/tuoyu-boot-all/Dockerfile -t tuoyu/tuoyu-boot-all:1.0.0-SNAPSHOT .
+#   docker build -f tuoyu-boot/tuoyu-boot-all/Dockerfile -t tuoyu/tuoyu-boot-all:1.0.0-alpha.1 .
 # 同目录的 Dockerfile.dockerignore 只放行这两样文件，构建上下文很小（需要 BuildKit，Docker 23 起默认开启）。
 #
 # 单体不需要 Nacos：启动时从 TUOYU_CONFIG_DIR（镜像中为 /app/config）读取与 Nacos 相同的配置文件。
