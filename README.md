@@ -103,6 +103,7 @@ java tools/secrets/GenerateEnv.java
 - 初始化数据库后，按工具输出的提示执行一条 `UPDATE` 语句，同步任务调度的令牌。
 - 管理员账号为 `admin`，首次启动时口令设置为 `.env` 中的 `TUOYU_ADMIN_INITIAL_PASSWORD`（种子数据中的口令不能使用）。登录后可在个人中心修改。
 - 接口加密只需要后端私钥（`TUOYU_API_CRYPTO_PRIVATE_KEY`）。前端运行时从 `/auth/crypto/public-key` 获取公钥，不需要配置任何密钥。
+- 浏览器只在 HTTPS 或 localhost 下提供加密所需的 WebCrypto。内网没有 HTTPS 时，可以设置 `TUOYU_API_CRYPTO_REQUIRE_HTTPS=false`，前端改用纯 JavaScript 实现加密；这种方式只能防止被动窃听，条件允许时请配置 HTTPS（`deploy/docker/nginx/conf/nginx.conf` 中有示例）。
 - 文件存储（OSS）的访问密钥需要在管理界面“文件管理”的存储配置中填写。
 
 全部变量及说明见 [.env.example](.env.example)。生产环境请改用真实的环境变量或密钥管理服务注入，不要使用 `.env` 文件。

@@ -2,6 +2,13 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### 默认安全
+
+- 没有 HTTPS 的内网部署可以设置 `TUOYU_API_CRYPTO_REQUIRE_HTTPS=false`：浏览器不提供 WebCrypto 时，前端改用纯 JavaScript 实现接口加密（只能防止被动窃听）。
+- Nginx 的 HTTPS 示例只允许 TLS 1.2 与 1.3，可直接启用。
+
 ## [1.0.0-alpha.1] - 2026-11-10
 
 首个公开预览版：默认安全、同一套代码按单体或微服务部署、默认关闭的多租户。

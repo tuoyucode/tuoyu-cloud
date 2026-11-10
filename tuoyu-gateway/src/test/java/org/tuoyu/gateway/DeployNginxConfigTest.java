@@ -14,6 +14,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,7 +43,15 @@ class DeployNginxConfigTest {
 
     private static final Pattern LOCATION = Pattern.compile("location\\s+([^\\s{]+)\\s*\\{");
 
+    /**
+     * 去掉注释后的配置
+     */
     private static String config;
+
+    /**
+     * 原文（含注释）：注释中的示例会被照着启用，同样要检查
+     */
+    private static String raw;
 
     @BeforeAll
     static void readConfig() throws IOException {
@@ -51,7 +60,16 @@ class DeployNginxConfigTest {
             dir = dir.getParent();
         }
         assertNotNull(dir, "未找到 deploy/docker 目录");
-        config = withoutComments(Files.readString(dir.resolve("deploy/docker/nginx/conf/nginx.conf")));
+        raw = Files.readString(dir.resolve("deploy/docker/nginx/conf/nginx.conf"));
+        config = withoutComments(raw);
+    }
+
+    @Test
+    @DisplayName("包括注释中的示例在内，不出现 TLS 1.0 / 1.1 与已移除的 ssl on")
+    void httpsExampleUsesCurrentProtocols() {
+        assertFalse(Pattern.compile("TLSv1(?!\\.[23])").matcher(raw).find(), "TLS 1.0 与 1.1 已经不安全，ssl_protocols 只写 TLSv1.2 TLSv1.3");
+        assertFalse(Pattern.compile("\\bssl\\s+on\\s*;").matcher(raw).find(), "ssl on 指令在 Nginx 1.25 起已移除，启用后无法启动，改用 listen 443 ssl");
+        assertTrue(Pattern.compile("ssl_protocols\\s+TLSv1\\.2\\s+TLSv1\\.3\\s*;").matcher(raw).find(), "HTTPS 示例应只允许 TLS 1.2 与 1.3");
     }
 
     @Test
