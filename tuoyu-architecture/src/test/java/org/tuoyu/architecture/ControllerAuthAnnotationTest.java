@@ -10,10 +10,14 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import org.yaml.snakeyaml.Yaml;
+
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -83,15 +87,21 @@ class ControllerAuthAnnotationTest {
         "网关的错误页面只由容器的错误分派访问，网关的登录过滤器排除了 /error");
 
     /**
-     * 业务模块的根包 → 网关路由前缀（tuoyu-gateway.yml，StripPrefix=1），用于还原前端访问的完整路径
+     * 框架自带模块的根包 → 网关路由前缀（tuoyu-gateway.yml，StripPrefix=1），用于还原前端访问的完整路径。
+     * 业务模块的前缀取自它的单体接入声明（{@link #MONOLITH_MODULE}），与网关路由一致由
+     * {@code ModulePathPrefixConsistencyTest} 保证
      */
-    private static final Map<String, String> MODULE_PREFIXES = Map.of(
+    private static final Map<String, String> FRAMEWORK_PREFIXES = Map.of(
         "org.tuoyu.auth.", "/auth",
         "org.tuoyu.system.", "/system",
         "org.tuoyu.resource.", "/resource",
         "org.tuoyu.workflow.", "/workflow",
-        "org.tuoyu.gen.", "/tool",
-        "org.tuoyu.mes.", "/mes");
+        "org.tuoyu.gen.", "/tool");
+
+    /**
+     * 业务模块的单体接入声明（相对模块目录）
+     */
+    private static final String MONOLITH_MODULE = "src/main/resources/META-INF/tuoyu/monolith-module.yml";
 
     /**
      * 路径中的 Spring 占位符 {@code ${key:默认值}}：框架中的 Controller 用它配置完整路径
@@ -118,6 +128,11 @@ class ControllerAuthAnnotationTest {
 
     private static List<String> whitelist;
 
+    /**
+     * 根包（以点结尾）→ 路由前缀：框架自带的模块加上业务模块声明的
+     */
+    private static Map<String, String> modulePrefixes;
+
     @BeforeAll
     static void importClasses() throws IOException {
         Path root = Path.of(System.getProperty("user.dir")).toAbsolutePath();
@@ -136,6 +151,10 @@ class ControllerAuthAnnotationTest {
                 .toList();
         }
         assertFalse(outputs.isEmpty(), "没有找到各模块编译后的类，请先完整构建（mvn clean verify）");
+        modulePrefixes = new HashMap<>(FRAMEWORK_PREFIXES);
+        if (businessBranch) {
+            modulePrefixes.putAll(businessModulePrefixes());
+        }
         classes = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .importPaths(outputs);
@@ -173,7 +192,7 @@ class ControllerAuthAnnotationTest {
                 Optional<List<String>> paths = fullPaths(controller, method);
                 if (paths.isEmpty()) {
                     if (ignored) {
-                        violations.add(describe(method) + "：无法确定完整路径，请在本测试的 MODULE_PREFIXES 中登记模块的路由前缀");
+                        violations.add(describe(method) + "：无法确定完整路径，框架模块请在本测试的 FRAMEWORK_PREFIXES 中登记路由前缀，业务模块请检查单体接入声明中的 prefix 与 packages");
                     }
                     continue;
                 }
@@ -280,7 +299,7 @@ class ControllerAuthAnnotationTest {
         List<String> methodPaths = method.getAnnotations().stream()
             .filter(a -> MAPPING_ANNOTATIONS.contains(a.getRawType().getName()))
             .findFirst().map(ControllerAuthAnnotationTest::stringValues).orElse(List.of(""));
-        String prefix = MODULE_PREFIXES.entrySet().stream()
+        String prefix = modulePrefixes.entrySet().stream()
             .filter(e -> controller.getPackageName().concat(".").startsWith(e.getKey()))
             .map(Map.Entry::getValue).findFirst().orElse(null);
         List<String> result = new ArrayList<>();
@@ -379,6 +398,43 @@ class ControllerAuthAnnotationTest {
     /**
      * 迁移脚本（V1 基线及之后的版本）中出现过的权限码。按文本提取，已被后续脚本删除的权限码也会计入，足以发现漏写的按钮菜单
      */
+    /**
+     * 业务模块（tuoyu-business 下）在单体接入声明中写的路由前缀：{@code tuoyu.monolith.modules.<名称>} 的
+     * {@code packages} 中每个包 → {@code prefix}
+     */
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> businessModulePrefixes() throws IOException {
+        Map<String, String> result = new HashMap<>();
+        List<Path> declarations;
+        try (Stream<Path> modules = Files.list(repositoryRoot.resolve("tuoyu-business"))) {
+            declarations = modules.map(module -> module.resolve(MONOLITH_MODULE)).filter(Files::isRegularFile).sorted().toList();
+        }
+        for (Path file : declarations) {
+            Map<String, Object> root;
+            try (InputStream in = Files.newInputStream(file)) {
+                root = new Yaml().load(in);
+            }
+            Object modules = Optional.ofNullable(root)
+                .map(r -> r.get("tuoyu")).map(t -> ((Map<String, Object>) t).get("monolith"))
+                .map(m -> ((Map<String, Object>) m).get("modules")).orElse(null);
+            assertTrue(modules instanceof Map, file + "：没有 tuoyu.monolith.modules");
+            for (Map.Entry<String, Object> module : ((Map<String, Object>) modules).entrySet()) {
+                Map<String, Object> declared = (Map<String, Object>) module.getValue();
+                String where = file + " 中的 " + module.getKey();
+                assertTrue(declared.get("prefix") instanceof String, where + "：缺少 prefix");
+                assertTrue(declared.get("packages") instanceof List<?> list && !list.isEmpty(), where + "：缺少 packages");
+                String prefix = (String) declared.get("prefix");
+                for (Object pkg : (List<Object>) declared.get("packages")) {
+                    String key = pkg + ".";
+                    assertFalse(FRAMEWORK_PREFIXES.containsKey(key), where + "：包 " + pkg + " 属于框架模块");
+                    String previous = result.putIfAbsent(key, prefix);
+                    assertTrue(previous == null || previous.equals(prefix), where + "：包 " + pkg + " 已声明为前缀 " + previous);
+                }
+            }
+        }
+        return result;
+    }
+
     /**
      * 业务模块（tuoyu-business 下）的菜单声明 META-INF/tuoyu/menus/*.json 中的权限码
      */

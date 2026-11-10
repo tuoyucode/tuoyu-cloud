@@ -115,7 +115,7 @@ docker compose --env-file .env -f deploy/docker/compose-full.yml -f deploy/docke
 | `kafka` | Kafka 4.3（KRaft 单节点） | 对外宣告的地址为 `kafka:9092`；容器外的客户端访问时修改 `KAFKA_ADVERTISED_LISTENERS` |
 | `seata` | Seata 2.6 | 默认 file 模式；`seata/conf/application.yml` 中的 Nacos、MySQL、Redis 地址已改为容器名 |
 | `sharding` | ShardingSphere-Proxy 5.4 | 数据库驱动自行下载放入 `shardingproxy/ext-lib`（见该目录的 README） |
-| `nginx` | Nginx 1.31 | 前端构建产物放在 `nginx/html`，证书放在 `nginx/cert`；`/prod-api/` 反向代理到 `tuoyu-gateway:8081`（微服务网关或单体） |
+| `nginx` | Nginx 1.31 | 前端构建产物放在 `nginx/html`，证书放在 `nginx/cert`；`/api/` 去掉前缀后反向代理到 `tuoyu-gateway:8081`（微服务网关或单体），与前端生产包的接口前缀一致 |
 | `ai` | tuoyu-ai、tuoyu-snailai-server | 需要 full，并先用 `mvn clean package -P extensions` 构建；`tuoyu-ai` 库需要手工导入；Docling、PaddleOCR 默认通过宿主机端口访问 |
 
 ### 使用 Nginx 时的客户端 IP

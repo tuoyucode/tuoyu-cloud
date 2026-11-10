@@ -1,19 +1,26 @@
 package org.tuoyu.workflow.handler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.tuoyu.common.core.utils.SpringUtils;
 import org.dromara.warm.flow.core.entity.Instance;
 import org.dromara.warm.flow.core.entity.Task;
 import org.tuoyu.workflow.api.event.ProcessDeleteEvent;
 import org.tuoyu.workflow.api.event.ProcessEvent;
 import org.tuoyu.workflow.api.event.ProcessTaskEvent;
 import org.tuoyu.workflow.common.ConditionalOnEnable;
+import org.springframework.context.ApplicationEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Map;
 
 /**
  * 流程监听服务
+ * <p>
+ * 流程事件在办理任务的事务提交之后才发布，事务回滚时不发布：这些事件经消息总线投递到其他服务时没有事务，
+ * 提交前发出会让对方按回滚掉的结果推进业务，或者读到还没提交的数据。没有事务时立即发布。
+ * 提交之后发布失败只记录日志，不影响已经提交的办理结果。
  *
  * @author may
  * @date 2024-06-02
@@ -22,6 +29,12 @@ import java.util.Map;
 @Slf4j
 @Component
 public class FlowProcessEventHandler {
+
+    private final ApplicationEventPublisher publisher;
+
+    public FlowProcessEventHandler(ApplicationEventPublisher publisher) {
+        this.publisher = publisher;
+    }
 
     /**
      * 总体流程监听(例如: 草稿，撤销，退回，作废，终止，已完成等)
@@ -45,7 +58,7 @@ public class FlowProcessEventHandler {
         processEvent.setStatus(status);
         processEvent.setParams(params);
         processEvent.setSubmit(submit);
-        SpringUtils.context().publishEvent(processEvent);
+        publish(processEvent);
     }
 
     /**
@@ -69,7 +82,7 @@ public class FlowProcessEventHandler {
         processTaskEvent.setTaskId(nextTask.getId());
         processTaskEvent.setStatus(instance.getFlowStatus());
         processTaskEvent.setParams(params);
-        SpringUtils.context().publishEvent(processTaskEvent);
+        publish(processTaskEvent);
     }
 
     /**
@@ -83,7 +96,28 @@ public class FlowProcessEventHandler {
         ProcessDeleteEvent processDeleteEvent = new ProcessDeleteEvent();
         processDeleteEvent.setFlowCode(flowCode);
         processDeleteEvent.setBusinessId(businessId);
-        SpringUtils.context().publishEvent(processDeleteEvent);
+        publish(processDeleteEvent);
+    }
+
+    /**
+     * 当前有事务时在提交之后发布，否则立即发布
+     */
+    private void publish(ApplicationEvent event) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()
+            || !TransactionSynchronizationManager.isActualTransactionActive()) {
+            publisher.publishEvent(event);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                try {
+                    publisher.publishEvent(event);
+                } catch (RuntimeException e) {
+                    log.error("流程事件发布失败（办理结果已提交）: {}", event, e);
+                }
+            }
+        });
     }
 
 }
