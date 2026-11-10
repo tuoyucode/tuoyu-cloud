@@ -62,6 +62,23 @@ public class MesApprovalClient {
     }
 
     /**
+     * 校验当前用户能否查看业务 ID 对应的流程（发起人、办理人、抄送人、流程管理员），用于审批中的业务详情。
+     * 无权限（403）、没有流程实例（404）时工作流的业务异常原样抛出；工作流服务不可用时为 503
+     *
+     * @param businessId 业务 ID
+     */
+    public void checkReadAccess(String businessId) {
+        try {
+            workflowService.checkReadAccess(businessId);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            log.error("校验审批的查看权限失败，业务ID: {}", businessId, e);
+            throw new ServiceException("工作流服务暂不可用，请稍后重试", SERVICE_UNAVAILABLE);
+        }
+    }
+
+    /**
      * 启动流程并提交申请人节点
      *
      * @param flowCode     流程编码

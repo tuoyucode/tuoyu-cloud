@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.common.core.domain.PageResult;
@@ -23,6 +24,7 @@ import org.tuoyu.mes.common.MesLookups;
 import org.tuoyu.mes.common.StateGuard;
 import org.tuoyu.mes.common.approval.ApprovalCallback;
 import org.tuoyu.mes.common.approval.ApprovalOutcome;
+import org.tuoyu.mes.common.approval.ApprovalBusinessIds;
 import org.tuoyu.mes.common.approval.MesApprovalClient;
 import org.tuoyu.mes.common.approval.MesApprovalProperties;
 import org.tuoyu.mes.common.code.CodeRules;
@@ -158,7 +160,26 @@ public class MesMaterialRequestServiceImpl implements IMesMaterialRequestService
 
     @Override
     public MesMaterialRequestVo queryById(Long requestId) {
-        MesMaterialRequest request = requireRequest(requestId);
+        return toDetail(requireRequest(requestId));
+    }
+
+    @Override
+    public MesMaterialRequestVo queryForApproval(String businessId) {
+        Long requestId = ApprovalBusinessIds.parseId(businessId);
+        if (requestId == null) {
+            throw new ServiceException("领退料单不存在", HttpStatus.NOT_FOUND);
+        }
+        approvalClient.checkReadAccess(businessId);
+        // 流程参与人可以查看，不按数据权限过滤（租户隔离仍然生效）；只开放提交过审批的单据
+        MesMaterialRequest request = requestMapper.selectById(requestId);
+        if (request == null || StringUtils.isBlank(request.getApprovalBusinessId())) {
+            throw new ServiceException("领退料单不存在", HttpStatus.NOT_FOUND);
+        }
+        return toDetail(request);
+    }
+
+    private MesMaterialRequestVo toDetail(MesMaterialRequest request) {
+        Long requestId = request.getRequestId();
         MesMaterialRequestVo vo = BeanMapper.map(request, MesMaterialRequestVo.class);
         fillHeaders(List.of(vo));
         List<MesMaterialRequestItemVo> items = BeanMapper.mapList(itemMapper.selectList(QueryBuilder.lambda(MesMaterialRequestItem.class)

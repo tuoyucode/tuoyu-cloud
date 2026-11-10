@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
@@ -21,6 +22,7 @@ import org.tuoyu.mes.common.MesLookups;
 import org.tuoyu.mes.common.StateGuard;
 import org.tuoyu.mes.common.approval.ApprovalCallback;
 import org.tuoyu.mes.common.approval.ApprovalOutcome;
+import org.tuoyu.mes.common.approval.ApprovalBusinessIds;
 import org.tuoyu.mes.common.approval.MesApprovalClient;
 import org.tuoyu.mes.common.approval.MesApprovalProperties;
 import org.tuoyu.mes.common.code.CodeRules;
@@ -115,6 +117,23 @@ public class MesDefectRecordServiceImpl implements IMesDefectRecordService, Appr
     @Override
     public MesDefectRecordVo queryById(Long defectId) {
         MesDefectRecordVo vo = BeanMapper.map(requireDefect(defectId), MesDefectRecordVo.class);
+        fill(List.of(vo));
+        return vo;
+    }
+
+    @Override
+    public MesDefectRecordVo queryForApproval(String businessId) {
+        Long defectId = ApprovalBusinessIds.parseId(businessId);
+        if (defectId == null) {
+            throw new ServiceException("不良记录不存在", HttpStatus.NOT_FOUND);
+        }
+        approvalClient.checkReadAccess(businessId);
+        // 流程参与人可以查看，不按数据权限过滤（租户隔离仍然生效）；只开放提交过审批的记录
+        MesDefectRecord record = defectMapper.selectById(defectId);
+        if (record == null || StringUtils.isBlank(record.getApprovalBusinessId())) {
+            throw new ServiceException("不良记录不存在", HttpStatus.NOT_FOUND);
+        }
+        MesDefectRecordVo vo = BeanMapper.map(record, MesDefectRecordVo.class);
         fill(List.of(vo));
         return vo;
     }

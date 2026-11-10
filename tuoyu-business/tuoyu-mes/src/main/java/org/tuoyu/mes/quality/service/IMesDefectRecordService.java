@@ -22,6 +22,14 @@ public interface IMesDefectRecordService {
      */
     MesDefectRecordVo queryById(Long defectId);
 
+    /**
+     * 审批中的不良记录：流程参与人（发起人、办理人、抄送人、流程管理员）可以查看，不受数据权限限制。
+     * 业务 ID 不是本模块的格式、记录不存在或没有提交过审批时为 404，不是流程参与人时为 403
+     *
+     * @param businessId 流程的业务 ID（记录主键，第二轮起带轮次后缀）
+     */
+    MesDefectRecordVo queryForApproval(String businessId);
+
     PageResult<MesDefectRecordVo> queryPageList(MesDefectRecordBo bo, PageParam pageParam);
 
     /**

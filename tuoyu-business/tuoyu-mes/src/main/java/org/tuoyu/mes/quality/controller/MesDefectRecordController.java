@@ -1,7 +1,9 @@
 package org.tuoyu.mes.quality.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -60,6 +62,16 @@ public class MesDefectRecordController {
     @GetMapping("/{defectId}")
     public ApiResult<MesDefectRecordVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable Long defectId) {
         return ApiResult.ok(defectService.queryById(defectId));
+    }
+
+    /**
+     * 审批中的不良记录：审批人不一定有不良记录的查询权限，所以只要求登录，由工作流按流程参与关系
+     * （发起人、办理人、抄送人、流程管理员）校验，供流程办理抽屉的“业务详情”使用
+     */
+    @SaCheckLogin
+    @GetMapping("/approval/{businessId}")
+    public ApiResult<MesDefectRecordVo> approvalInfo(@NotBlank(message = "业务ID不能为空") @PathVariable String businessId) {
+        return ApiResult.ok(defectService.queryForApproval(businessId));
     }
 
     @SaCheckPermission("mes:defect:query")

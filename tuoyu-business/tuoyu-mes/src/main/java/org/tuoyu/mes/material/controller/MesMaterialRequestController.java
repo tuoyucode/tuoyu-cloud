@@ -1,8 +1,10 @@
 package org.tuoyu.mes.material.controller;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -68,6 +70,16 @@ public class MesMaterialRequestController {
     @GetMapping("/{requestId}")
     public ApiResult<MesMaterialRequestVo> getInfo(@NotNull(message = "主键不能为空") @PathVariable Long requestId) {
         return ApiResult.ok(requestService.queryById(requestId));
+    }
+
+    /**
+     * 审批中的领退料单：审批人不一定有领退料单的查询权限，所以只要求登录，由工作流按流程参与关系
+     * （发起人、办理人、抄送人、流程管理员）校验，供流程办理抽屉的“业务详情”使用
+     */
+    @SaCheckLogin
+    @GetMapping("/approval/{businessId}")
+    public ApiResult<MesMaterialRequestVo> approvalInfo(@NotBlank(message = "业务ID不能为空") @PathVariable String businessId) {
+        return ApiResult.ok(requestService.queryForApproval(businessId));
     }
 
     @SaCheckPermission("mes:materialRequest:query")

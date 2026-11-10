@@ -23,6 +23,14 @@ public interface IMesMaterialRequestService {
      */
     MesMaterialRequestVo queryById(Long requestId);
 
+    /**
+     * 审批中的单据与明细：流程参与人（发起人、办理人、抄送人、流程管理员）可以查看，不受数据权限限制。
+     * 业务 ID 不是本模块的格式、单据不存在或没有提交过审批时为 404，不是流程参与人时为 403
+     *
+     * @param businessId 流程的业务 ID（单据主键，第二轮起带轮次后缀）
+     */
+    MesMaterialRequestVo queryForApproval(String businessId);
+
     PageResult<MesMaterialRequestVo> queryPageList(MesMaterialRequestBo bo, PageParam pageParam);
 
     /**

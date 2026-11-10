@@ -55,7 +55,7 @@ mvn clean verify -P business      # 构建并测试框架与业务模块
 
 ### 单据审批
 
-不良处置评审与补料申请可以接入工作流审批，默认关闭。开启前先导入并发布 `tuoyu-mes/deploy/workflow` 下的流程定义，步骤见该目录的 `README.md`。审批结果经流程事件回到 MES：单体中是进程内事件，微服务中经消息总线（`tuoyu-common-bus`）投递。
+不良处置评审与补料申请可以接入工作流审批，默认关闭。开启前先导入并发布 `tuoyu-mes/deploy/workflow` 下的流程定义，步骤见该目录的 `README.md`。审批结果经流程事件回到 MES：单体中是进程内事件，微服务中经消息总线（`tuoyu-common-bus`）投递。在流程页面中打开审批时，“业务详情”页签显示单据内容（`/mes/defect/approval/{businessId}`、`/mes/material-request/approval/{businessId}`），由工作流按流程参与关系校验，不要求单据的查询权限。
 
 ### 演示数据
 

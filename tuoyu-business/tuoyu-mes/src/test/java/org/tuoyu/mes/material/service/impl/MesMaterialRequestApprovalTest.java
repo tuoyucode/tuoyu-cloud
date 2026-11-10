@@ -8,6 +8,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.tuoyu.mes.material.domain.vo.MesMaterialRequestVo;
+import org.tuoyu.common.core.exception.ServiceException;
+import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.core.context.UserContextProvider;
 import org.tuoyu.mes.common.approval.ApprovalOutcome;
 import org.tuoyu.mes.common.approval.MesApprovalClient;
@@ -262,6 +265,53 @@ class MesMaterialRequestApprovalTest {
         when(requestMapper.update(any(), any())).thenReturn(1);
         service.cancel(100L);
         verify(workflowService, times(2)).deleteInstance(List.of("100"));
+    }
+
+    @Test
+    @DisplayName("审批中的业务详情：流程参与人按主键读取单据与明细（不走数据权限），先由工作流校验参与关系")
+    void approvalDetailForParticipant() {
+        when(requestMapper.selectById(100L)).thenReturn(request("supplement", "approving", "100-2"));
+
+        MesMaterialRequestVo vo = service.queryForApproval("100-2");
+
+        assertThat(vo.getRequestCode()).isEqualTo("BL001");
+        assertThat(vo.getItems()).hasSize(2);
+        verify(workflowService).checkReadAccess("100-2");
+        verify(requestMapper, never()).selectByIdInScope(any());
+    }
+
+    @Test
+    @DisplayName("审批中的业务详情：不是流程参与人时为 403，不读取单据")
+    void approvalDetailForbidden() {
+        doThrow(new ServiceException("无权查看该流程", HttpStatus.FORBIDDEN)).when(workflowService).checkReadAccess("100");
+
+        assertThatThrownBy(() -> service.queryForApproval("100"))
+            .isInstanceOfSatisfying(ServiceException.class, e -> assertThat(e.getCode()).isEqualTo(HttpStatus.FORBIDDEN));
+        verify(requestMapper, never()).selectById(100L);
+    }
+
+    @Test
+    @DisplayName("审批中的业务详情：业务 ID 格式不对、单据不存在或没有提交过审批时为 404")
+    void approvalDetailNotFound() {
+        assertThatThrownBy(() -> service.queryForApproval("x-2"))
+            .isInstanceOfSatisfying(ServiceException.class, e -> assertThat(e.getCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        verifyNoInteractions(workflowService);
+
+        when(requestMapper.selectById(100L)).thenReturn(request("issue", "draft", null));
+        assertThatThrownBy(() -> service.queryForApproval("100"))
+            .isInstanceOfSatisfying(ServiceException.class, e -> assertThat(e.getCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        when(requestMapper.selectById(100L)).thenReturn(null);
+        assertThatThrownBy(() -> service.queryForApproval("100"))
+            .isInstanceOfSatisfying(ServiceException.class, e -> assertThat(e.getCode()).isEqualTo(HttpStatus.NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("审批中的业务详情：工作流服务不可用时为 503")
+    void approvalDetailWorkflowUnavailable() {
+        doThrow(new IllegalStateException("连接超时")).when(workflowService).checkReadAccess("100");
+
+        assertThatThrownBy(() -> service.queryForApproval("100"))
+            .isInstanceOfSatisfying(ServiceException.class, e -> assertThat(e.getCode()).isEqualTo(503));
     }
 
 }

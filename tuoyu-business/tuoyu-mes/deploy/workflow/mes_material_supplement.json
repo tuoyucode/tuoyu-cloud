@@ -2,7 +2,8 @@
   "flowCode": "mes_material_supplement",
   "flowName": "补料申请",
   "modelValue": "CLASSICS",
-  "formCustom": "N",
+  "formCustom": "Y",
+  "formPath": "mes/material-request/approval-detail",
   "nodeList": [
     {
       "nodeType": 0,

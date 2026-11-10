@@ -2,7 +2,8 @@
   "flowCode": "mes_defect_disposition",
   "flowName": "不良处置评审",
   "modelValue": "CLASSICS",
-  "formCustom": "N",
+  "formCustom": "Y",
+  "formPath": "mes/defect/approval-detail",
   "nodeList": [
     {
       "nodeType": 0,
