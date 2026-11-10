@@ -1,8 +1,11 @@
 package org.tuoyu.workflow.service.impl;
 
+import cn.dev33.satoken.exception.NotPermissionException;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.ObjectUtil;
 import lombok.RequiredArgsConstructor;
+import org.tuoyu.common.core.constant.HttpStatus;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.dromara.warm.flow.orm.entity.FlowInstance;
 import org.tuoyu.workflow.api.domain.RemoteCompleteTask;
@@ -101,6 +104,25 @@ public class WorkflowServiceImpl implements WorkflowService {
     public Long getInstanceIdByBusinessId(String businessId) {
         FlowInstance flowInstance = flwInstanceService.selectInstByBusinessId(businessId);
         return ObjectUtil.isNotNull(flowInstance) ? flowInstance.getId() : null;
+    }
+
+    /**
+     * 校验当前用户能否查看业务对应的流程。无权限时改用带错误码的 ServiceException：
+     * 跨服务调用时框架异常连同错误码传回调用方，调用方得到同样的 403
+     *
+     * @param businessId 业务id
+     */
+    @Override
+    public void checkReadAccess(String businessId) {
+        FlowInstance flowInstance = StringUtils.isBlank(businessId) ? null : flwInstanceService.selectInstByBusinessId(businessId);
+        if (ObjectUtil.isNull(flowInstance)) {
+            throw new ServiceException("流程实例不存在", HttpStatus.NOT_FOUND);
+        }
+        try {
+            flwInstanceService.checkInstanceReadAccess(flowInstance.getId());
+        } catch (NotPermissionException e) {
+            throw new ServiceException("无权查看该流程", HttpStatus.FORBIDDEN);
+        }
     }
 
     /**

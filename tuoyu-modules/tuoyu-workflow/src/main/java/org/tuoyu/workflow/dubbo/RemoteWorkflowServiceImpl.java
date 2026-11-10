@@ -54,6 +54,11 @@ public class RemoteWorkflowServiceImpl implements RemoteWorkflowService {
     }
 
     @Override
+    public void checkReadAccess(String businessId) {
+        workflowService.checkReadAccess(businessId);
+    }
+
+    @Override
     public RemoteStartProcessReturn startWorkFlow(RemoteStartProcess startProcess) {
         return workflowService.startWorkFlow(startProcess);
     }
