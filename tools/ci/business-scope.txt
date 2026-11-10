@@ -20,9 +20,8 @@ integration: pom.xml
 integration: tuoyu-boot/tuoyu-boot-all/pom.xml
 integration: tuoyu-architecture/pom.xml
 
-# 守护测试中登记业务模块：包与 URL 前缀、依赖规则、迁移脚本
+# 守护测试中登记业务模块：依赖规则、迁移脚本（接口的 URL 前缀由守护测试读取单体接入声明，不用登记）
 integration: tuoyu-architecture/src/test/java/org/tuoyu/architecture/ArchitectureTest.java
-integration: tuoyu-architecture/src/test/java/org/tuoyu/architecture/ControllerAuthAnnotationTest.java
 integration: tuoyu-framework/tuoyu-common-flyway/src/test/java/org/tuoyu/common/flyway/MigrationScriptsTest.java
 
 # CI：业务模块的构建任务

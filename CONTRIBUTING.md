@@ -189,7 +189,7 @@ CI（`.github/workflows/ci.yml`）依次做：规则检查（禁止跳过测试�
 
 - **库**：每个业务模块用自己的库，由模块自己的 Flyway 迁移（`db/migration/<库名>/{mysql,postgresql}`，规则同“数据库脚本”），`deploy/sql` 下放同一份全新安装脚本；`datasource.yml` 中登记连接（`datasource.<库名>`），Nacos 中的服务配置把 `spring.flyway` 与主数据源指向它。docker 的初始化脚本只建库。
 - **菜单与权限码**：菜单表属于 `tuoyu-system`，业务模块不写它的迁移脚本，而是在 `META-INF/tuoyu/menus/<模块标识>.json` 中声明（依赖 `tuoyu-common-menu`），服务启动后经 `RemoteMenuService` 登记：按菜单 ID 只写入不存在的菜单，已存在的不覆盖、不删除；权限码必须以 `<模块标识>:` 开头，否则整批拒绝。菜单 ID 由模块固定分配号段。`@SaCheckPermission` 的权限码可以来自这里（`ControllerAuthAnnotationTest` 同时读取迁移脚本与这些文件）。新菜单只有超级管理员默认可见，其他角色在角色管理中授权，租户套餐需要另外勾选。
-- **网关与单体**：网关在 `tuoyu-gateway.yml` 中写路由（模块未部署时返回 503）；单体不改配置与启动类，由模块在 `META-INF/tuoyu/monolith-module.yml` 中声明 URL 前缀、包与数据源（`tuoyu.monolith.modules.<名称>`），以及按名称合并的数据源与附加迁移（`spring.datasource.dynamic.datasource.<名称>`、`tuoyu.flyway.additional.<库名>`）。`tuoyu-boot-all` 在 profile `business` 下加入业务模块的依赖，启动时读取所有这类声明，扫描声明的包。`ModulePathPrefixConsistencyTest` 把这些声明与网关路由一起核对。
+- **网关与单体**：网关在 `tuoyu-gateway.yml` 中写路由（模块未部署时返回 503）；单体不改配置与启动类，由模块在 `META-INF/tuoyu/monolith-module.yml` 中声明 URL 前缀、包与数据源（`tuoyu.monolith.modules.<名称>`），以及按名称合并的数据源与附加迁移（`spring.datasource.dynamic.datasource.<名称>`、`tuoyu.flyway.additional.<库名>`）。`tuoyu-boot-all` 在 profile `business` 下加入业务模块的依赖，启动时读取所有这类声明，扫描声明的包。`ModulePathPrefixConsistencyTest` 把这些声明与网关路由一起核对，`ControllerAuthAnnotationTest` 按声明中的包与前缀还原接口的完整路径。
 - **部署**：可执行 jar、Dockerfile 与其他服务相同；compose 中的业务服务放在 profile `business` 下（`--profile business`）。
 - 业务模块需要的通用能力（例如菜单登记、单体接入声明）写在框架中、先提交到 `dev`，让放在 `business` 分支或独立仓库中的业务系统都能使用。
 
