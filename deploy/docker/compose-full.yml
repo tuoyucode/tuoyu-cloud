@@ -61,7 +61,7 @@ services:
 
   tuoyu-workflow:
     <<: *java-service
-    image: tuoyu/tuoyu-workflow:1.0.0-alpha.1
+    image: tuoyu/tuoyu-workflow:1.0.0-SNAPSHOT
     build: ../../tuoyu-modules/tuoyu-workflow
     environment: *tuoyu-env
     volumes:
@@ -80,7 +80,7 @@ services:
 
   tuoyu-gen:
     <<: *java-service
-    image: tuoyu/tuoyu-gen:1.0.0-alpha.1
+    image: tuoyu/tuoyu-gen:1.0.0-SNAPSHOT
     build: ../../tuoyu-modules/tuoyu-gen
     environment: *tuoyu-env
     volumes:
@@ -101,7 +101,7 @@ services:
   # SnailJob 调度服务端（管理界面 http://127.0.0.1:8800/snail-job），负责 tuoyu-job 库的迁移
   tuoyu-snailjob-server:
     <<: *java-service
-    image: tuoyu/tuoyu-snailjob-server:1.0.0-alpha.1
+    image: tuoyu/tuoyu-snailjob-server:1.0.0-SNAPSHOT
     build: ../../tuoyu-visual/tuoyu-snailjob-server
     environment:
       <<: *tuoyu-env
@@ -149,7 +149,7 @@ services:
   # 任务执行器
   tuoyu-job:
     <<: *java-service
-    image: tuoyu/tuoyu-job:1.0.0-alpha.1
+    image: tuoyu/tuoyu-job:1.0.0-SNAPSHOT
     build: ../../tuoyu-modules/tuoyu-job
     environment: *tuoyu-env
     volumes:
@@ -169,7 +169,7 @@ services:
   # 监控中心（Spring Boot Admin，http://127.0.0.1:9100，账号为 TUOYU_MONITOR_USERNAME / TUOYU_MONITOR_PASSWORD）
   tuoyu-monitor:
     <<: *java-service
-    image: tuoyu/tuoyu-monitor:1.0.0-alpha.1
+    image: tuoyu/tuoyu-monitor:1.0.0-SNAPSHOT
     build: ../../tuoyu-visual/tuoyu-monitor
     environment: *tuoyu-env
     ports:

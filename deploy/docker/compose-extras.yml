@@ -434,7 +434,7 @@ services:
   # ---------- ai ----------
   tuoyu-ai:
     profiles: [ai]
-    image: tuoyu/tuoyu-ai:1.0.0-alpha.1
+    image: tuoyu/tuoyu-ai:1.0.0-SNAPSHOT
     build: ../../tuoyu-extensions/tuoyu-ai
     env_file: ../../.env
     environment: *tuoyu-env
@@ -456,7 +456,7 @@ services:
 
   tuoyu-snailai-server:
     profiles: [ai]
-    image: tuoyu/tuoyu-snailai-server:1.0.0-alpha.1
+    image: tuoyu/tuoyu-snailai-server:1.0.0-SNAPSHOT
     build: ../../tuoyu-extensions/tuoyu-snailai-server
     env_file: ../../.env
     environment:

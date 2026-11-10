@@ -14,7 +14,7 @@
 
     <properties>
         <!-- 项目基础配置 -->
-        <revision>1.0.0-alpha.1</revision>
+        <revision>1.0.0-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>21</java.version>

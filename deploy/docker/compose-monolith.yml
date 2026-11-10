@@ -94,7 +94,7 @@ services:
 
   # 单体：一个 JVM 包含全部业务模块（含任务执行器），负责 tuoyu-cloud、tuoyu-workflow 两个库的迁移
   tuoyu-boot-all:
-    image: tuoyu/tuoyu-boot-all:1.0.0-alpha.1
+    image: tuoyu/tuoyu-boot-all:1.0.0-SNAPSHOT
     build:
       # 构建上下文是仓库根目录，镜像中包含 deploy/config/nacos 的副本
       context: ../..
@@ -140,7 +140,7 @@ services:
   # SnailJob 调度服务端（第二个进程，管理界面 http://127.0.0.1:8800/snail-job），负责 tuoyu-job 库的迁移。
   # 不连接 Nacos：关闭 Nacos 配置与注册，改为直接读取挂载的 datasource.yml 与 tuoyu-snailjob-server.yml
   tuoyu-snailjob-server:
-    image: tuoyu/tuoyu-snailjob-server:1.0.0-alpha.1
+    image: tuoyu/tuoyu-snailjob-server:1.0.0-SNAPSHOT
     build: ../../tuoyu-visual/tuoyu-snailjob-server
     env_file: ../../.env
     environment:

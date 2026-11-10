@@ -186,7 +186,7 @@ services:
 
   tuoyu-system:
     <<: *java-service
-    image: tuoyu/tuoyu-system:1.0.0-alpha.1
+    image: tuoyu/tuoyu-system:1.0.0-SNAPSHOT
     build: ../../tuoyu-modules/tuoyu-system
     environment: *tuoyu-env
     volumes:
@@ -205,7 +205,7 @@ services:
 
   tuoyu-auth:
     <<: *java-service
-    image: tuoyu/tuoyu-auth:1.0.0-alpha.1
+    image: tuoyu/tuoyu-auth:1.0.0-SNAPSHOT
     build: ../../tuoyu-modules/tuoyu-auth
     environment: *tuoyu-env
     volumes:
@@ -225,7 +225,7 @@ services:
 
   tuoyu-resource:
     <<: *java-service
-    image: tuoyu/tuoyu-resource:1.0.0-alpha.1
+    image: tuoyu/tuoyu-resource:1.0.0-SNAPSHOT
     build: ../../tuoyu-modules/tuoyu-resource
     environment: *tuoyu-env
     volumes:
@@ -245,7 +245,7 @@ services:
   # 网关是唯一对外的入口，端口与单体相同（8081），前端在两种部署方式下访问的地址一致
   tuoyu-gateway:
     <<: *java-service
-    image: tuoyu/tuoyu-gateway:1.0.0-alpha.1
+    image: tuoyu/tuoyu-gateway:1.0.0-SNAPSHOT
     build: ../../tuoyu-gateway
     environment: *tuoyu-env
     ports:
