@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-business</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>tuoyu-mes</artifactId>
+
+    <description>
+        tuoyu-mes 制造执行：主数据、生产工单与工序任务、报工、领退料与完工入库、质量检验、追溯、安灯与生产看板
+    </description>
+
+    <properties>
+        <tuoyu.coverage.line-minimum>0.50</tuoyu.coverage.line-minimum>
+    </properties>
+
+    <dependencies>
+        <!-- 多租户（默认关闭） -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-tenant</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-nacos</artifactId>
+        </dependency>
+        <!-- 启动自检 -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-selfcheck</artifactId>
+        </dependency>
+        <!-- 数据库迁移：本服务负责 tuoyu-mes 库 -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-flyway</artifactId>
+        </dependency>
+        <!-- 启动后登记菜单与权限码（META-INF/tuoyu/menus/mes.json） -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-menu</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-doc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-mybatis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-log</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-excel</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-translation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-dubbo</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-seata</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-service-impl</artifactId>
+        </dependency>
+        <!-- 用户名称翻译、安灯消息提醒 -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-api-system</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-api-resource</artifactId>
+        </dependency>
+        <!-- 不良处置评审、补料申请的审批：发起流程 -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-api-workflow</artifactId>
+        </dependency>
+        <!-- 接收工作流的流程事件：微服务中经消息总线投递（单体中是进程内事件，工作流模块已带这个依赖） -->
+        <dependency>
+            <groupId>org.tuoyu</groupId>
+            <artifactId>tuoyu-common-bus</artifactId>
+        </dependency>
+
+        <!-- 测试：在真实的 MySQL 上做跨租户越权测试（Testcontainers，MIT；版本由 Spring Boot 管理），需要 Docker。
+             MySQL 驱动随 tuoyu-common-flyway 引入 -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>${project.artifactId}</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <configuration>
+                    <!-- 可执行 jar 带 exec 后缀（target/<模块>-exec.jar），普通 jar 留给单体启动器 tuoyu-boot-all 依赖 -->
+                    <classifier>exec</classifier>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

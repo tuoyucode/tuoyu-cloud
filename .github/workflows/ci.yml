@@ -182,6 +182,33 @@ jobs:
         # 需要直接指定子模块：只写聚合模块 tuoyu-extensions 时，-am 不会带上它的子模块
         run: mvn -B -ntp clean verify -P extensions -pl :tuoyu-ai,:tuoyu-snailai-server -am
 
+  # 业务模块（tuoyu-business，例如制造执行 MES）：默认不参与构建。完整构建一次（-P business），
+  # 同时检查带业务模块的单体、依赖规则（框架不依赖业务模块）、业务模块菜单中的权限码，以及业务库的迁移（Testcontainers）
+  business:
+    name: 业务模块
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: 构建并运行测试（含业务模块）
+        run: mvn -B -ntp clean verify -P business
+
+      - name: 上传测试报告
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-business
+          path: '**/target/surefire-reports/'
+          if-no-files-found: ignore
+
   # 依赖漏洞与协议扫描：SBOM 由 Maven 解析得到，与实际构建使用的依赖一致；不需要先编译
   supply-chain:
     name: 依赖漏洞与协议扫描

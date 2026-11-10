@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.tuoyu</groupId>
+        <artifactId>tuoyu-cloud</artifactId>
+        <version>${revision}</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <modules>
+        <module>tuoyu-mes</module>
+    </modules>
+    <artifactId>tuoyu-business</artifactId>
+    <packaging>pom</packaging>
+    <description>
+        tuoyu-business 业务模块：基于框架构建的具体业务系统，默认不参与构建，使用 -P business 开启。
+        业务模块只能通过 tuoyu-api-* 调用框架的服务，框架的代码不能依赖业务模块（tuoyu-architecture 检查）
+    </description>
+</project>

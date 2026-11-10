@@ -1,0 +1,68 @@
+{
+  "flowCode": "mes_defect_disposition",
+  "flowName": "不良处置评审",
+  "modelValue": "CLASSICS",
+  "formCustom": "N",
+  "nodeList": [
+    {
+      "nodeType": 0,
+      "nodeCode": "start",
+      "nodeName": "开始",
+      "coordinate": "200,240|200,240",
+      "skipList": [
+        {
+          "nowNodeCode": "start",
+          "nextNodeCode": "apply",
+          "skipType": "PASS",
+          "coordinate": "220,240;310,240"
+        }
+      ]
+    },
+    {
+      "nodeType": 1,
+      "nodeCode": "apply",
+      "nodeName": "申请人",
+      "permissionFlag": "${initiator}",
+      "nodeRatio": "0",
+      "coordinate": "360,240|360,240",
+      "skipList": [
+        {
+          "nowNodeCode": "apply",
+          "nextNodeCode": "approve",
+          "skipType": "PASS",
+          "coordinate": "410,240;510,240"
+        }
+      ]
+    },
+    {
+      "nodeType": 1,
+      "nodeCode": "approve",
+      "nodeName": "质量评审",
+      "permissionFlag": "role:1761300000000000001",
+      "nodeRatio": "0",
+      "coordinate": "560,240|560,240",
+      "ext": "[{\"code\":\"ButtonPermissionEnum\",\"value\":\"back,termination\"}]",
+      "skipList": [
+        {
+          "nowNodeCode": "approve",
+          "nextNodeCode": "end",
+          "skipType": "PASS",
+          "coordinate": "610,240;700,240"
+        },
+        {
+          "nowNodeCode": "approve",
+          "nextNodeCode": "apply",
+          "skipType": "REJECT",
+          "skipName": "退回",
+          "coordinate": "560,200;560,160;360,160;360,200|460,150"
+        }
+      ]
+    },
+    {
+      "nodeType": 2,
+      "nodeCode": "end",
+      "nodeName": "结束",
+      "coordinate": "720,240|720,240"
+    }
+  ]
+}

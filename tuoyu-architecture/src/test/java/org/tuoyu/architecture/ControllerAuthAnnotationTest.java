@@ -90,7 +90,8 @@ class ControllerAuthAnnotationTest {
         "org.tuoyu.system.", "/system",
         "org.tuoyu.resource.", "/resource",
         "org.tuoyu.workflow.", "/workflow",
-        "org.tuoyu.gen.", "/tool");
+        "org.tuoyu.gen.", "/tool",
+        "org.tuoyu.mes.", "/mes");
 
     /**
      * 路径中的 Spring 占位符 {@code ${key:默认值}}：框架中的 Controller 用它配置完整路径

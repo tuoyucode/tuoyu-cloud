@@ -142,7 +142,13 @@ class MigrationScriptsTest {
             Vendor.MYSQL, new Baseline("deploy/sql/tuoyu-job.sql",
                 "4cbb6b30c77bff515644a49daafbc0a1a1384b5d118211e1b085e193e810644f"),
             Vendor.POSTGRESQL, new Baseline("deploy/sql/postgres/postgres_tuoyu_job.sql",
-                "64bee0de32712d9da2e43d79f52376481b551240fdd707df047e4ea704b3f6b7"))));
+                "64bee0de32712d9da2e43d79f52376481b551240fdd707df047e4ea704b3f6b7"))),
+        // 业务模块（tuoyu-business，-P business 时构建）：脚本按目录检查，与是否构建无关
+        new Owner("tuoyu-business/tuoyu-mes", "mes", "tuoyu-mes.yml", "mes", "tuoyu-mes", Map.of(
+            Vendor.MYSQL, new Baseline("deploy/sql/tuoyu-mes.sql",
+                "bdeed03af9608157fe782b6a7cbd96cf57f1b885bf996bb85e21f6b5a00c0dfc"),
+            Vendor.POSTGRESQL, new Baseline("deploy/sql/postgres/postgres_tuoyu_mes.sql",
+                "671ccc1d6b9094225f88cd604ed71af721198ecda56d53973f190fa7790abb36"))));
 
     private static Path root;
 

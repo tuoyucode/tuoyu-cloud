@@ -3,6 +3,8 @@
 #
 # 在仓库根目录执行（详见同目录 README.md）：
 #   docker compose --env-file .env -f deploy/docker/compose-full.yml up -d --build
+# 同时部署制造执行（MES，需要先用 -P business 构建）：
+#   docker compose --env-file .env -f deploy/docker/compose-full.yml --profile business up -d --build
 #
 # ELK、SkyWalking、Prometheus / Grafana、消息队列、Seata、Nginx、AI 扩展等附加组件在 compose-extras.yml 中，按 profile 叠加：
 #   docker compose --env-file .env -f deploy/docker/compose-full.yml -f deploy/docker/compose-extras.yml --profile metrics up -d
@@ -73,6 +75,30 @@ services:
         condition: service_healthy
       nacos-init:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  # 制造执行（可选业务模块 tuoyu-business/tuoyu-mes）：先用 mvn clean verify -P business 构建，再加 --profile business 启动
+  # 启动后自动在 tuoyu-mes 库中建表（Flyway），并把菜单登记到系统服务（tuoyu-system）
+  tuoyu-mes:
+    <<: *java-service
+    profiles: [business]
+    image: tuoyu/tuoyu-mes:1.0.0-SNAPSHOT
+    build: ../../tuoyu-business/tuoyu-mes
+    environment: *tuoyu-env
+    volumes:
+      - logs:/tuoyu/mes/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos-init:
+        condition: service_completed_successfully
+      tuoyu-system:
+        condition: service_healthy
     deploy:
       resources:
         limits:

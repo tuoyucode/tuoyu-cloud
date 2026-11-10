@@ -1,0 +1,54 @@
+spring:
+  # 数据库迁移（Flyway）：tuoyu-mes 库由本服务负责迁移，脚本在 tuoyu-business/tuoyu-mes 的 db/migration/mes/mysql 与 db/migration/mes/postgresql（按 TUOYU_DB_TYPE）
+  # 支持 MySQL 与 PostgreSQL，连接其他数据库时自动跳过；关闭：TUOYU_FLYWAY_ENABLED=false（关闭后新增的迁移脚本需手工执行）
+  flyway:
+    enabled: ${TUOYU_FLYWAY_ENABLED:true}
+    url: ${datasource.mes.url}
+    user: ${datasource.mes.username}
+    password: ${datasource.mes.password}
+  datasource:
+    dynamic:
+      # 设置默认的数据源或者数据源组,默认值即为 master
+      primary: master
+      datasource:
+        # 主库数据源：tuoyu-mes 库
+        master:
+          type: ${spring.datasource.type}
+          driver-class-name: ${datasource.driver-class-name}
+          url: ${datasource.mes.url}
+          username: ${datasource.mes.username}
+          password: ${datasource.mes.password}
+
+# MES 的业务开关。单体（tuoyu-boot-all）不读取本文件，在 tuoyu-boot-all.yml 中写同样的配置
+tuoyu:
+  mes:
+    # 单据审批（工作流）：默认关闭，关闭时单据照常直接流转
+    # 开启前先在“流程定义”中导入并发布对应编码的流程，步骤见 tuoyu-business/tuoyu-mes/deploy/workflow/README.md
+    approval:
+      # 不良处置评审：处置方式为让步接收、报废时，审批通过后才执行处置
+      defect-disposition:
+        enabled: false
+        flow-code: mes_defect_disposition
+      # 补料申请：补料单审批通过后才变为已提交，仓库才能执行
+      supplement:
+        enabled: false
+        flow-code: mes_material_supplement
+    maintenance:
+      # 按保养计划自动生成到期的保养工单（所有租户；多实例部署时同一计划的同一到期日期只生成一张）
+      generate:
+        enabled: true
+        # 执行间隔，至少 1 分钟（每天一次写 24h）
+        interval: 1h
+        # 服务启动后首次执行前的等待
+        initial-delay: 2m
+    # 安灯超时检查：按“安灯升级规则”找出超时未响应、超时未解决的事件，升级并提醒（默认值即推荐值，一般不需要配置）
+    # 多个实例都开启也不会重复升级；只想在某个实例中执行时，在其他实例中设为 false
+    #andon:
+    #  escalation:
+    #    enabled: true
+    #    # 两次检查之间的间隔，不小于 10 秒
+    #    interval: 1m
+    #    # 服务启动后多久开始第一次检查
+    #    initial-delay: 30s
+    #    # 每次检查最多处理的事件数（1 ~ 1000），其余的留给下一次
+    #    batch-size: 200
