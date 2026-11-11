@@ -1,4 +1,4 @@
-<#-- Vben 风格：列表页（单表）。约定见前端仓库 CONTRIBUTING.md 的“页面模板”一节 -->
+<#-- Vben 风格（Ant Design Vue 版）：列表页（单表）。约定见前端仓库 CONTRIBUTING.md 的“页面模板”一节 -->
 <#assign i18n = moduleName + "." + businessName>
 <#assign pk = pkColumn.javaField>
 <#assign kebab = businessName?replace("([A-Z])", "-$1", "r")?lower_case>

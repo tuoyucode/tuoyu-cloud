@@ -3,6 +3,7 @@ package org.tuoyu.gen.util;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.RegExUtils;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.gen.config.properties.GenProperties;
@@ -34,9 +35,23 @@ public class GenUtils {
         genTable.setBusinessName(getBusinessName(genTable.getTableName()));
         genTable.setFunctionName(replaceText(genTable.getTableComment()));
         genTable.setFunctionAuthor(PROPERTIES.getAuthor());
-        genTable.setFrontendType(GenConstants.FRONTEND_TYPE_VBEN);
+        genTable.setFrontendType(defaultFrontendType());
         genTable.setCreateTime(null);
         genTable.setUpdateTime(null);
+    }
+
+    /**
+     * 新导入的表默认使用的前端模板类型（配置 gen.frontendType，未配置时为 ele）
+     *
+     * @return 前端模板类型
+     */
+    public static String defaultFrontendType() {
+        String frontendType = StringUtils.blankToDefault(PROPERTIES.getFrontendType(), GenConstants.FRONTEND_TYPE_ELE);
+        if (!GenConstants.FRONTEND_TYPES.contains(frontendType)) {
+            throw new ServiceException(StringUtils.format("代码生成配置 gen.frontendType 只能是 {}（Element Plus）或 {}（Ant Design Vue）",
+                GenConstants.FRONTEND_TYPE_ELE, GenConstants.FRONTEND_TYPE_ANTD));
+        }
+        return frontendType;
     }
 
     /**

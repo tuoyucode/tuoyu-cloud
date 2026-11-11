@@ -1,4 +1,4 @@
-<#-- Vben 风格：树表页。约定见前端仓库 CONTRIBUTING.md 的“页面模板”一节 -->
+<#-- Vben 风格（Element Plus 版）：树表页。约定见前端仓库 CONTRIBUTING.md 的“页面模板”一节 -->
 <#assign i18n = moduleName + "." + businessName>
 <#assign pk = pkColumn.javaField>
 <#assign kebab = businessName?replace("([A-Z])", "-$1", "r")?lower_case>
@@ -14,7 +14,7 @@ import {
   remove${ClassName},
 } from '@tuoyu/shared/api/${moduleName}/${businessName}';
 import { hasPermission } from '@tuoyu/shared/utils/permission';
-import { Button, message, Popconfirm } from 'ant-design-vue';
+import { ElButton, ElMessage, ElPopconfirm } from 'element-plus';
 
 import { useVbenVxeGrid } from '#/adapter/vxe-table';
 import { $t } from '#/locales';
@@ -86,7 +86,7 @@ function onEdit(row: ${ClassName}Api.${ClassName}) {
 
 async function onDelete(row: ${ClassName}Api.${ClassName}) {
   await remove${ClassName}([row.${pk} as number | string]);
-  message.success($t('crud.deleted'));
+  ElMessage.success($t('crud.deleted'));
   reload();
 }
 </script>
@@ -97,47 +97,57 @@ async function onDelete(row: ${ClassName}Api.${ClassName}) {
     <Grid :table-title="$t('${i18n}.list')">
       <template #toolbar-actions>
         <div class="flex gap-2">
-          <Button
+          <ElButton
             v-if="hasPermission('${permissionPrefix}:add')"
             type="primary"
             @click="onCreate()"
           >
             {{ $t('${i18n}.create') }}
-          </Button>
-          <Button @click="expandAll(true)">{{ $t('crud.expandAll') }}</Button>
-          <Button @click="expandAll(false)">{{ $t('crud.collapseAll') }}</Button>
+          </ElButton>
+          <ElButton @click="expandAll(true)">
+            {{ $t('crud.expandAll') }}
+          </ElButton>
+          <ElButton @click="expandAll(false)">
+            {{ $t('crud.collapseAll') }}
+          </ElButton>
         </div>
       </template>
 
       <template #actions="{ row }">
-        <Button
+        <ElButton
           v-if="hasPermission('${permissionPrefix}:add')"
+          link
           size="small"
-          type="link"
+          type="primary"
           @click="onCreate(row)"
         >
           {{ $t('crud.addChild') }}
-        </Button>
-        <Button
+        </ElButton>
+        <ElButton
           v-if="hasPermission('${permissionPrefix}:edit')"
+          link
           size="small"
-          type="link"
+          type="primary"
           @click="onEdit(row)"
         >
           {{ $t('common.edit') }}
-        </Button>
-        <Popconfirm
+        </ElButton>
+        <ElPopconfirm
           v-if="hasPermission('${permissionPrefix}:remove')"
-          :ok-button-props="{ danger: true }"
-          :ok-text="$t('${i18n}.delete')"
+          :cancel-button-text="$t('common.cancel')"
+          :confirm-button-text="$t('${i18n}.delete')"
           :title="$t('crud.confirmDelete', { name: row.${treeName} })"
+          confirm-button-type="danger"
           placement="left"
+          width="240"
           @confirm="onDelete(row)"
         >
-          <Button danger size="small" type="link">
-            {{ $t('common.delete') }}
-          </Button>
-        </Popconfirm>
+          <template #reference>
+            <ElButton link size="small" type="danger">
+              {{ $t('common.delete') }}
+            </ElButton>
+          </template>
+        </ElPopconfirm>
       </template>
     </Grid>
   </Page>

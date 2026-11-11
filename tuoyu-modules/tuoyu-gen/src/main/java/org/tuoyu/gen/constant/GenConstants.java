@@ -81,9 +81,24 @@ public interface GenConstants {
     String SORT_FIELD = "sortField";
 
     /**
-     * 前端模板类型：Vben Admin 5 + Ant Design Vue，对应模板根目录下的 vben 目录。代码生成只提供这一种前端模板
+     * Vben 前端模板的根目录名，也是生成的 zip 中前端代码的根目录（与前端仓库的根目录一一对应）
      */
-    String FRONTEND_TYPE_VBEN = "vben";
+    String FRONTEND_ROOT = "vben";
+
+    /**
+     * 前端模板类型：Element Plus 版（前端仓库 apps/web-ele），新导入的表默认使用
+     */
+    String FRONTEND_TYPE_ELE = "ele";
+
+    /**
+     * 前端模板类型：Ant Design Vue 版（前端仓库 apps/web-antd）
+     */
+    String FRONTEND_TYPE_ANTD = "antd";
+
+    /**
+     * 支持的前端模板类型
+     */
+    Set<String> FRONTEND_TYPES = Set.of(FRONTEND_TYPE_ELE, FRONTEND_TYPE_ANTD);
 
     /**
      * 树根节点值
@@ -292,15 +307,17 @@ public interface GenConstants {
     // MyBatis MapperXML 模板
     String XML_TEMPLATE_ROOT_PATH = TEMPLATE_ROOT_PATH + "/xml";
     String XML_MAPPER_TEMPLATE_PATH = XML_TEMPLATE_ROOT_PATH + "/mapper.xml" + TEMPLATE_FILE_SUFFIX;
-    // Vben 前端模板（与新前端的页面模板约定一致：接口、查询与表单定义、列表页、抽屉、中英文文案）
-    String VBEN_TEMPLATE_ROOT_PATH = TEMPLATE_ROOT_PATH + "/" + FRONTEND_TYPE_VBEN;
+    // Vben 前端模板（与前端的页面模板约定一致）：接口与中英文文案两个 UI 版本共用，
+    // 查询与表单定义、列表页、抽屉按 UI 版本放在 ele、antd 子目录
+    String VBEN_TEMPLATE_ROOT_PATH = TEMPLATE_ROOT_PATH + "/" + FRONTEND_ROOT;
     String VBEN_API_TEMPLATE_PATH = VBEN_TEMPLATE_ROOT_PATH + "/api.ts" + TEMPLATE_FILE_SUFFIX;
-    String VBEN_DATA_TEMPLATE_PATH = VBEN_TEMPLATE_ROOT_PATH + "/data.ts" + TEMPLATE_FILE_SUFFIX;
-    String VBEN_DRAWER_TEMPLATE_PATH = VBEN_TEMPLATE_ROOT_PATH + "/drawer.vue" + TEMPLATE_FILE_SUFFIX;
-    String VBEN_INDEX_TEMPLATE_PATH = VBEN_TEMPLATE_ROOT_PATH + "/index.vue" + TEMPLATE_FILE_SUFFIX;
-    String VBEN_INDEX_TREE_TEMPLATE_PATH = VBEN_TEMPLATE_ROOT_PATH + "/index-tree.vue" + TEMPLATE_FILE_SUFFIX;
     String VBEN_LOCALE_ZH_TEMPLATE_PATH = VBEN_TEMPLATE_ROOT_PATH + "/locale-zh-CN.json" + TEMPLATE_FILE_SUFFIX;
     String VBEN_LOCALE_EN_TEMPLATE_PATH = VBEN_TEMPLATE_ROOT_PATH + "/locale-en-US.json" + TEMPLATE_FILE_SUFFIX;
+    // 各 UI 版本的页面模板文件名（位于 VBEN_TEMPLATE_ROOT_PATH/<前端模板类型>/ 下）
+    String VBEN_DATA_TEMPLATE = "data.ts" + TEMPLATE_FILE_SUFFIX;
+    String VBEN_DRAWER_TEMPLATE = "drawer.vue" + TEMPLATE_FILE_SUFFIX;
+    String VBEN_INDEX_TEMPLATE = "index.vue" + TEMPLATE_FILE_SUFFIX;
+    String VBEN_INDEX_TREE_TEMPLATE = "index-tree.vue" + TEMPLATE_FILE_SUFFIX;
     // 数据库SQL模板
     String SQL_TEMPLATE_ROOT_PATH = TEMPLATE_ROOT_PATH + "/sql";
     String SQL_ORACLE_TEMPLATE_PATH = SQL_TEMPLATE_ROOT_PATH + "/oracle.sql" + TEMPLATE_FILE_SUFFIX;
@@ -321,15 +338,30 @@ public interface GenConstants {
         , JAVA_CONTROLLER_TEMPLATE_PATH
         , XML_MAPPER_TEMPLATE_PATH
         , VBEN_API_TEMPLATE_PATH
-        , VBEN_DATA_TEMPLATE_PATH
-        , VBEN_DRAWER_TEMPLATE_PATH
-        , VBEN_INDEX_TEMPLATE_PATH
-        , VBEN_INDEX_TREE_TEMPLATE_PATH
         , VBEN_LOCALE_ZH_TEMPLATE_PATH
         , VBEN_LOCALE_EN_TEMPLATE_PATH
+        , vbenPageTemplatePath(FRONTEND_TYPE_ELE, VBEN_DATA_TEMPLATE)
+        , vbenPageTemplatePath(FRONTEND_TYPE_ELE, VBEN_DRAWER_TEMPLATE)
+        , vbenPageTemplatePath(FRONTEND_TYPE_ELE, VBEN_INDEX_TEMPLATE)
+        , vbenPageTemplatePath(FRONTEND_TYPE_ELE, VBEN_INDEX_TREE_TEMPLATE)
+        , vbenPageTemplatePath(FRONTEND_TYPE_ANTD, VBEN_DATA_TEMPLATE)
+        , vbenPageTemplatePath(FRONTEND_TYPE_ANTD, VBEN_DRAWER_TEMPLATE)
+        , vbenPageTemplatePath(FRONTEND_TYPE_ANTD, VBEN_INDEX_TEMPLATE)
+        , vbenPageTemplatePath(FRONTEND_TYPE_ANTD, VBEN_INDEX_TREE_TEMPLATE)
         , SQL_ORACLE_TEMPLATE_PATH
         , SQL_POSTGRES_TEMPLATE_PATH
         , SQL_SQLSERVER_TEMPLATE_PATH
         , SQL_MYSQL_TEMPLATE_PATH
     );
+
+    /**
+     * 某个 UI 版本的页面模板路径，例如 fm/vben/ele/index.vue.ftl
+     *
+     * @param frontendType 前端模板类型（ele、antd）
+     * @param template     页面模板文件名（VBEN_DATA_TEMPLATE 等）
+     * @return 模板路径
+     */
+    static String vbenPageTemplatePath(String frontendType, String template) {
+        return VBEN_TEMPLATE_ROOT_PATH + "/" + frontendType + "/" + template;
+    }
 }
