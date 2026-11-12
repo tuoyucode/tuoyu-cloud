@@ -454,7 +454,8 @@ public class GenTableServiceImpl implements IGenTableService {
         table.setMenuIds(menuIds);
         setPkColumn(table);
         Dict context = TemplateEngineUtils.buildContext(table);
-        List<PathNamedTemplate> templates = TemplateEngineUtils.getTemplateList(table.getTplCategory(), table.getDataName());
+        List<PathNamedTemplate> templates = TemplateEngineUtils.getTemplateList(table.getTplCategory(), table.getDataName(),
+            StringUtils.blankToDefault(table.getFrontendType(), GenConstants.FRONTEND_TYPE_ELE));
         return new RenderContext(table, context, templates);
     }
 
@@ -466,8 +467,9 @@ public class GenTableServiceImpl implements IGenTableService {
     @Override
     public void validateEdit(GenTable genTable) {
         if (StringUtils.isNotBlank(genTable.getFrontendType())
-            && !GenConstants.FRONTEND_TYPE_VBEN.equals(genTable.getFrontendType())) {
-            throw new ServiceException("前端模板类型只支持 " + GenConstants.FRONTEND_TYPE_VBEN);
+            && !GenConstants.FRONTEND_TYPES.contains(genTable.getFrontendType())) {
+            throw new ServiceException(StringUtils.format("前端模板类型只能是 {}（Element Plus）或 {}（Ant Design Vue）",
+                GenConstants.FRONTEND_TYPE_ELE, GenConstants.FRONTEND_TYPE_ANTD));
         }
         validateOptionColumns(genTable);
         if (GenConstants.TPL_TREE.equals(genTable.getTplCategory())) {

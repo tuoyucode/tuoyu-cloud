@@ -1,4 +1,4 @@
-<#-- Vben 风格：新增与编辑抽屉。约定见前端仓库 CONTRIBUTING.md 的“页面模板”一节 -->
+<#-- Vben 风格（Element Plus 版）：新增与编辑抽屉。约定见前端仓库 CONTRIBUTING.md 的“页面模板”一节 -->
 <#assign i18n = moduleName + "." + businessName>
 <#assign pk = pkColumn.javaField>
 <script lang="ts" setup>
@@ -13,7 +13,7 @@ import {
   get${ClassName},
   update${ClassName},
 } from '@tuoyu/shared/api/${moduleName}/${businessName}';
-import { message } from 'ant-design-vue';
+import { ElMessage } from 'element-plus';
 
 import { useVbenForm } from '#/adapter/form';
 import { $t } from '#/locales';
@@ -63,7 +63,7 @@ const [Drawer, drawerApi] = useVbenDrawer({
       await (${pk}.value === undefined
         ? add${ClassName}(data)
         : update${ClassName}({ ...data, ${pk}: ${pk}.value }));
-      message.success($t('crud.saved'));
+      ElMessage.success($t('crud.saved'));
       emit('success');
       drawerApi.close();
     } finally {

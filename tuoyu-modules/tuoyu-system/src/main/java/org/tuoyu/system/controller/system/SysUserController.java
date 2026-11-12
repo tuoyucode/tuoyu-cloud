@@ -25,6 +25,7 @@ import org.tuoyu.common.log.annotation.OperationLog;
 import org.tuoyu.common.log.enums.AuditAction;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.helper.DataPermissionHelper;
+import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.common.redis.annotation.PreventResubmit;
 import org.tuoyu.common.redis.utils.RedisUtils;
 import org.tuoyu.system.domain.bo.SysDeptBo;
@@ -119,11 +120,18 @@ public class SysUserController {
     public ApiResult<UserInfoVo> getInfo() {
         UserInfoVo userInfoVo = new UserInfoVo();
         CurrentUser loginUser = UserContext.require();
-        SysUserVo user = DataPermissionHelper.ignore(() -> userService.selectUserById(loginUser.getUserId()));
+        // 本人的用户与角色记录在本人所属的租户中：超级管理员切换进其他租户后，SQL 按切换后的租户过滤，
+        // 不指定租户就读不到本人的记录
+        SysUserVo user = TenantHelper.dynamic(loginUser.getTenantId(), () -> {
+            SysUserVo found = DataPermissionHelper.ignore(() -> userService.selectUserById(loginUser.getUserId()));
+            if (ObjectUtil.isNotNull(found)) {
+                found.setRoles(roleService.selectRolesByUserId(found.getUserId()));
+            }
+            return found;
+        });
         if (ObjectUtil.isNull(user)) {
             throw new ServiceException("没有权限访问用户数据!");
         }
-        user.setRoles(roleService.selectRolesByUserId(user.getUserId()));
         userInfoVo.setUser(user);
         userInfoVo.setPermissions(loginUser.getPermissions());
         userInfoVo.setRoles(loginUser.getRoleKeys());

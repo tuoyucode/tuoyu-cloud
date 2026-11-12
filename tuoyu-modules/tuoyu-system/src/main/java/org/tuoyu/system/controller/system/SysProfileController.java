@@ -16,6 +16,7 @@ import org.tuoyu.common.log.annotation.OperationLog;
 import org.tuoyu.common.log.enums.AuditAction;
 import org.tuoyu.common.mybatis.helper.DataPermissionHelper;
 import org.tuoyu.common.redis.annotation.PreventResubmit;
+import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.resource.api.RemoteFileService;
 import org.tuoyu.resource.api.domain.RemoteFile;
 import org.tuoyu.system.domain.bo.SysUserBo;
@@ -31,6 +32,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * 个人信息 业务处理（仅登录：只读写当前用户本人的信息）
@@ -59,17 +61,26 @@ public class SysProfileController {
     private final RemoteFileService remoteFileService;
 
     /**
+     * 在本人所属的租户中执行。超级管理员切换进其他租户后，SQL 按切换后的租户过滤，
+     * 而个人中心读写的是本人的用户记录，它在本人所属的租户中
+     */
+    private static <T> T inOwnTenant(Supplier<T> action) {
+        return TenantHelper.dynamic(UserContext.require().getTenantId(), action);
+    }
+
+    /**
      * 个人信息
      */
     @GetMapping
     public ApiResult<ProfileVo> profile() {
-        SysUserVo user = userService.selectUserById(UserContext.userId());
-        String roleGroup = userService.selectUserRoleGroup(user.getUserId());
-        String postGroup = userService.selectUserPostGroup(user.getUserId());
-        // 单独做一个vo专门给个人中心用 避免数据被脱敏
-        ProfileUserVo profileUser = BeanUtil.toBean(user, ProfileUserVo.class);
-        ProfileVo profileVo = new ProfileVo(profileUser, roleGroup, postGroup);
-        return ApiResult.ok(profileVo);
+        return ApiResult.ok(inOwnTenant(() -> {
+            SysUserVo user = userService.selectUserById(UserContext.userId());
+            String roleGroup = userService.selectUserRoleGroup(user.getUserId());
+            String postGroup = userService.selectUserPostGroup(user.getUserId());
+            // 单独做一个vo专门给个人中心用 避免数据被脱敏
+            ProfileUserVo profileUser = BeanUtil.toBean(user, ProfileUserVo.class);
+            return new ProfileVo(profileUser, roleGroup, postGroup);
+        }));
     }
 
     /**
@@ -82,13 +93,16 @@ public class SysProfileController {
         SysUserBo user = BeanUtil.toBean(profile, SysUserBo.class);
         user.setUserId(UserContext.userId());
         String username = UserContext.require().getUserName();
-        if (StringUtils.isNotEmpty(user.getPhoneNumber()) && !userService.checkPhoneUnique(user)) {
-            throw new ServiceException("修改用户'" + username + "'失败，手机号码已存在");
-        }
-        if (StringUtils.isNotEmpty(user.getEmail()) && !userService.checkEmailUnique(user)) {
-            throw new ServiceException("修改用户'" + username + "'失败，邮箱账号已存在");
-        }
-        DataPermissionHelper.ignore(() -> userService.updateUserProfile(user));
+        inOwnTenant(() -> {
+            if (StringUtils.isNotEmpty(user.getPhoneNumber()) && !userService.checkPhoneUnique(user)) {
+                throw new ServiceException("修改用户'" + username + "'失败，手机号码已存在");
+            }
+            if (StringUtils.isNotEmpty(user.getEmail()) && !userService.checkEmailUnique(user)) {
+                throw new ServiceException("修改用户'" + username + "'失败，邮箱账号已存在");
+            }
+            DataPermissionHelper.ignore(() -> userService.updateUserProfile(user));
+            return null;
+        });
         return ApiResult.ok();
     }
 
@@ -108,9 +122,14 @@ public class SysProfileController {
             throw new ServiceException("头像图片不能超过 2MB", HttpStatus.PAYLOAD_TOO_LARGE);
         }
         UploadFileValidator.ValidatedFile validated = AVATAR_VALIDATOR.validate(file.getOriginalFilename(), file);
-        RemoteFile uploaded = remoteFileService.upload(validated.filename(), file.getBytes());
+        byte[] content = file.getBytes();
         Long userId = UserContext.userId();
-        DataPermissionHelper.ignore(() -> userService.updateUserAvatar(userId, uploaded.getOssId()));
+        // 头像文件也记在本人所属的租户中，与用户记录一致
+        RemoteFile uploaded = inOwnTenant(() -> {
+            RemoteFile result = remoteFileService.upload(validated.filename(), content);
+            DataPermissionHelper.ignore(() -> userService.updateUserAvatar(userId, result.getOssId()));
+            return result;
+        });
         return ApiResult.ok(new ProfileAvatarVo(uploaded.getUrl()));
     }
 
@@ -132,15 +151,18 @@ public class SysProfileController {
     @OperationLog(module = "个人信息", action = AuditAction.UPDATE)
     @PutMapping("/updatePwd")
     public ApiResult<Void> updatePwd(@Validated @RequestBody SysUserPasswordBo bo) {
-        SysUserVo user = userService.selectUserById(UserContext.userId());
-        String password = user.getPassword();
-        if (!passwordHasher.matches(bo.oldPassword(), password)) {
-            throw new ServiceException("修改密码失败，旧密码错误");
-        }
-        if (passwordHasher.matches(bo.newPassword(), password)) {
-            throw new ServiceException("新密码不能与旧密码相同");
-        }
-        DataPermissionHelper.ignore(() -> userService.resetUserPwd(user.getUserId(), passwordHasher.hash(bo.newPassword())));
+        inOwnTenant(() -> {
+            SysUserVo user = userService.selectUserById(UserContext.userId());
+            String password = user.getPassword();
+            if (!passwordHasher.matches(bo.oldPassword(), password)) {
+                throw new ServiceException("修改密码失败，旧密码错误");
+            }
+            if (passwordHasher.matches(bo.newPassword(), password)) {
+                throw new ServiceException("新密码不能与旧密码相同");
+            }
+            DataPermissionHelper.ignore(() -> userService.resetUserPwd(user.getUserId(), passwordHasher.hash(bo.newPassword())));
+            return null;
+        });
         return ApiResult.ok();
     }
 

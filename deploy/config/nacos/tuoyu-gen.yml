@@ -23,3 +23,5 @@ gen:
   autoRemovePre: false
   # 表前缀（生成类名不会包含表前缀，多个用逗号分隔）
   tablePrefix: sys_
+  # 新导入的表默认生成哪个前端版本的页面：ele（Element Plus）或 antd（Ant Design Vue），每张表可在生成配置中修改
+  frontendType: ele

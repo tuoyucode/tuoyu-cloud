@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.gen.config.properties.GenProperties;
 import org.tuoyu.gen.constant.GenConstants;
@@ -27,6 +28,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -68,29 +70,37 @@ class VbenTemplateTest {
     }
 
     @Test
-    @DisplayName("前端只使用 Vben 模板")
-    void shouldUseVbenTemplates() {
-        List<String> paths = TemplateEngineUtils.getFrontendTemplateList(GenConstants.TPL_CRUD).stream()
-            .map(PathNamedTemplate::getPathName).toList();
+    @DisplayName("前端模板：接口与文案两版共用，页面按前端模板类型选择")
+    void shouldSelectFrontendTemplatesByType() {
+        assertEquals(List.of(GenConstants.VBEN_API_TEMPLATE_PATH, "fm/vben/ele/data.ts.ftl", "fm/vben/ele/drawer.vue.ftl",
+                "fm/vben/ele/index.vue.ftl", GenConstants.VBEN_LOCALE_ZH_TEMPLATE_PATH, GenConstants.VBEN_LOCALE_EN_TEMPLATE_PATH),
+            frontendTemplatePaths(GenConstants.TPL_CRUD, GenConstants.FRONTEND_TYPE_ELE));
+        assertEquals(List.of(GenConstants.VBEN_API_TEMPLATE_PATH, "fm/vben/antd/data.ts.ftl", "fm/vben/antd/drawer.vue.ftl",
+                "fm/vben/antd/index-tree.vue.ftl", GenConstants.VBEN_LOCALE_ZH_TEMPLATE_PATH, GenConstants.VBEN_LOCALE_EN_TEMPLATE_PATH),
+            frontendTemplatePaths(GenConstants.TPL_TREE, GenConstants.FRONTEND_TYPE_ANTD));
+        assertThrows(ServiceException.class, () -> TemplateEngineUtils.getFrontendTemplateList(GenConstants.TPL_CRUD, "vben"));
+        // 新导入的表默认生成 Element Plus 版（配置 gen.frontendType 的默认值）
+        assertEquals(GenConstants.FRONTEND_TYPE_ELE, GenUtils.defaultFrontendType());
+    }
 
-        assertEquals(List.of(GenConstants.VBEN_API_TEMPLATE_PATH, GenConstants.VBEN_DATA_TEMPLATE_PATH,
-            GenConstants.VBEN_DRAWER_TEMPLATE_PATH, GenConstants.VBEN_INDEX_TEMPLATE_PATH,
-            GenConstants.VBEN_LOCALE_ZH_TEMPLATE_PATH, GenConstants.VBEN_LOCALE_EN_TEMPLATE_PATH), paths);
+    private static List<String> frontendTemplatePaths(String tplCategory, String frontendType) {
+        return TemplateEngineUtils.getFrontendTemplateList(tplCategory, frontendType).stream()
+            .map(PathNamedTemplate::getPathName).toList();
     }
 
     @Test
-    @DisplayName("单表：输出到前端仓库约定的目录，包含查询、字典、状态开关、导出与文案")
+    @DisplayName("单表（Ant Design Vue）：输出到前端仓库约定的目录，包含查询、字典、状态开关、导出与文案")
     void shouldRenderCrudPage() throws IOException {
-        Map<String, String> files = render(postTable());
+        Map<String, String> files = render(postTable(), GenConstants.FRONTEND_TYPE_ANTD);
 
-        // vben 目录与前端仓库的根目录一一对应：接口在共享包，页面与文案在应用
+        // vben 目录与前端仓库的根目录一一对应：接口与文案在共享包，页面在应用
         assertEquals(List.of(
                 "vben/packages/shared/src/api/system/postDemo.ts",
                 "vben/apps/web-antd/src/views/system/postDemo/data.ts",
                 "vben/apps/web-antd/src/views/system/postDemo/post-demo-drawer.vue",
                 "vben/apps/web-antd/src/views/system/postDemo/index.vue",
-                "vben/apps/web-antd/src/locales/langs/zh-CN/system/postDemo.json",
-                "vben/apps/web-antd/src/locales/langs/en-US/system/postDemo.json"),
+                "vben/packages/shared/src/locales/langs/zh-CN/system/postDemo.json",
+                "vben/packages/shared/src/locales/langs/en-US/system/postDemo.json"),
             List.copyOf(files.keySet()));
 
         String api = files.get("vben/packages/shared/src/api/system/postDemo.ts");
@@ -122,31 +132,87 @@ class VbenTemplateTest {
             "生成的代码中不应残留未替换的模板变量"));
         assertTrue(files.get("vben/packages/shared/src/api/system/postDemo.ts").contains("`${BASE}/list`"));
 
-        assertTrue(files.get("vben/apps/web-antd/src/locales/langs/zh-CN/system/postDemo.json").contains("\"postName\": \"岗位名称\""));
-        assertTrue(files.get("vben/apps/web-antd/src/locales/langs/en-US/system/postDemo.json").contains("\"postName\": \"Post name\""));
+        assertTrue(files.get("vben/packages/shared/src/locales/langs/zh-CN/system/postDemo.json").contains("\"postName\": \"岗位名称\""));
+        assertTrue(files.get("vben/packages/shared/src/locales/langs/en-US/system/postDemo.json").contains("\"postName\": \"Post name\""));
         files.values().forEach(content -> assertFalse(content.contains("<#"), "不应残留模板指令"));
+        files.values().forEach(content -> assertFalse(content.contains("element-plus"), "Ant Design Vue 版不应引用 Element Plus"));
+    }
+
+    @Test
+    @DisplayName("单表（Element Plus）：页面输出到 apps/web-ele，使用 Element Plus 的组件与属性")
+    void shouldRenderElementPlusCrudPage() throws IOException {
+        Map<String, String> files = render(postTable(), GenConstants.FRONTEND_TYPE_ELE);
+
+        assertEquals(List.of(
+                "vben/packages/shared/src/api/system/postDemo.ts",
+                "vben/apps/web-ele/src/views/system/postDemo/data.ts",
+                "vben/apps/web-ele/src/views/system/postDemo/post-demo-drawer.vue",
+                "vben/apps/web-ele/src/views/system/postDemo/index.vue",
+                "vben/packages/shared/src/locales/langs/zh-CN/system/postDemo.json",
+                "vben/packages/shared/src/locales/langs/en-US/system/postDemo.json"),
+            List.copyOf(files.keySet()));
+        // 接口与文案两版相同
+        Map<String, String> antd = render(postTable(), GenConstants.FRONTEND_TYPE_ANTD);
+        for (String shared : List.of("vben/packages/shared/src/api/system/postDemo.ts",
+            "vben/packages/shared/src/locales/langs/zh-CN/system/postDemo.json")) {
+            assertEquals(antd.get(shared), files.get(shared), shared);
+        }
+
+        String data = files.get("vben/apps/web-ele/src/views/system/postDemo/data.ts");
+        assertTrue(data.contains("clearable: true,"), data);
+        assertFalse(data.contains("allowClear"));
+        assertTrue(data.contains("type: 'datetimerange',"));
+        assertTrue(data.contains("'params[beginCreateTime]', 'params[endCreateTime]'"));
+        assertTrue(data.contains("type: 'textarea',"));
+        assertFalse(data.contains("'Textarea'"));
+        assertTrue(data.contains("controlsPosition: 'right'"));
+        assertTrue(data.contains("status: toOptions(status),"), data);
+        assertTrue(data.contains("defaultValue: '0',"));
+
+        String index = files.get("vben/apps/web-ele/src/views/system/postDemo/index.vue");
+        assertTrue(index.contains("} from 'element-plus';"));
+        assertTrue(index.contains("ElSwitch"));
+        assertTrue(index.contains("await ElMessageBox.confirm("));
+        assertTrue(index.contains("<template #reference>"));
+        assertTrue(index.contains("...toPageQuery(page),"));
+        assertTrue(files.get("vben/apps/web-ele/src/views/system/postDemo/post-demo-drawer.vue")
+            .contains("import { ElMessage } from 'element-plus';"));
+        files.values().forEach(content -> {
+            assertFalse(content.contains("ant-design-vue"), "Element Plus 版不应引用 Ant Design Vue");
+            assertFalse(content.contains("<#"), "不应残留模板指令");
+        });
     }
 
     @Test
     @DisplayName("树表：使用树表页面，上级字段为树选择，按上级组装")
     void shouldRenderTreePage() throws IOException {
-        Map<String, String> files = render(deptTable());
+        for (String frontendType : List.of(GenConstants.FRONTEND_TYPE_ANTD, GenConstants.FRONTEND_TYPE_ELE)) {
+            Map<String, String> files = render(deptTable(), frontendType);
+            String pageDir = "vben/apps/web-" + frontendType + "/src/views/system/deptDemo/";
 
-        String index = files.get("vben/apps/web-antd/src/views/system/deptDemo/index.vue");
-        assertTrue(index.contains("parentField: 'parentId'"));
-        assertTrue(index.contains("rowField: 'deptId'"));
-        assertTrue(index.contains("onCreate(row)"));
-        assertTrue(index.contains("items: await listDeptDemo(formValues),"));
-        assertFalse(index.contains("rows:"));
+            String index = files.get(pageDir + "index.vue");
+            assertTrue(index.contains("parentField: 'parentId'"));
+            assertTrue(index.contains("rowField: 'deptId'"));
+            assertTrue(index.contains("onCreate(row)"));
+            assertTrue(index.contains("items: await listDeptDemo(formValues),"));
+            assertFalse(index.contains("rows:"));
 
-        String data = files.get("vben/apps/web-antd/src/views/system/deptDemo/data.ts");
-        assertTrue(data.contains("listToTree(await listDeptDemo(), 'deptId', 'parentId')"));
-        assertTrue(data.contains("treeNode: true"));
+            String data = files.get(pageDir + "data.ts");
+            assertTrue(data.contains("listToTree(await listDeptDemo(), 'deptId', 'parentId')"));
+            assertTrue(data.contains("treeNode: true"));
+            if (GenConstants.FRONTEND_TYPE_ELE.equals(frontendType)) {
+                // Element Plus 的树选择默认只能选末级，上级可以是任意一级
+                assertTrue(data.contains("checkStrictly: true,"), data);
+                assertTrue(data.contains("defaultExpandAll: true,"));
+            } else {
+                assertTrue(data.contains("treeDefaultExpandAll: true,"));
+            }
 
-        String api = files.get("vben/packages/shared/src/api/system/deptDemo.ts");
-        assertTrue(api.contains("requestClient.get<DeptDemoApi.DeptDemo[]>"));
-        assertFalse(api.contains("PageResult"));
-        assertFalse(api.contains("PageQuery"));
+            String api = files.get("vben/packages/shared/src/api/system/deptDemo.ts");
+            assertTrue(api.contains("requestClient.get<DeptDemoApi.DeptDemo[]>"));
+            assertFalse(api.contains("PageResult"));
+            assertFalse(api.contains("PageQuery"));
+        }
     }
 
     @Test
@@ -216,7 +282,8 @@ class VbenTemplateTest {
         table.getColumns().add(blankComment);
 
         Map<String, String> backend = renderBackend(table);
-        Map<String, String> frontend = render(table);
+        Map<String, String> frontend = render(table, GenConstants.FRONTEND_TYPE_ELE);
+        assertTrue(render(table, GenConstants.FRONTEND_TYPE_ANTD).values().stream().anyMatch(content -> content.contains("post_note")));
 
         String domain = backend.get(GenConstants.JAVA_DOMAIN_TEMPLATE_PATH);
         assertTrue(domain.contains("* post_note"), domain);
@@ -258,15 +325,18 @@ class VbenTemplateTest {
         // 模块前缀 /system 由网关（StripPrefix）或单体（按包添加前缀）处理
         assertTrue(controller.contains("@RequestMapping(\"/verifyDemo\")"), controller);
 
-        Map<String, String> frontend = render(table);
-        String api = frontend.get("vben/packages/shared/src/api/system/verifyDemo.ts");
-        assertTrue(api.contains("const BASE = '/system/verifyDemo';"), api);
-        String data = frontend.get("vben/apps/web-antd/src/views/system/verifyDemo/data.ts");
-        for (String field : List.of("tenantId", "createDept", "createBy", "updateBy", "updateTime")) {
-            assertFalse(data.contains("fieldName: '" + field + "'"), "页面中不应出现 " + field);
+        for (String frontendType : List.of(GenConstants.FRONTEND_TYPE_ELE, GenConstants.FRONTEND_TYPE_ANTD)) {
+            Map<String, String> frontend = render(table, frontendType);
+            String api = frontend.get("vben/packages/shared/src/api/system/verifyDemo.ts");
+            assertTrue(api.contains("const BASE = '/system/verifyDemo';"), api);
+            String pageDir = "vben/apps/web-" + frontendType + "/src/views/system/verifyDemo/";
+            String data = frontend.get(pageDir + "data.ts");
+            for (String field : List.of("tenantId", "createDept", "createBy", "updateBy", "updateTime")) {
+                assertFalse(data.contains("fieldName: '" + field + "'"), "页面中不应出现 " + field);
+            }
+            String index = frontend.get(pageDir + "index.vue");
+            assertFalse(index.contains("row.tenantId"), "删除确认中显示的名称不应是租户");
         }
-        String index = frontend.get("vben/apps/web-antd/src/views/system/verifyDemo/index.vue");
-        assertFalse(index.contains("row.tenantId"), "删除确认中显示的名称不应是租户");
 
         // 没有 tenant_id 的表仍继承 BaseEntity
         GenTable plain = importedTable();
@@ -375,10 +445,11 @@ class VbenTemplateTest {
         return files;
     }
 
-    private static Map<String, String> render(GenTable table) throws IOException {
+    private static Map<String, String> render(GenTable table, String frontendType) throws IOException {
+        table.setFrontendType(frontendType);
         Dict templateContext = TemplateEngineUtils.buildContext(table);
         Map<String, String> files = new LinkedHashMap<>();
-        for (PathNamedTemplate template : TemplateEngineUtils.getFrontendTemplateList(table.getTplCategory())) {
+        for (PathNamedTemplate template : TemplateEngineUtils.getFrontendTemplateList(table.getTplCategory(), frontendType)) {
             String content = assertDoesNotThrow(() -> template.render(templateContext), template.getPathName());
             String fileName = TemplateEngineUtils.getFileName(template.getPathName(), table);
             files.put(fileName, content);

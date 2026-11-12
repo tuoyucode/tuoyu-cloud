@@ -1025,7 +1025,7 @@ create table gen_table (
   table_comment     varchar2(500)    default '',
   class_name        varchar2(100)    default '',
   tpl_category      varchar2(200)    default 'crud',
-  frontend_type     varchar2(30)     default 'vben',
+  frontend_type     varchar2(30)     default 'ele',
   package_name      varchar2(100),
   module_name       varchar2(30),
   business_name     varchar2(30),

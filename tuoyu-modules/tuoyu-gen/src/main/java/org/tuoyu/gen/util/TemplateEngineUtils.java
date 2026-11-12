@@ -285,11 +285,12 @@ public class TemplateEngineUtils {
     /**
      * 获取模板信息
      *
-     * @param tplCategory 生成模板分类：crud 或 tree
-     * @param dsName      数据源名称
+     * @param tplCategory  生成模板分类：crud 或 tree
+     * @param dsName       数据源名称
+     * @param frontendType 前端模板类型：ele 或 antd
      * @return 模板列表
      */
-    public static List<PathNamedTemplate> getTemplateList(String tplCategory, String dsName) {
+    public static List<PathNamedTemplate> getTemplateList(String tplCategory, String dsName, String frontendType) {
         List<PathNamedTemplate> templates = new ArrayList<>();
         // 后端源码模板
         templates.add(TEMPLATE_MAPPER.get(GenConstants.JAVA_DOMAIN_TEMPLATE_PATH));
@@ -314,23 +315,27 @@ public class TemplateEngineUtils {
             templates.add(TEMPLATE_MAPPER.get(GenConstants.SQL_MYSQL_TEMPLATE_PATH));
         }
         // 前端模板
-        templates.addAll(getFrontendTemplateList(tplCategory));
+        templates.addAll(getFrontendTemplateList(tplCategory, frontendType));
         return templates;
     }
 
     /**
-     * 获取前端（Vben）模板列表（不涉及数据库，可单独测试）
+     * 获取前端（Vben）模板列表（不涉及数据库，可单独测试）：接口与文案两个 UI 版本共用，页面按前端模板类型选择
      *
-     * @param tplCategory 生成模板分类：crud 或 tree
+     * @param tplCategory  生成模板分类：crud 或 tree
+     * @param frontendType 前端模板类型：ele 或 antd
      * @return 前端模板列表
      */
-    public static List<PathNamedTemplate> getFrontendTemplateList(String tplCategory) {
+    public static List<PathNamedTemplate> getFrontendTemplateList(String tplCategory, String frontendType) {
+        if (!GenConstants.FRONTEND_TYPES.contains(frontendType)) {
+            throw new ServiceException(StringUtils.format("不支持的前端模板类型: {}", frontendType));
+        }
         List<PathNamedTemplate> templates = new ArrayList<>();
         templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_API_TEMPLATE_PATH));
-        templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_DATA_TEMPLATE_PATH));
-        templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_DRAWER_TEMPLATE_PATH));
-        templates.add(TEMPLATE_MAPPER.get(GenConstants.TPL_TREE.equals(tplCategory)
-            ? GenConstants.VBEN_INDEX_TREE_TEMPLATE_PATH : GenConstants.VBEN_INDEX_TEMPLATE_PATH));
+        templates.add(TEMPLATE_MAPPER.get(GenConstants.vbenPageTemplatePath(frontendType, GenConstants.VBEN_DATA_TEMPLATE)));
+        templates.add(TEMPLATE_MAPPER.get(GenConstants.vbenPageTemplatePath(frontendType, GenConstants.VBEN_DRAWER_TEMPLATE)));
+        templates.add(TEMPLATE_MAPPER.get(GenConstants.vbenPageTemplatePath(frontendType, GenConstants.TPL_TREE.equals(tplCategory)
+            ? GenConstants.VBEN_INDEX_TREE_TEMPLATE : GenConstants.VBEN_INDEX_TEMPLATE)));
         templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_LOCALE_ZH_TEMPLATE_PATH));
         templates.add(TEMPLATE_MAPPER.get(GenConstants.VBEN_LOCALE_EN_TEMPLATE_PATH));
         return templates;
@@ -385,25 +390,40 @@ public class TemplateEngineUtils {
 
     /**
      * Vben 模板的输出路径，与前端仓库的根目录一一对应：接口在共享包 packages/shared/src/api 下，
-     * 页面与文案在应用 apps/web-antd/src 下
+     * 文案在共享包 packages/shared/src/locales/langs 下（两个 UI 版本共用），
+     * 页面在对应 UI 版本的应用 apps/web-ele/src 或 apps/web-antd/src 下
      */
     private static String getVbenFileName(String template, String moduleName, String businessName) {
-        String root = GenConstants.FRONTEND_TYPE_VBEN;
-        String apiDir = root + "/packages/shared/src/api";
-        String appDir = root + "/apps/web-antd/src";
-        String pageDir = StringUtils.format("{}/views/{}/{}", appDir, moduleName, businessName);
-        String kebabName = StringUtils.replace(StringUtils.toUnderScoreCase(businessName), "_", "-");
-        return switch (template) {
-            case GenConstants.VBEN_API_TEMPLATE_PATH -> StringUtils.format("{}/{}/{}.ts", apiDir, moduleName, businessName);
-            case GenConstants.VBEN_DATA_TEMPLATE_PATH -> pageDir + "/data.ts";
-            case GenConstants.VBEN_DRAWER_TEMPLATE_PATH -> pageDir + "/" + kebabName + "-drawer.vue";
-            case GenConstants.VBEN_INDEX_TEMPLATE_PATH, GenConstants.VBEN_INDEX_TREE_TEMPLATE_PATH -> pageDir + "/index.vue";
-            case GenConstants.VBEN_LOCALE_ZH_TEMPLATE_PATH ->
-                StringUtils.format("{}/locales/langs/zh-CN/{}/{}.json", appDir, moduleName, businessName);
-            case GenConstants.VBEN_LOCALE_EN_TEMPLATE_PATH ->
-                StringUtils.format("{}/locales/langs/en-US/{}/{}.json", appDir, moduleName, businessName);
-            default -> throw new ServiceException(StringUtils.format("未知的 Vben 模板: {}", template));
-        };
+        String root = GenConstants.FRONTEND_ROOT;
+        String sharedDir = root + "/packages/shared/src";
+        switch (template) {
+            case GenConstants.VBEN_API_TEMPLATE_PATH -> {
+                return StringUtils.format("{}/api/{}/{}.ts", sharedDir, moduleName, businessName);
+            }
+            case GenConstants.VBEN_LOCALE_ZH_TEMPLATE_PATH -> {
+                return StringUtils.format("{}/locales/langs/zh-CN/{}/{}.json", sharedDir, moduleName, businessName);
+            }
+            case GenConstants.VBEN_LOCALE_EN_TEMPLATE_PATH -> {
+                return StringUtils.format("{}/locales/langs/en-US/{}/{}.json", sharedDir, moduleName, businessName);
+            }
+            default -> {
+                // 页面模板：fm/vben/<前端模板类型>/<模板文件名>
+                String relative = StringUtils.removeStart(template, GenConstants.VBEN_TEMPLATE_ROOT_PATH + "/");
+                String frontendType = StringUtils.substringBefore(relative, "/");
+                String templateName = StringUtils.substringAfter(relative, "/");
+                if (!GenConstants.FRONTEND_TYPES.contains(frontendType)) {
+                    throw new ServiceException(StringUtils.format("未知的 Vben 模板: {}", template));
+                }
+                String pageDir = StringUtils.format("{}/apps/web-{}/src/views/{}/{}", root, frontendType, moduleName, businessName);
+                String kebabName = StringUtils.replace(StringUtils.toUnderScoreCase(businessName), "_", "-");
+                return switch (templateName) {
+                    case GenConstants.VBEN_DATA_TEMPLATE -> pageDir + "/data.ts";
+                    case GenConstants.VBEN_DRAWER_TEMPLATE -> pageDir + "/" + kebabName + "-drawer.vue";
+                    case GenConstants.VBEN_INDEX_TEMPLATE, GenConstants.VBEN_INDEX_TREE_TEMPLATE -> pageDir + "/index.vue";
+                    default -> throw new ServiceException(StringUtils.format("未知的 Vben 模板: {}", template));
+                };
+            }
+        }
     }
 
     /**

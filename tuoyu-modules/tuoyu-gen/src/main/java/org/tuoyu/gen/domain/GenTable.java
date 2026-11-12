@@ -62,7 +62,7 @@ public class GenTable extends BaseEntity {
     private String tplCategory;
 
     /**
-     * 前端模板类型，只有 vben（对应 fm/vben 下的模板）
+     * 前端模板类型：ele（Element Plus，对应 fm/vben/ele 下的页面模板）或 antd（Ant Design Vue，fm/vben/antd）
      */
     private String frontendType;
 

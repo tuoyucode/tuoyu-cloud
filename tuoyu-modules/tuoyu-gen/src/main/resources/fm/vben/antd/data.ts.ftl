@@ -1,4 +1,4 @@
-<#-- Vben 风格：查询条件、表格列、表单字段。约定见前端仓库 CONTRIBUTING.md 的“页面模板”一节 -->
+<#-- Vben 风格（Ant Design Vue 版）：查询条件、表格列、表单字段。约定见前端仓库 CONTRIBUTING.md 的“页面模板”一节 -->
 <#assign i18n = moduleName + "." + businessName>
 <#assign pk = pkColumn.javaField>
 <#assign hasDictColumn = false>

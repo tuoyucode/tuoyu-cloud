@@ -34,4 +34,10 @@ public class GenProperties {
      */
     private String tablePrefix;
 
+    /**
+     * 新导入的表默认使用的前端模板：ele（Element Plus，默认）或 antd（Ant Design Vue）。
+     * 每张表可以在“修改生成配置”中单独选择
+     */
+    private String frontendType = "ele";
+
 }

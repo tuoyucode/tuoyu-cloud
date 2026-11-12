@@ -1,4 +1,4 @@
-<#-- Vben 风格：中文文案，放到前端 locales/langs/zh-CN/<模块>/<业务>.json，键为 <模块>.<业务>.* -->
+<#-- Vben 风格：中文文案，放到前端共享包 packages/shared/src/locales/langs/zh-CN/<模块>/<业务>.json，键为 <模块>.<业务>.* -->
 {
   "title": "${functionName?json_string}",
   "list": "${functionName?json_string}列表",

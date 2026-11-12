@@ -63,10 +63,19 @@ class DateNetDesensitizedUtilsTest {
     void shouldFormatFriendlyTimeUsingTargetDate() {
         Date now = new Date();
         Date future = DateUtil.offsetDay(now, 2);
+        Date tenSecondsAgo = DateUtil.offsetSecond(now, -10);
+        Date fiveMinutesAgo = DateUtil.offsetMinute(now, -5);
 
         assertEquals("", DateUtils.formatFriendlyTime(null));
-        assertEquals("刚刚", DateUtils.formatFriendlyTime(DateUtil.offsetSecond(now, -10)));
-        assertTrue(DateUtils.formatFriendlyTime(DateUtil.offsetMinute(now, -5)).endsWith("分钟前"));
+        // 刚过零点时，几秒、几分钟前已经是昨天（元旦时是去年），按昨天或日期格式化，不能断言“刚刚”“分钟前”
+        if (DateUtil.isSameDay(tenSecondsAgo, now)) {
+            assertEquals("刚刚", DateUtils.formatFriendlyTime(tenSecondsAgo));
+        }
+        if (DateUtil.isSameDay(fiveMinutesAgo, now)) {
+            assertTrue(DateUtils.formatFriendlyTime(fiveMinutesAgo).endsWith("分钟前"));
+        } else {
+            assertFalse(DateUtils.formatFriendlyTime(fiveMinutesAgo).endsWith("分钟前"));
+        }
         assertEquals(DateUtils.formatDateTime(future), DateUtils.formatFriendlyTime(future));
     }
 
