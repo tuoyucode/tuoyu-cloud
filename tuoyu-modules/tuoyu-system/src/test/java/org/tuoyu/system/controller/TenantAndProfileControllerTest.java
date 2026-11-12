@@ -31,6 +31,8 @@ import org.tuoyu.system.service.ISysTenantService;
 import org.tuoyu.system.service.ISysUserService;
 import org.tuoyu.system.support.SystemTestSupport;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -213,6 +215,50 @@ class TenantAndProfileControllerTest {
             ArgumentCaptor<SysUserBo> updated = ArgumentCaptor.forClass(SysUserBo.class);
             verify(userService, Mockito.times(2)).updateUserProfile(updated.capture());
             assertEquals(100L, updated.getValue().getUserId());
+        }
+
+        @Test
+        @DisplayName("超级管理员切换进其他租户后，个人信息、修改资料、修改密码、上传头像仍读写本人所属租户中的记录")
+        void ownTenantAfterSwitching() throws Exception {
+            SystemTestSupport.tenant(true);
+            login.current().setTenantId("default");
+            login.current().setUserName("alice");
+            List<String> tenants = new ArrayList<>();
+            SysUserVo vo = new SysUserVo();
+            vo.setUserId(100L);
+            vo.setPassword(hasher.hash("Old#2026"));
+            when(userService.selectUserById(100L)).thenAnswer(call -> {
+                tenants.add(TenantHelper.currentTenantId());
+                return vo;
+            });
+            when(userService.checkPhoneUnique(any())).thenReturn(true);
+            doNothing().when(userService).updateUserProfile(any());
+            Mockito.doAnswer(call -> tenants.add(TenantHelper.currentTenantId())).when(userService).updateUserProfile(any());
+            Mockito.doAnswer(call -> tenants.add(TenantHelper.currentTenantId())).when(userService).resetUserPwd(any(), any());
+            Mockito.doAnswer(call -> tenants.add(TenantHelper.currentTenantId())).when(userService).updateUserAvatar(any(), any());
+            RemoteFile stored = new RemoteFile();
+            stored.setOssId(900L);
+            when(remoteFileService.upload(any(), any())).thenAnswer(call -> {
+                tenants.add(TenantHelper.currentTenantId());
+                return stored;
+            });
+            SysUserProfileBo profile = new SysUserProfileBo();
+            profile.setNickName("新昵称");
+
+            TenantHelper.dynamic("acme", () -> {
+                controller.profile();
+                controller.updateProfile(profile);
+                controller.updatePwd(new SysProfileController.SysUserPasswordBo("Old#2026", "New#2026"));
+            });
+            TenantHelper.dynamic("acme", () -> {
+                try {
+                    controller.avatar(new MockMultipartFile("file", "me.png", "image/png", PNG));
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            });
+
+            assertThat(tenants).isNotEmpty().containsOnly("default");
         }
 
         @Test

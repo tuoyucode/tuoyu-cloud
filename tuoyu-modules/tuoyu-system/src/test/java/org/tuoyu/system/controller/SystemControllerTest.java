@@ -1,6 +1,7 @@
 package org.tuoyu.system.controller;
 
 import cn.dev33.satoken.exception.NotLoginException;
+import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.common.core.context.CurrentUser;
 import cn.dev33.satoken.stp.StpLogic;
 import cn.dev33.satoken.stp.StpUtil;
@@ -96,6 +97,7 @@ class SystemControllerTest {
     void tearDown() {
         login.close();
         Mockito.reset(SystemTestSupport.redisson());
+        SystemTestSupport.tenant(false);
     }
 
     private static boolean ok(ApiResult<?> r) {
@@ -261,6 +263,30 @@ class SystemControllerTest {
             UserInfoVo info = controller.getInfo().getData();
             assertEquals(Set.of("system:user:list"), info.getPermissions());
             assertEquals(Set.of("common"), info.getRoles());
+        }
+
+        @Test
+        @DisplayName("当前用户信息：超级管理员切换进其他租户后，仍在本人所属的租户中读取本人的用户与角色")
+        void currentUserAfterSwitchingTenant() {
+            SystemTestSupport.tenant(true);
+            CurrentUser loginUser = login.userId(ADMIN).current();
+            loginUser.setTenantId("default");
+            List<String> tenants = new ArrayList<>();
+            SysUserVo vo = new SysUserVo();
+            vo.setUserId(ADMIN);
+            when(userService.selectUserById(ADMIN)).thenAnswer(call -> {
+                tenants.add(TenantHelper.currentTenantId());
+                return vo;
+            });
+            when(roleService.selectRolesByUserId(ADMIN)).thenAnswer(call -> {
+                tenants.add(TenantHelper.currentTenantId());
+                return List.of();
+            });
+
+            UserInfoVo info = TenantHelper.dynamic("acme", () -> controller.getInfo().getData());
+
+            assertEquals(ADMIN, info.getUser().getUserId());
+            assertEquals(List.of("default", "default"), tenants);
         }
 
         @Test
