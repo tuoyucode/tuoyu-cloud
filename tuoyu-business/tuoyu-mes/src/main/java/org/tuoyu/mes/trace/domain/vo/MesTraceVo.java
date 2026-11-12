@@ -39,8 +39,14 @@ public class MesTraceVo implements Serializable {
     private List<MesTraceWorkorderVo> workorders = new ArrayList<>();
 
     /**
-     * 事件时间线（按时间先后）
+     * 事件时间线（按时间先后），不含没有权限的段的事件
      */
     private List<MesTraceEventVo> timeline = new ArrayList<>();
+
+    /**
+     * 当前用户没有查询权限的段（reports 报工、materials 用料、inspections 检验、defects 不良、stockIns 入库），
+     * 这些段在各工单中为空，时间线中也没有它们的事件
+     */
+    private List<String> deniedSections = new ArrayList<>();
 
 }

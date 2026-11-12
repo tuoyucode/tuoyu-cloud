@@ -35,6 +35,11 @@ public class MesMaterialRequestItemVo implements Serializable {
     private String unit;
 
     /**
+     * 物料当前的追溯方式（none、batch、sn）；按批次追溯（batch）的物料完成时必须填写物料批次号
+     */
+    private String traceMode;
+
+    /**
      * 按物料清单计算的需求数量（手工新增的明细为空）
      */
     private BigDecimal planQty;

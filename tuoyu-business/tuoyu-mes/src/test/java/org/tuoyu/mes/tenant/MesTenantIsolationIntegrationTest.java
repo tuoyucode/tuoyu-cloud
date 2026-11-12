@@ -6,9 +6,9 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder;
-import com.baomidou.mybatisplus.core.config.GlobalConfig;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.core.config.GlobalConfig;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.metadata.TableFieldInfo;
@@ -21,6 +21,7 @@ import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerIntercept
 import com.baomidou.mybatisplus.extension.plugins.inner.TenantLineInnerInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
+import org.apache.ibatis.exceptions.PersistenceException;
 import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
@@ -53,17 +54,28 @@ import org.tuoyu.common.tenant.mybatis.TuoyuTenantLineHandler;
 import org.tuoyu.mes.analysis.domain.AnalysisScope;
 import org.tuoyu.mes.analysis.mapper.MesAnalysisMapper;
 import org.tuoyu.mes.andon.domain.MesAndonEvent;
+import org.tuoyu.mes.andon.domain.MesDowntimeReason;
 import org.tuoyu.mes.andon.enums.AndonLevel;
 import org.tuoyu.mes.andon.escalation.AndonEscalationRules;
 import org.tuoyu.mes.andon.mapper.MesAndonEventMapper;
+import org.tuoyu.mes.common.MesLookups;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.code.MesCodeServiceImpl;
 import org.tuoyu.mes.equipment.domain.MesOeeConfig;
 import org.tuoyu.mes.masterdata.domain.MesBom;
+import org.tuoyu.mes.masterdata.domain.MesDevice;
 import org.tuoyu.mes.masterdata.domain.MesFactory;
 import org.tuoyu.mes.masterdata.domain.MesLine;
+import org.tuoyu.mes.masterdata.domain.MesLocation;
 import org.tuoyu.mes.masterdata.domain.MesMaterial;
+import org.tuoyu.mes.masterdata.domain.MesRoute;
+import org.tuoyu.mes.masterdata.domain.MesStation;
+import org.tuoyu.mes.masterdata.domain.MesTeam;
+import org.tuoyu.mes.masterdata.domain.MesWarehouse;
 import org.tuoyu.mes.masterdata.domain.MesWorkshop;
 import org.tuoyu.mes.masterdata.mapper.MesBomMapper;
+import org.tuoyu.mes.masterdata.mapper.MesLocationMapper;
+import org.tuoyu.mes.masterdata.mapper.MesMaterialMapper;
 import org.tuoyu.mes.plan.domain.MesOperationTask;
 import org.tuoyu.mes.plan.domain.MesWorkorder;
 import org.tuoyu.mes.plan.mapper.MesOperationTaskMapper;
@@ -71,6 +83,7 @@ import org.tuoyu.mes.plan.mapper.MesWorkorderMapper;
 import org.tuoyu.mes.production.domain.MesProductionReport;
 import org.tuoyu.mes.production.mapper.MesProductionReportMapper;
 import org.tuoyu.mes.quality.domain.MesDefectRecord;
+import org.tuoyu.mes.quality.domain.MesInspectionScheme;
 import org.tuoyu.mes.trace.domain.MesCodeRule;
 import org.tuoyu.mes.trace.domain.MesCodeSequence;
 import org.tuoyu.mes.trace.domain.MesSn;
@@ -83,6 +96,7 @@ import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.SQLIntegrityConstraintViolationException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -216,7 +230,8 @@ class MesTenantIsolationIntegrationTest {
             (mapper, scope) -> {
                 List<Object> rows = new ArrayList<>();
                 for (String groupBy : List.of("reason", "line", "date")) {
-                    rows.addAll(mapper.selectDowntimeGroups(scope, AndonLevel.CRITICAL.code(), groupBy));
+                    rows.addAll(mapper.selectDowntimeGroups(scope, AndonLevel.CRITICAL.code(),
+                        AndonEscalationRules.RESOLVE_WATCHED, groupBy));
                 }
                 return rows;
             })));
@@ -235,12 +250,32 @@ class MesTenantIsolationIntegrationTest {
         entry("qualified_qty = qualified_qty - {0}", "conditionalAccumulationOnlyTouchesCurrentTenant"),
         entry("defect_qty = defect_qty - {0}", "conditionalAccumulationOnlyTouchesCurrentTenant"),
         entry("completed_qty = completed_qty - {0}", "conditionalAccumulationOnlyTouchesCurrentTenant"),
-        entry("completed_qty >= plan_qty", "conditionalCompletionOnlyTouchesCurrentTenant"),
-        entry("qualified_qty >= plan_qty", "conditionalCompletionOnlyTouchesCurrentTenant"),
+        entry("qualified_qty + defect_qty >= {0}", "conditionalCompletionOnlyTouchesCurrentTenant"),
         entry("completed_qty - {0} >= stocked_qty + {1}", "conditionalCompletionOnlyTouchesCurrentTenant"),
         entry("limit ", "trailingClausesKeepTenantCondition"),
         entry("limit 1", "trailingClausesKeepTenantCondition"),
-        entry("for update", "trailingClausesKeepTenantCondition"));
+        entry("for update", "trailingClausesKeepTenantCondition"),
+        entry("lower(", "codeLookupsIgnoreCaseWithinTenant"));
+
+    /**
+     * 编码在租户内唯一、不区分大小写的实体 → 编码字段（迁移 V6 的唯一索引；库位在同一仓库内唯一）。
+     * 种子行之外（伪造租户、批量插入等用途）的行，编码加上各自的基数，同租户内不重复
+     */
+    static final Map<Class<?>, String> UNIQUE_CODES = Map.ofEntries(
+        entry(MesFactory.class, "factoryCode"),
+        entry(MesWorkshop.class, "workshopCode"),
+        entry(MesLine.class, "lineCode"),
+        entry(MesStation.class, "stationCode"),
+        entry(MesTeam.class, "teamCode"),
+        entry(MesMaterial.class, "materialCode"),
+        entry(MesBom.class, "bomCode"),
+        entry(MesRoute.class, "routeCode"),
+        entry(MesDevice.class, "deviceCode"),
+        entry(MesWarehouse.class, "warehouseCode"),
+        entry(MesLocation.class, "locationCode"),
+        entry(MesDowntimeReason.class, "reasonCode"),
+        entry(MesInspectionScheme.class, "schemeCode"),
+        entry(MesCodeRule.class, "ruleCode"));
 
     private static final String TENANT_A = "tenant-a";
 
@@ -256,6 +291,11 @@ class MesTenantIsolationIntegrationTest {
     private static final long BASE_FORGED = 3_000_000L;
 
     private static final long BASE_BATCH = 4_000_000L;
+
+    /**
+     * 编码唯一用例插入的行的主键基数
+     */
+    private static final long BASE_UNIQUE = 6_000_000L;
 
     private static final LocalDateTime TIME = LocalDateTime.of(2026, 11, 10, 8, 0);
 
@@ -642,7 +682,7 @@ class MesTenantIsolationIntegrationTest {
     }
 
     /**
-     * 与工单、工序任务的自动完工（数量达到计划数时才改状态）以及撤销末道工序报工时的数量下限写法相同：
+     * 与工单自动完工、工序任务的自动完成（已报数量达到上限时才改状态）以及撤销末道工序报工时的数量下限写法相同：
      * 两个租户的数据都满足条件时，带这些 apply 片段的更新也只改到当前租户
      */
     @Test
@@ -654,7 +694,7 @@ class MesTenantIsolationIntegrationTest {
         long taskB = table(MesOperationTask.class).id(BASE_B);
         BigDecimal ten = BigDecimal.TEN;
         LocalDateTime finished = TIME.plusDays(1);
-        // 让两个租户的数据都满足条件：计划数等于完工数（合格数），已入库为 0
+        // 让两个租户的数据都满足条件：计划数等于完工数，工序任务已报数量（合格 + 不良）等于上限，已入库为 0
         for (String tenant : List.of(TENANT_A, TENANT_B)) {
             long workorderId = TENANT_A.equals(tenant) ? workorderA : workorderB;
             long taskId = TENANT_A.equals(tenant) ? taskA : taskB;
@@ -668,7 +708,8 @@ class MesTenantIsolationIntegrationTest {
                 MesOperationTask task = new MesOperationTask();
                 task.setTaskId(taskId);
                 task.setPlanQty(ten);
-                task.setQualifiedQty(ten);
+                task.setQualifiedQty(new BigDecimal("8"));
+                task.setDefectQty(new BigDecimal("2"));
                 assertEquals(1, session.getMapper(MesOperationTaskMapper.class).updateById(task), "准备工序任务数据");
                 return null;
             });
@@ -681,12 +722,11 @@ class MesTenantIsolationIntegrationTest {
                 MesOperationTaskMapper tasks = session.getMapper(MesOperationTaskMapper.class);
                 assertEquals(expected, workorders.update(null, Wrappers.lambdaUpdate(MesWorkorder.class)
                     .set(MesWorkorder::getActualEndTime, finished)
-                    .eq(MesWorkorder::getWorkorderId, workorderId)
-                    .apply("completed_qty >= plan_qty")), "工单自动完工");
+                    .eq(MesWorkorder::getWorkorderId, workorderId)), "工单自动完工");
                 assertEquals(expected, tasks.update(null, Wrappers.lambdaUpdate(MesOperationTask.class)
                     .set(MesOperationTask::getActualEndTime, finished)
                     .eq(MesOperationTask::getTaskId, taskId)
-                    .apply("qualified_qty >= plan_qty")), "工序任务自动完工");
+                    .apply("qualified_qty + defect_qty >= {0}", ten)), "工序任务自动完成");
                 assertEquals(expected, workorders.update(null, Wrappers.lambdaUpdate(MesWorkorder.class)
                     .setSql("completed_qty = completed_qty - {0}", BigDecimal.ONE)
                     .eq(MesWorkorder::getWorkorderId, workorderId)
@@ -888,6 +928,86 @@ class MesTenantIsolationIntegrationTest {
     }
 
     /**
+     * 迁移 V6 的唯一索引：两个租户的种子行编码为 a、b，复制租户 A 的种子行、编码改为大写的 A 后插入
+     */
+    @Test
+    @DisplayName("编码在租户内唯一、不区分大小写：同租户中只差大小写也拒绝；其他租户、删除后、其他仓库的库位可以使用")
+    void codesAreUniqueWithinTenantIgnoringCase() {
+        List<Executable> checks = new ArrayList<>();
+        for (Map.Entry<Class<?>, String> unique : UNIQUE_CODES.entrySet()) {
+            Table table = table(unique.getKey());
+            Field code = field(table.entity(), unique.getValue());
+            checks.add(() -> {
+                Object duplicate = copyWithCode(table, code, BASE_UNIQUE, "A");
+                PersistenceException error = assertThrows(PersistenceException.class,
+                    () -> inTenant(TENANT_A, session -> mapper(session, table).insert(duplicate)),
+                    table + "：同租户中只差大小写的编码应被拒绝");
+                assertTrue(causedBy(error, SQLIntegrityConstraintViolationException.class), table + "：拒绝的原因应是唯一索引");
+                assertEquals(Integer.valueOf(1), inTenant(TENANT_B, session -> mapper(session, table)
+                    .insert(copyWithCode(table, code, BASE_UNIQUE, "A"))), table + "：其他租户可以使用相同的编码");
+                if (table.entity() == MesLocation.class) {
+                    MesLocation otherWarehouse = (MesLocation) copyWithCode(table, code, BASE_UNIQUE + 100, "A");
+                    otherWarehouse.setWarehouseId(table(MesWarehouse.class).id(BASE_UNIQUE));
+                    assertEquals(Integer.valueOf(1), inTenant(TENANT_A, session -> mapper(session, table).insert(otherWarehouse)),
+                        table + "：其他仓库可以使用相同的库位编码");
+                }
+                assertEquals(Integer.valueOf(1), inTenant(TENANT_A, session -> mapper(session, table).deleteById(table.id(BASE_A))),
+                    table + "：删除种子行");
+                assertEquals(Integer.valueOf(1), inTenant(TENANT_A, session -> mapper(session, table)
+                    .insert(copyWithCode(table, code, BASE_UNIQUE + 200, "A"))), table + "：已删除的行不参与唯一约束");
+            });
+        }
+        assertAll(checks);
+    }
+
+    /**
+     * 与主数据服务的编码校验、导入时按编码批量查询（UniqueCodes、MesLookups.byCodes）的写法相同
+     */
+    @Test
+    @DisplayName("按编码查询不区分大小写，且只查到当前租户的数据")
+    void codeLookupsIgnoreCaseWithinTenant() {
+        long materialA = table(MesMaterial.class).id(BASE_A);
+        long locationA = table(MesLocation.class).id(BASE_A);
+        inTenant(TENANT_A, session -> {
+            MesMaterialMapper materials = session.getMapper(MesMaterialMapper.class);
+            assertEquals(List.of(materialA), materials.selectList(QueryBuilder.lambda(MesMaterial.class)
+                .func(UniqueCodes.sameCode(MesMaterial::getMaterialCode, "A")).build())
+                .stream().map(MesMaterial::getMaterialId).toList(), "按编码查询（大写）");
+            assertTrue(materials.selectList(QueryBuilder.lambda(MesMaterial.class)
+                .func(UniqueCodes.sameCode(MesMaterial::getMaterialCode, "B")).build()).isEmpty(), "查到了其他租户的物料");
+            Map<String, MesMaterial> byCodes = MesLookups.byCodes(materials, MesMaterial.class, MesMaterial::getMaterialCode,
+                List.of("A", "b"));
+            assertEquals(Set.of("a"), byCodes.keySet(), "按编码批量查询");
+            assertEquals(materialA, byCodes.get("a").getMaterialId());
+            MesLocationMapper locations = session.getMapper(MesLocationMapper.class);
+            assertEquals(List.of(locationA), locations.selectList(QueryBuilder.lambda(MesLocation.class)
+                .eq(MesLocation::getWarehouseId, table(MesWarehouse.class).id(BASE_A))
+                .func(UniqueCodes.sameCode(MesLocation::getLocationCode, "A")).build())
+                .stream().map(MesLocation::getLocationId).toList(), "按仓库与库位编码查询");
+            return null;
+        });
+    }
+
+    /**
+     * 复制租户 A 的种子行（引用租户 A 的主数据），换主键与编码
+     */
+    private static Object copyWithCode(Table table, Field code, long base, String value) {
+        Object copy = row(table, BASE_A, TENANT_A);
+        table.info().setPropertyValue(copy, table.info().getKeyProperty(), table.id(base));
+        write(code, copy, value);
+        return copy;
+    }
+
+    private static boolean causedBy(Throwable error, Class<? extends Throwable> type) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (type.isInstance(cause)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * 与安灯超时检查（MesAndonEscalationServiceImpl）的写法相同：忽略租户时查出各租户待计算、已超时的事件（只有主键与租户），
      * 在某个租户中只看到自己的；按原值条件升级时碰不到其他租户的事件
      */
@@ -910,13 +1030,13 @@ class MesTenantIsolationIntegrationTest {
             assertEquals(Integer.valueOf(1), prepared, "准备超时的事件");
         }
         List<MesAndonEvent> all = TenantHelper.ignore(
-            () -> inSession(session -> session.getMapper(MesAndonEventMapper.class).selectOverdue(now, 100)));
+            () -> inSession(session -> session.getMapper(MesAndonEventMapper.class).selectOverdue(null, now, 100)));
         Map<Long, String> tenantsById = new HashMap<>();
         all.forEach(event -> tenantsById.put(event.getEventId(), event.getTenantId()));
         assertEquals(TENANT_A, tenantsById.get(eventA), "忽略租户时应找到租户 A 的超时事件并带出租户");
         assertEquals(TENANT_B, tenantsById.get(eventB), "忽略租户时应找到租户 B 的超时事件并带出租户");
         List<MesAndonEvent> own = inTenant(TENANT_A,
-            session -> session.getMapper(MesAndonEventMapper.class).selectOverdue(now, 100));
+            session -> session.getMapper(MesAndonEventMapper.class).selectOverdue(null, now, 100));
         assertEquals(List.of(eventA), own.stream().map(MesAndonEvent::getEventId).toList(), "租户 A 中只应看到自己的超时事件");
 
         for (long eventId : List.of(eventB, eventA)) {
@@ -940,7 +1060,7 @@ class MesTenantIsolationIntegrationTest {
                 Wrappers.<MesAndonEvent>lambdaUpdate().set(MesAndonEvent::getDeadlineChecked, AndonEscalationRules.UNCHECKED)));
         }
         Set<Long> pending = new HashSet<>();
-        TenantHelper.ignore(() -> inSession(session -> session.getMapper(MesAndonEventMapper.class).selectDeadlinePending(100)))
+        TenantHelper.ignore(() -> inSession(session -> session.getMapper(MesAndonEventMapper.class).selectDeadlinePending(null, 100)))
             .forEach(event -> pending.add(event.getEventId()));
         assertTrue(pending.containsAll(List.of(eventA, eventB)), "忽略租户时应找到各租户待计算截止时间的事件");
     }
@@ -1058,6 +1178,10 @@ class MesTenantIsolationIntegrationTest {
             // 唯一键（租户、对象类型、对象）：每行指向各自基数下的对象，同租户内不重复
             config.setTargetId(base);
         }
+        String codeField = UNIQUE_CODES.get(entity.getClass());
+        if (codeField != null && base != BASE_A && base != BASE_B) {
+            write(field(entity.getClass(), codeField), entity, (a ? "a" : "b") + base);
+        }
     }
 
     /**
@@ -1101,6 +1225,14 @@ class MesTenantIsolationIntegrationTest {
             }
         }
         return fields;
+    }
+
+    private static Field field(Class<?> type, String name) {
+        try {
+            return type.getDeclaredField(name);
+        } catch (NoSuchFieldException e) {
+            throw new IllegalStateException(type.getSimpleName() + " 没有字段 " + name, e);
+        }
     }
 
     private static Object read(Field field, Object entity) {

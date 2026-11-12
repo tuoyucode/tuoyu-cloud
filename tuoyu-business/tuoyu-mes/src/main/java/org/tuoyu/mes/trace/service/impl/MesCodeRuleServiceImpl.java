@@ -12,6 +12,7 @@ import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.mes.common.CodeEnum;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.code.CodeRules;
 import org.tuoyu.mes.common.code.IMesCodeService;
 import org.tuoyu.mes.trace.domain.MesCodeRule;
@@ -85,7 +86,7 @@ public class MesCodeRuleServiceImpl implements IMesCodeRuleService {
         if (rule.getStatus() == null) {
             rule.setStatus(SystemConstants.NORMAL);
         }
-        ruleMapper.insert(rule);
+        UniqueCodes.write(() -> ruleMapper.insert(rule), duplicateCode(rule.getRuleCode()));
         bo.setRuleId(rule.getRuleId());
     }
 
@@ -99,7 +100,7 @@ public class MesCodeRuleServiceImpl implements IMesCodeRuleService {
         MesCodeRule rule = BeanMapper.map(bo, MesCodeRule.class);
         // 日期格式清空时也要写入数据库：按实体更新会跳过 null，这里存空字符串，生成编号时视为不带日期
         rule.setDatePattern(StringUtils.blankToDefault(bo.getDatePattern(), ""));
-        if (ruleMapper.updateById(rule) == 0) {
+        if (UniqueCodes.write(() -> ruleMapper.updateById(rule), duplicateCode(bo.getRuleCode())) == 0) {
             throw new ServiceException("修改编码规则失败，规则不存在");
         }
         if (!Objects.equals(existing.getResetCycle(), bo.getResetCycle())) {
@@ -107,8 +108,19 @@ public class MesCodeRuleServiceImpl implements IMesCodeRuleService {
         }
     }
 
+    /**
+     * 删除自定义的规则；内置规则供系统单据生成编号，只能修改或停用，不能删除
+     */
     @Override
     public void deleteByIds(Collection<Long> ids) {
+        List<String> builtin = ruleMapper.selectByIds(ids).stream()
+            .map(MesCodeRule::getRuleCode)
+            .filter(BUILTIN_RULES::contains)
+            .sorted()
+            .toList();
+        if (!builtin.isEmpty()) {
+            throw new ServiceException("内置编码规则 " + String.join("、", builtin) + " 供系统单据生成编号，不能删除，可以修改或停用");
+        }
         if (ruleMapper.deleteByIds(ids) == 0) {
             throw new ServiceException("删除编码规则失败，规则不存在");
         }
@@ -153,12 +165,16 @@ public class MesCodeRuleServiceImpl implements IMesCodeRuleService {
 
     private void checkCodeUnique(String code, Long excludeId) {
         boolean exists = ruleMapper.exists(QueryBuilder.lambda(MesCodeRule.class)
-            .eq(MesCodeRule::getRuleCode, code)
+            .func(UniqueCodes.sameCode(MesCodeRule::getRuleCode, code))
             .neIfPresent(MesCodeRule::getRuleId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("规则编码“" + code + "”已存在");
+            throw new ServiceException(duplicateCode(code));
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "规则编码“" + code + "”已存在";
     }
 
     private static MesCodeRuleVo toVo(MesCodeRule rule) {

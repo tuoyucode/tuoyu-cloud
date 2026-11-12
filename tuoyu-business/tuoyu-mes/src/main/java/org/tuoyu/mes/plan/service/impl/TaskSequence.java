@@ -1,6 +1,7 @@
 package org.tuoyu.mes.plan.service.impl;
 
 import org.tuoyu.mes.plan.domain.MesOperationTask;
+import org.tuoyu.mes.plan.enums.TaskStatus;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -11,6 +12,7 @@ import java.util.Objects;
  * 同一工单的工序任务按工序顺序（seqNo）的前后关系与报工数量上限。
  * <p>
  * 数量规则：第一道工序累计报工（合格 + 不良）不超过工单计划数；后续工序累计报工不超过上一道工序的累计合格数。
+ * 上一道工序已完成、本工序累计报工达到这个上限时，本工序达到完成条件。
  *
  * @author tuoyu
  */
@@ -59,6 +61,18 @@ public final class TaskSequence {
      */
     public static BigDecimal reported(MesOperationTask task) {
         return orZero(task.getQualifiedQty()).add(orZero(task.getDefectQty()));
+    }
+
+    /**
+     * 本工序是否达到完成条件：上一道工序已完成（首道不要求），且本工序已报数量（合格 + 不良）不少于上限
+     * （上一道的累计合格数，首道为工单计划数）。有不良时合格数少于计划数，按已报数量判断
+     */
+    public static boolean reached(BigDecimal workorderPlanQty, List<MesOperationTask> tasks, MesOperationTask task) {
+        MesOperationTask previous = previous(tasks, task);
+        if (previous != null && !TaskStatus.COMPLETED.code().equals(previous.getTaskStatus())) {
+            return false;
+        }
+        return reported(task).compareTo(capacity(workorderPlanQty, previous)) >= 0;
     }
 
     /**

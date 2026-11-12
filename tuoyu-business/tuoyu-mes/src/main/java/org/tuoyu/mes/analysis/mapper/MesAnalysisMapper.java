@@ -300,13 +300,15 @@ public interface MesAnalysisMapper {
     List<DefectGroupRow> selectDefectGroups(@Param("q") AnalysisScope q, @Param("groupBy") String groupBy);
 
     /**
-     * 停机事件按一个维度汇总次数、未解决数与已解决事件的停机时长。
+     * 停机事件按一个维度汇总次数、未解决数、已解决数与已解决事件的停机时长。
      * <p>
      * 停机事件：停线级别、或填写了停机原因的安灯事件（与安灯解决时记录停机时长的规则一致），按上报时间统计；
-     * 停机时长取安灯事件中解决时记录的停机分钟数，未解决的事件只计次数、不计时长。
+     * 未解决按状态判断（状态在 {@code openStatuses} 中）；已解决为有解决时间的事件，停机时长只取这些事件解决时记录的停机分钟数。
+     * 未经解决直接关闭（误报）的事件只计入次数，既不算未解决，也不计时长。
      * 按产品过滤时关联工单（没有关联工单的事件此时不计入）
      *
      * @param criticalLevel 停线级别的编码
+     * @param openStatuses  未解决的状态（已上报、已派单、处理中）
      * @param groupBy       维度编码：reason、line、date
      */
     @DataPermission({
@@ -315,8 +317,11 @@ public interface MesAnalysisMapper {
     })
     @Select({"<script>", "select ", DOWNTIME_GROUP_SELECT, """
                , count(*) as event_count,
-               sum(case when e.resolve_time is null then 1 else 0 end) as open_count,
-               sum(coalesce(e.downtime_minutes, 0)) as downtime_minutes
+               sum(case when e.event_status in
+                   <foreach collection="openStatuses" item="status" open="(" separator="," close=")">#{status}</foreach>
+                   then 1 else 0 end) as open_count,
+               sum(case when e.resolve_time is not null then 1 else 0 end) as resolved_count,
+               sum(case when e.resolve_time is not null then coalesce(e.downtime_minutes, 0) else 0 end) as downtime_minutes
           from mes_andon_event e
          inner join mes_workshop ws on ws.workshop_id = e.workshop_id
           left join mes_workorder w on w.workorder_id = e.workorder_id
@@ -331,6 +336,7 @@ public interface MesAnalysisMapper {
          group by
         """, DOWNTIME_GROUP_BY, "</script>"})
     List<DowntimeGroupRow> selectDowntimeGroups(@Param("q") AnalysisScope q, @Param("criticalLevel") String criticalLevel,
+                                                @Param("openStatuses") Collection<String> openStatuses,
                                                 @Param("groupBy") String groupBy);
 
 }

@@ -64,6 +64,13 @@ public class MesStockInServiceImpl implements IMesStockInService {
 
     private static final String OBJECT = "入库单";
 
+    /**
+     * 允许新增与确认入库单的工单状态
+     */
+    private static final WorkorderStatus[] STOCK_IN_WORKORDER_STATUSES = {
+        WorkorderStatus.IN_PROGRESS, WorkorderStatus.COMPLETED
+    };
+
     private final MesStockInMapper stockInMapper;
     private final MesWorkorderMapper workorderMapper;
     private final MesWarehouseMapper warehouseMapper;
@@ -150,7 +157,7 @@ public class MesStockInServiceImpl implements IMesStockInService {
         // 先锁住工单行：同一工单的入库单依次新增，下面汇总的数量不会被并发的新增越过
         MesWorkorder workorder = WorkorderFilters.lock(workorderMapper, bo.getWorkorderId());
         StateGuard.require("工单", WorkorderStatus.class, workorder.getWorkorderStatus(), "入库",
-            WorkorderStatus.IN_PROGRESS, WorkorderStatus.COMPLETED);
+            STOCK_IN_WORKORDER_STATUSES);
         MesWarehouse warehouse = WarehouseChecks.requireEnabled(warehouseMapper, bo.getWarehouseId());
         if (!WarehouseType.FINISHED.code().equals(warehouse.getWarehouseType())) {
             String typeLabel = CodeEnum.find(WarehouseType.class, warehouse.getWarehouseType())
@@ -199,7 +206,14 @@ public class MesStockInServiceImpl implements IMesStockInService {
         MesStockIn stockIn = requireStockIn(stockInId);
         StateGuard.require(OBJECT, StockInStatus.class, stockIn.getStockInStatus(), "入库", StockInStatus.SUBMITTED);
         // 先锁工单、再改入库单，与撤销报工（锁工单后再锁已提交的入库单）的加锁顺序一致，避免两边互相等待
-        WorkorderFilters.lock(workorderMapper, stockIn.getWorkorderId());
+        MesWorkorder workorder = WorkorderFilters.lock(workorderMapper, stockIn.getWorkorderId());
+        // 入库单提交之后工单可能已暂停或关闭：按新增时相同的要求（生产中、已完工）重新检查加锁读到的工单状态
+        if (!CodeEnum.in(workorder.getWorkorderStatus(), STOCK_IN_WORKORDER_STATUSES)) {
+            String current = CodeEnum.find(WorkorderStatus.class, workorder.getWorkorderStatus())
+                .map(WorkorderStatus::label).orElse(workorder.getWorkorderStatus());
+            throw new ServiceException("工单“" + workorder.getWorkorderCode() + "”当前为“" + current + "”，不能确认入库单“"
+                + stockIn.getStockInCode() + "”，可以取消该单据");
+        }
         MesStockIn change = new MesStockIn();
         change.setStockInStatus(StockInStatus.COMPLETED.code());
         change.setCompleteTime(LocalDateTime.now());

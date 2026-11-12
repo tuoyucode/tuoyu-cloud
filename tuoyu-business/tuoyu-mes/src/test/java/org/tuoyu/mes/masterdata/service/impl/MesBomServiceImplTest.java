@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.masterdata.domain.MesBom;
@@ -228,6 +229,109 @@ class MesBomServiceImplTest {
         });
         assertThat(service.queryList(new MesBomBo())).hasSize(1);
         assertThat(service.countList(new MesBomBo())).isZero();
+    }
+
+    private static MesBomItem savedItem(long materialId, String qty, int sortNo) {
+        MesBomItem item = new MesBomItem();
+        item.setItemId(100L + materialId);
+        item.setBomId(10L);
+        item.setMaterialId(materialId);
+        item.setQty(new BigDecimal(qty));
+        item.setLossRate(new BigDecimal("0.0000"));
+        item.setSortNo(sortNo);
+        return item;
+    }
+
+    private MesBomBo usedBom(MesBomItemBo... items) {
+        productAndParts();
+        MesBom current = bom(10L, 1L);
+        current.setBaseQty(new BigDecimal("1.0000"));
+        when(bomMapper.selectById(10L)).thenReturn(current);
+        when(bomMapper.updateById(any(MesBom.class))).thenReturn(1);
+        when(workorderMapper.exists(any(Wrapper.class))).thenReturn(true);
+        when(bomItemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(savedItem(2L, "2", 1), savedItem(3L, "0.5", 2)));
+        MesBomBo bo = bo(items);
+        bo.setBomId(10L);
+        return bo;
+    }
+
+    @Test
+    @DisplayName("已被工单使用：明细不变时只改表头，保留原明细")
+    void usedBomUpdatesHeaderOnly() {
+        MesBomBo bo = usedBom(item(2L, "2.00"), item(3L, "0.5"));
+        bo.setRemark("改了备注");
+        bo.setBomVersion("V1-修订");
+
+        service.updateByBo(bo);
+
+        verify(bomMapper).updateById(any(MesBom.class));
+        verify(bomItemMapper, never()).delete(any(Wrapper.class));
+        verify(bomItemMapper, never()).insert(anyCollection());
+    }
+
+    @Test
+    @DisplayName("已被工单使用：改用量、损耗率、子件或基准数量时拒绝并提示新建版本")
+    void usedBomRejectsItemChanges() {
+        assertThatThrownBy(() -> service.updateByBo(usedBom(item(2L, "3"), item(3L, "0.5"))))
+            .hasMessageContaining("新建版本");
+
+        MesBomItemBo lossy = item(3L, "0.5");
+        lossy.setLossRate(new BigDecimal("0.05"));
+        assertThatThrownBy(() -> service.updateByBo(usedBom(item(2L, "2"), lossy))).hasMessageContaining("新建版本");
+
+        assertThatThrownBy(() -> service.updateByBo(usedBom(item(2L, "2")))).hasMessageContaining("新建版本");
+
+        assertThatThrownBy(() -> service.updateByBo(usedBom(item(2L, "2"), item(4L, "0.5"))))
+            .hasMessageContaining("新建版本");
+
+        MesBomBo base = usedBom(item(2L, "2"), item(3L, "0.5"));
+        base.setBaseQty(BigDecimal.TEN);
+        assertThatThrownBy(() -> service.updateByBo(base)).hasMessageContaining("新建版本");
+
+        verify(bomMapper, never()).updateById(any(MesBom.class));
+        verify(bomItemMapper, never()).delete(any(Wrapper.class));
+    }
+
+    @Test
+    @DisplayName("比较明细时按子件物料对应：顺序与排序号不参与比较，未填的损耗率按 0")
+    void sameItemsComparesByMaterial() {
+        List<MesBomItem> existing = List.of(savedItem(2L, "2", 10), savedItem(3L, "0.5", 20));
+        MesBomItemBo second = item(3L, "0.50");
+        second.setSortNo(1);
+        assertThat(MesBomServiceImpl.sameItems(existing, List.of(second, item(2L, "2")))).isTrue();
+        assertThat(MesBomServiceImpl.sameItems(existing, List.of(item(2L, "2"), item(3L, "0.5")))).isTrue();
+        assertThat(MesBomServiceImpl.sameItems(existing, List.of(item(2L, "2"), item(3L, "0.6")))).isFalse();
+        MesBomItemBo remarked = item(3L, "0.5");
+        remarked.setRemark("加备注");
+        assertThat(MesBomServiceImpl.sameItems(existing, List.of(item(2L, "2"), remarked))).isFalse();
+    }
+
+    @Test
+    @DisplayName("详情带“是否已被工单使用”")
+    void detailTellsWhetherUsed() {
+        when(bomMapper.selectById(10L)).thenReturn(bom(10L, 1L));
+
+        assertThat(service.queryById(10L).getUsed()).isFalse();
+
+        when(workorderMapper.exists(any(Wrapper.class))).thenReturn(true);
+        assertThat(service.queryById(10L).getUsed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("编码按不区分大小写校验唯一；并发写入撞上唯一索引时给出相同的提示")
+    @SuppressWarnings("unchecked")
+    void codeUniqueIgnoringCase() {
+        when(bomMapper.exists(any(Wrapper.class))).thenReturn(true);
+        assertThatThrownBy(() -> service.insertByBo(bo(item(2L, "1")))).hasMessage("BOM 编码“BOM01”已存在");
+        ArgumentCaptor<Wrapper<MesBom>> query = ArgumentCaptor.forClass(Wrapper.class);
+        verify(bomMapper).exists(query.capture());
+        assertThat(query.getValue().getSqlSegment()).contains("lower(bom_code) = lower(");
+
+        when(bomMapper.exists(any(Wrapper.class))).thenReturn(false);
+        productAndParts();
+        when(bomMapper.insert(any(MesBom.class))).thenThrow(new DuplicateKeyException("uk_bom_code"));
+        assertThatThrownBy(() -> service.insertByBo(bo(item(2L, "1")))).hasMessage("BOM 编码“BOM01”已存在");
+        verify(bomItemMapper, never()).insert(anyCollection());
     }
 
 }

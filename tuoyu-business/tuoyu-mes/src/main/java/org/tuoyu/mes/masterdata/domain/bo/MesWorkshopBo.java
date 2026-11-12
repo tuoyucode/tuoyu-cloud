@@ -42,11 +42,6 @@ public class MesWorkshopBo implements Serializable {
     @Size(max = 128, message = "车间名称不能超过 128 个字符", groups = {OnCreate.class, OnUpdate.class})
     private String workshopName;
 
-    /**
-     * 对应的组织（部门）
-     */
-    private Long deptId;
-
     @Size(max = 64, message = "负责人不能超过 64 个字符", groups = {OnCreate.class, OnUpdate.class})
     private String manager;
 

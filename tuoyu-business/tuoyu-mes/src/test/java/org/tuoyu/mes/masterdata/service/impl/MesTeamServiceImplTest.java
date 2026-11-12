@@ -1,5 +1,6 @@
 package org.tuoyu.mes.masterdata.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.junit.jupiter.api.DisplayName;
@@ -15,6 +16,7 @@ import org.tuoyu.mes.masterdata.mapper.MesFactoryMapper;
 import org.tuoyu.mes.masterdata.mapper.MesTeamMapper;
 import org.tuoyu.mes.masterdata.mapper.MesTeamMemberMapper;
 import org.tuoyu.mes.masterdata.mapper.MesWorkshopMapper;
+import org.tuoyu.mes.plan.domain.MesOperationTask;
 import org.tuoyu.mes.plan.mapper.MesOperationTaskMapper;
 import org.tuoyu.mes.production.mapper.MesProductionReportMapper;
 import org.tuoyu.mes.support.MesTestSupport;
@@ -31,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -235,6 +238,50 @@ class MesTeamServiceImplTest {
         assertThat(service.queryList(new MesTeamBo())).hasSize(1);
         assertThat(service.countList(new MesTeamBo())).isZero();
         assertThat(service.options(5L)).singleElement().extracting("parentId").isEqualTo(5L);
+    }
+
+    @Test
+    @DisplayName("班组有未完成的派工任务（待派工、已派工、生产中）时不能更换车间")
+    @SuppressWarnings("unchecked")
+    void rejectsWorkshopChangeWithOpenTasks() {
+        when(teamMapper.selectById(10L)).thenReturn(team(10L));
+        when(workshopMapper.selectById(6L)).thenReturn(MesWorkshopServiceImplTest.workshop(6L, 1L));
+        when(taskMapper.exists(any(Wrapper.class))).thenReturn(true);
+        MesTeamBo bo = bo();
+        bo.setTeamId(10L);
+        bo.setWorkshopId(6L);
+
+        assertThatThrownBy(() -> service.updateByBo(bo)).hasMessageContaining("不能更换所属车间");
+        verify(teamMapper, never()).updateById(any(MesTeam.class));
+        ArgumentCaptor<Wrapper<MesOperationTask>> query = ArgumentCaptor.forClass(Wrapper.class);
+        verify(taskMapper).exists(query.capture());
+        assertThat(query.getValue().getSqlSegment()).contains("team_id =").contains("task_status IN");
+        assertThat(((AbstractWrapper<MesOperationTask, ?, ?>) query.getValue()).getParamNameValuePairs())
+            .containsValues("pending", "dispatched", "in_progress").doesNotContainValue("completed");
+    }
+
+    @Test
+    @DisplayName("没有未完成的任务时可以更换车间，工厂随新车间带出；不换车间时不查任务")
+    @SuppressWarnings("unchecked")
+    void changesWorkshopWithoutOpenTasks() {
+        when(teamMapper.selectById(10L)).thenReturn(team(10L));
+        when(workshopMapper.selectById(6L)).thenReturn(MesWorkshopServiceImplTest.workshop(6L, 2L));
+        when(teamMapper.updateById(any(MesTeam.class))).thenReturn(1);
+        MesTeamBo bo = bo();
+        bo.setTeamId(10L);
+        bo.setWorkshopId(6L);
+
+        service.updateByBo(bo);
+
+        ArgumentCaptor<MesTeam> captor = ArgumentCaptor.forClass(MesTeam.class);
+        verify(teamMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getFactoryId()).isEqualTo(2L);
+
+        when(workshopMapper.selectById(5L)).thenReturn(MesWorkshopServiceImplTest.workshop(5L, 1L));
+        MesTeamBo same = bo();
+        same.setTeamId(10L);
+        service.updateByBo(same);
+        verify(taskMapper, times(1)).exists(any(Wrapper.class));
     }
 
 }

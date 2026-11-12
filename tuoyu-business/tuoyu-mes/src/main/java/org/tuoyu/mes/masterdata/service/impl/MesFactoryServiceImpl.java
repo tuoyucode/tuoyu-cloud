@@ -11,6 +11,7 @@ import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.masterdata.domain.MesDevice;
 import org.tuoyu.mes.masterdata.domain.MesFactory;
@@ -97,7 +98,7 @@ public class MesFactoryServiceImpl implements IMesFactoryService {
         if (factory.getSortNo() == null) {
             factory.setSortNo(0);
         }
-        factoryMapper.insert(factory);
+        UniqueCodes.write(() -> factoryMapper.insert(factory), duplicateCode(factory.getFactoryCode()));
         bo.setFactoryId(factory.getFactoryId());
     }
 
@@ -105,19 +106,23 @@ public class MesFactoryServiceImpl implements IMesFactoryService {
     public void updateByBo(MesFactoryBo bo) {
         checkCodeUnique(bo.getFactoryCode(), bo.getFactoryId());
         MesFactory factory = BeanMapper.map(bo, MesFactory.class);
-        if (factoryMapper.updateById(factory) == 0) {
+        if (UniqueCodes.write(() -> factoryMapper.updateById(factory), duplicateCode(bo.getFactoryCode())) == 0) {
             throw new ServiceException("修改工厂失败，工厂不存在");
         }
     }
 
     private void checkCodeUnique(String code, Long excludeId) {
         boolean exists = factoryMapper.exists(QueryBuilder.lambda(MesFactory.class)
-            .eq(MesFactory::getFactoryCode, code)
+            .func(UniqueCodes.sameCode(MesFactory::getFactoryCode, code))
             .neIfPresent(MesFactory::getFactoryId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("工厂编码“" + code + "”已存在");
+            throw new ServiceException(duplicateCode(code));
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "工厂编码“" + code + "”已存在";
     }
 
     @Override

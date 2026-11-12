@@ -12,6 +12,7 @@ import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.masterdata.domain.MesFactory;
 import org.tuoyu.mes.masterdata.domain.MesTeam;
@@ -26,6 +27,7 @@ import org.tuoyu.mes.masterdata.mapper.MesTeamMemberMapper;
 import org.tuoyu.mes.masterdata.mapper.MesWorkshopMapper;
 import org.tuoyu.mes.masterdata.service.IMesTeamService;
 import org.tuoyu.mes.plan.domain.MesOperationTask;
+import org.tuoyu.mes.plan.enums.TaskStatus;
 import org.tuoyu.mes.plan.mapper.MesOperationTaskMapper;
 import org.tuoyu.mes.production.domain.MesProductionReport;
 import org.tuoyu.mes.production.mapper.MesProductionReportMapper;
@@ -36,6 +38,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -48,6 +51,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Service
 public class MesTeamServiceImpl implements IMesTeamService {
+
+    /**
+     * 未完成的工序任务状态：待派工、已派工、生产中
+     */
+    static final List<String> OPEN_TASK_STATUSES = List.of(TaskStatus.PENDING.code(), TaskStatus.DISPATCHED.code(),
+        TaskStatus.IN_PROGRESS.code());
 
     private final MesTeamMapper teamMapper;
     private final MesTeamMemberMapper memberMapper;
@@ -140,20 +149,24 @@ public class MesTeamServiceImpl implements IMesTeamService {
         team.setFactoryId(workshop.getFactoryId());
         team.setStatus(MasterdataSupport.statusOrNormal(team.getStatus()));
         team.setSortNo(MasterdataSupport.sortOrZero(team.getSortNo()));
-        teamMapper.insert(team);
+        UniqueCodes.write(() -> teamMapper.insert(team), duplicateCode(team.getTeamCode()));
         bo.setTeamId(team.getTeamId());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateByBo(MesTeamBo bo) {
-        MasterdataSupport.require(teamMapper.selectById(bo.getTeamId()), "修改班组失败，班组不存在");
+        MesTeam current = MasterdataSupport.require(teamMapper.selectById(bo.getTeamId()), "修改班组失败，班组不存在");
         checkCodeUnique(bo.getTeamCode(), bo.getTeamId());
         MesWorkshop workshop = requireWorkshop(bo.getWorkshopId());
+        if (!Objects.equals(current.getWorkshopId(), bo.getWorkshopId()) && hasOpenTasks(bo.getTeamId())) {
+            // 派工时班组必须属于任务所在的车间，换车间会使未完成的任务派给了其他车间的班组
+            throw new ServiceException("班组还有未完成的派工任务（待派工、已派工、生产中），不能更换所属车间");
+        }
         checkLeader(bo.getLeaderUserId());
         MesTeam team = BeanMapper.map(bo, MesTeam.class);
         team.setFactoryId(workshop.getFactoryId());
-        if (teamMapper.updateById(team) == 0) {
+        if (UniqueCodes.write(() -> teamMapper.updateById(team), duplicateCode(bo.getTeamCode())) == 0) {
             throw new ServiceException("修改班组失败，班组不存在");
         }
         if (bo.getLeaderUserId() == null) {
@@ -162,6 +175,13 @@ public class MesTeamServiceImpl implements IMesTeamService {
                 .set(MesTeam::getLeaderUserId, null)
                 .eq(MesTeam::getTeamId, bo.getTeamId()));
         }
+    }
+
+    private boolean hasOpenTasks(Long teamId) {
+        return taskMapper.exists(QueryBuilder.lambda(MesOperationTask.class)
+            .eq(MesOperationTask::getTeamId, teamId)
+            .in(MesOperationTask::getTaskStatus, OPEN_TASK_STATUSES)
+            .build());
     }
 
     private MesWorkshop requireWorkshop(Long workshopId) {
@@ -176,12 +196,16 @@ public class MesTeamServiceImpl implements IMesTeamService {
 
     private void checkCodeUnique(String code, Long excludeId) {
         boolean exists = teamMapper.exists(QueryBuilder.lambda(MesTeam.class)
-            .eq(MesTeam::getTeamCode, code)
+            .func(UniqueCodes.sameCode(MesTeam::getTeamCode, code))
             .neIfPresent(MesTeam::getTeamId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("班组编码“" + code + "”已存在");
+            throw new ServiceException(duplicateCode(code));
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "班组编码“" + code + "”已存在";
     }
 
     @Override

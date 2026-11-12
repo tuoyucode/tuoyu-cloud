@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.mes.masterdata.domain.MesRoute;
 import org.tuoyu.mes.masterdata.domain.MesRouteOperation;
@@ -238,6 +239,40 @@ class MesRouteServiceImplTest {
         assertThat(service.queryList(new MesRouteBo())).hasSize(1);
         assertThat(service.queryPageList(new MesRouteBo(), new PageParam()).getItems()).hasSize(1);
         assertThat(service.countList(new MesRouteBo())).isZero();
+    }
+
+    @Test
+    @DisplayName("详情带“是否已被工单使用”，供界面在已使用时只允许改表头")
+    void detailTellsWhetherUsed() {
+        when(routeMapper.selectById(30L)).thenReturn(route(30L, 1L));
+        when(operationMapper.selectList(any(Wrapper.class))).thenReturn(List.of(saved(10, "A")));
+
+        assertThat(service.queryById(30L).getUsed()).isFalse();
+
+        when(workorderMapper.exists(any(Wrapper.class))).thenReturn(true);
+        assertThat(service.queryById(30L).getUsed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("编码按不区分大小写校验唯一；并发写入撞上唯一索引时给出相同的提示")
+    @SuppressWarnings("unchecked")
+    void codeUniqueIgnoringCase() {
+        product();
+        when(routeMapper.exists(any(Wrapper.class))).thenReturn(true);
+        assertThatThrownBy(() -> service.insertByBo(bo(op(10, "A")))).hasMessage("工艺路线编码“R01”已存在");
+        ArgumentCaptor<Wrapper<MesRoute>> query = ArgumentCaptor.forClass(Wrapper.class);
+        verify(routeMapper).exists(query.capture());
+        assertThat(query.getValue().getSqlSegment()).contains("lower(route_code) = lower(");
+
+        when(routeMapper.exists(any(Wrapper.class))).thenReturn(false);
+        when(routeMapper.insert(any(MesRoute.class))).thenThrow(new DuplicateKeyException("uk_route_code"));
+        assertThatThrownBy(() -> service.insertByBo(bo(op(10, "A")))).hasMessage("工艺路线编码“R01”已存在");
+
+        when(routeMapper.selectById(30L)).thenReturn(route(30L, 1L));
+        when(routeMapper.updateById(any(MesRoute.class))).thenThrow(new DuplicateKeyException("uk_route_code"));
+        MesRouteBo update = bo(op(10, "A"));
+        update.setRouteId(30L);
+        assertThatThrownBy(() -> service.updateByBo(update)).hasMessage("工艺路线编码“R01”已存在");
     }
 
 }

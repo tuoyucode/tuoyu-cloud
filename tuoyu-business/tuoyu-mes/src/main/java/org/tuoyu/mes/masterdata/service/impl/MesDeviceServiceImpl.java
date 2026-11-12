@@ -15,6 +15,7 @@ import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.mes.andon.domain.MesAndonEvent;
 import org.tuoyu.mes.andon.mapper.MesAndonEventMapper;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.equipment.domain.MesCheckRecord;
 import org.tuoyu.mes.equipment.domain.MesMaintenanceOrder;
 import org.tuoyu.mes.equipment.domain.MesMaintenancePlan;
@@ -58,6 +59,11 @@ import java.util.function.Function;
 @Service
 public class MesDeviceServiceImpl implements IMesDeviceService {
 
+    /**
+     * 导入写入时撞上编码的唯一索引：校验之后、写入之前有人新增了相同的编码
+     */
+    static final String IMPORT_DUPLICATE = "部分设备编码刚被其他人新增，请重新导入";
+
     private final MesDeviceMapper deviceMapper;
     private final MesFactoryMapper factoryMapper;
     private final MesWorkshopMapper workshopMapper;
@@ -98,13 +104,22 @@ public class MesDeviceServiceImpl implements IMesDeviceService {
         return deviceMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(bo, false)).getTotal();
     }
 
+    /**
+     * 设备下拉；按车间查询时，同时返回没有指定车间、直接挂在该车间所属工厂下的设备（例如空压机等公用设备）
+     */
     @Override
     public List<MesOptionVo> options(Long workshopId) {
+        MesWorkshop workshop = workshopId == null ? null : workshopMapper.selectById(workshopId);
+        if (workshopId != null && workshop == null) {
+            return List.of();
+        }
         return deviceMapper.selectList(QueryBuilder.lambda(MesDevice.class)
                 .select(MesDevice::getDeviceId, MesDevice::getDeviceCode, MesDevice::getDeviceName,
                     MesDevice::getWorkshopId)
                 .eq(MesDevice::getStatus, SystemConstants.NORMAL)
-                .eqIfPresent(MesDevice::getWorkshopId, workshopId)
+                .and(workshop != null, w -> w.eq(MesDevice::getWorkshopId, workshop.getWorkshopId())
+                    .or(factoryLevel -> factoryLevel.isNull(MesDevice::getWorkshopId)
+                        .eq(MesDevice::getFactoryId, workshop.getFactoryId())))
                 .orderByAsc(MesDevice::getDeviceCode, MesDevice::getDeviceId)
                 .build())
             .stream()
@@ -145,7 +160,7 @@ public class MesDeviceServiceImpl implements IMesDeviceService {
         device.setDeviceId(null);
         resolveLocation(device);
         device.setStatus(MasterdataSupport.statusOrNormal(device.getStatus()));
-        deviceMapper.insert(device);
+        UniqueCodes.write(() -> deviceMapper.insert(device), duplicateCode(device.getDeviceCode()));
         bo.setDeviceId(device.getDeviceId());
     }
 
@@ -155,7 +170,7 @@ public class MesDeviceServiceImpl implements IMesDeviceService {
         checkCodeUnique(bo.getDeviceCode(), bo.getDeviceId());
         MesDevice device = BeanMapper.map(bo, MesDevice.class);
         resolveLocation(device);
-        if (deviceMapper.updateById(device) == 0) {
+        if (UniqueCodes.write(() -> deviceMapper.updateById(device), duplicateCode(bo.getDeviceCode())) == 0) {
             throw new ServiceException("修改设备失败，设备不存在");
         }
         // 实体中为 null 的字段不会更新：只填到上级时，把下级位置显式清空
@@ -198,12 +213,16 @@ public class MesDeviceServiceImpl implements IMesDeviceService {
 
     private void checkCodeUnique(String code, Long excludeId) {
         boolean exists = deviceMapper.exists(QueryBuilder.lambda(MesDevice.class)
-            .eq(MesDevice::getDeviceCode, code)
+            .func(UniqueCodes.sameCode(MesDevice::getDeviceCode, code))
             .neIfPresent(MesDevice::getDeviceId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("设备编码“" + code + "”已存在");
+            throw new ServiceException(duplicateCode(code));
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "设备编码“" + code + "”已存在";
     }
 
     @Override
@@ -267,7 +286,7 @@ public class MesDeviceServiceImpl implements IMesDeviceService {
             }
         }
         errors.throwIfAny();
-        deviceMapper.insert(devices);
+        UniqueCodes.write(() -> deviceMapper.insert(devices), IMPORT_DUPLICATE);
         return devices.size();
     }
 

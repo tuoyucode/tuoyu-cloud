@@ -15,6 +15,7 @@ import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.mes.common.CodeEnum;
 import org.tuoyu.mes.common.MesLookups;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.common.excel.ImportErrors;
 import org.tuoyu.mes.common.excel.ImportFields;
@@ -77,7 +78,15 @@ public class MesRouteServiceImpl implements IMesRouteService {
         MesRouteVo vo = BeanMapper.map(route, MesRouteVo.class);
         fillProducts(List.of(vo));
         vo.setOperations(BeanMapper.mapList(listOperations(routeId), MesRouteOperationVo.class));
+        vo.setUsed(usedByWorkorder(routeId));
         return vo;
+    }
+
+    /**
+     * 是否已被工单使用：使用后只能改表头，工序与产品不能再改
+     */
+    private boolean usedByWorkorder(Long routeId) {
+        return workorderMapper.exists(QueryBuilder.lambda(MesWorkorder.class).eq(MesWorkorder::getRouteId, routeId).build());
     }
 
     private List<MesRouteOperation> listOperations(Long routeId) {
@@ -154,7 +163,7 @@ public class MesRouteServiceImpl implements IMesRouteService {
         validate(bo);
         MesRoute route = toEntity(bo);
         route.setRouteId(null);
-        routeMapper.insert(route);
+        UniqueCodes.write(() -> routeMapper.insert(route), duplicateCode(route.getRouteCode()));
         bo.setRouteId(route.getRouteId());
         operationMapper.insert(toOperations(route.getRouteId(), bo.getOperations()));
         clearOtherDefaults(route);
@@ -167,10 +176,8 @@ public class MesRouteServiceImpl implements IMesRouteService {
             "修改工艺路线失败，工艺路线不存在");
         validate(bo);
         List<MesRouteOperation> submitted = toOperations(bo.getRouteId(), bo.getOperations());
-        boolean used = workorderMapper.exists(QueryBuilder.lambda(MesWorkorder.class)
-            .eq(MesWorkorder::getRouteId, bo.getRouteId()).build());
         boolean replaceOperations = true;
-        if (used) {
+        if (usedByWorkorder(bo.getRouteId())) {
             // 工序任务按工序 ID 复制了工艺路线，已被使用的路线只允许改表头
             boolean productChanged = !Objects.equals(current.getMaterialId(), bo.getMaterialId());
             if (productChanged || !sameOperations(listOperations(bo.getRouteId()), submitted)) {
@@ -179,7 +186,7 @@ public class MesRouteServiceImpl implements IMesRouteService {
             replaceOperations = false;
         }
         MesRoute route = toEntity(bo);
-        if (routeMapper.updateById(route) == 0) {
+        if (UniqueCodes.write(() -> routeMapper.updateById(route), duplicateCode(bo.getRouteCode())) == 0) {
             throw new ServiceException("修改工艺路线失败，工艺路线不存在");
         }
         if (replaceOperations) {
@@ -216,11 +223,11 @@ public class MesRouteServiceImpl implements IMesRouteService {
             }
         }
         boolean codeExists = routeMapper.exists(QueryBuilder.lambda(MesRoute.class)
-            .eq(MesRoute::getRouteCode, bo.getRouteCode())
+            .func(UniqueCodes.sameCode(MesRoute::getRouteCode, bo.getRouteCode()))
             .neIfPresent(MesRoute::getRouteId, bo.getRouteId())
             .build());
         if (codeExists) {
-            throw new ServiceException("工艺路线编码“" + bo.getRouteCode() + "”已存在");
+            throw new ServiceException(duplicateCode(bo.getRouteCode()));
         }
         boolean versionExists = routeMapper.exists(QueryBuilder.lambda(MesRoute.class)
             .eq(MesRoute::getMaterialId, bo.getMaterialId())
@@ -234,6 +241,10 @@ public class MesRouteServiceImpl implements IMesRouteService {
         if (!CodeEnum.in(product.getMaterialType(), MaterialType.PRODUCT, MaterialType.SEMI)) {
             throw new ServiceException("物料“" + product.getMaterialName() + "”不是成品或半成品，不能建立工艺路线");
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "工艺路线编码“" + code + "”已存在";
     }
 
     /**
@@ -340,7 +351,7 @@ public class MesRouteServiceImpl implements IMesRouteService {
         }
         errors.throwIfAny();
         for (ImportedRoute route : imported) {
-            routeMapper.insert(route.header());
+            UniqueCodes.write(() -> routeMapper.insert(route.header()), duplicateCode(route.header().getRouteCode()));
             route.operations().forEach(operation -> operation.setRouteId(route.header().getRouteId()));
             operationMapper.insert(route.operations());
             clearOtherDefaults(route.header());

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.mes.common.code.IMesCodeService;
 import org.tuoyu.mes.support.MesTestSupport;
@@ -195,12 +196,39 @@ class MesCodeRuleServiceImplTest {
     }
 
     @Test
-    @DisplayName("删除不存在的规则时提示不存在，内置规则可以删除")
+    @DisplayName("删除不存在的规则时提示不存在；自定义规则可以删除")
     void delete() {
         assertThatThrownBy(() -> service.deleteByIds(List.of(1L))).hasMessageContaining("不存在");
 
         when(ruleMapper.deleteByIds(any())).thenReturn(1);
         assertThatCode(() -> service.deleteByIds(List.of(1L))).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("内置规则不能删除（只能修改或停用），与自定义规则一起删除时整批拒绝")
+    void builtinRulesCannotBeDeleted() {
+        when(ruleMapper.selectByIds(any())).thenReturn(List.of(rule(1L, "WORKORDER"), rule(2L, "MY_RULE")));
+
+        assertThatThrownBy(() -> service.deleteByIds(List.of(1L, 2L)))
+            .hasMessageContaining("WORKORDER").hasMessageContaining("不能删除");
+        verify(ruleMapper, never()).deleteByIds(any());
+    }
+
+    @Test
+    @DisplayName("规则编码按不区分大小写校验唯一；并发新增撞上唯一索引时给出相同的提示")
+    @SuppressWarnings("unchecked")
+    void codeUniqueIgnoringCase() {
+        when(ruleMapper.exists(any(Wrapper.class))).thenReturn(true);
+        assertThatThrownBy(() -> service.insertByBo(bo("workorder", "yyyyMMdd", "day")))
+            .hasMessage("规则编码“workorder”已存在");
+        ArgumentCaptor<Wrapper<MesCodeRule>> query = ArgumentCaptor.forClass(Wrapper.class);
+        verify(ruleMapper).exists(query.capture());
+        assertThat(query.getValue().getSqlSegment()).contains("lower(rule_code) = lower(");
+
+        when(ruleMapper.exists(any(Wrapper.class))).thenReturn(false);
+        when(ruleMapper.insert(any(MesCodeRule.class))).thenThrow(new DuplicateKeyException("uk_code_rule_code"));
+        assertThatThrownBy(() -> service.insertByBo(bo("MY_RULE", "yyyyMMdd", "day")))
+            .hasMessage("规则编码“MY_RULE”已存在");
     }
 
 }

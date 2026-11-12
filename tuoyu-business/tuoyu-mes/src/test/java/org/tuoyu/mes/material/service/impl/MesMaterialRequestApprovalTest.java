@@ -83,6 +83,7 @@ class MesMaterialRequestApprovalTest {
         MesWorkorder workorder = new MesWorkorder();
         workorder.setWorkorderId(10L);
         workorder.setWorkorderCode("WO001");
+        workorder.setWorkorderStatus("in_progress");
         when(workorderMapper.selectById(10L)).thenReturn(workorder);
         MesWarehouse warehouse = new MesWarehouse();
         warehouse.setWarehouseId(1L);

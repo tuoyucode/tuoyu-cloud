@@ -51,6 +51,7 @@ import org.tuoyu.mes.plan.service.IMesWorkorderService;
 import org.tuoyu.mes.production.domain.MesProductionReport;
 import org.tuoyu.mes.production.enums.ReportStatus;
 import org.tuoyu.mes.production.mapper.MesProductionReportMapper;
+import org.tuoyu.mes.trace.service.IMesSnService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -96,6 +97,7 @@ public class MesWorkorderServiceImpl implements IMesWorkorderService {
     private final IMesCodeService codeService;
     private final IMesStatusLogService statusLogService;
     private final MesOperationTaskAssembler taskAssembler;
+    private final IMesSnService snService;
 
     // ---------------------------------------------------------------- 查询
 
@@ -330,6 +332,10 @@ public class MesWorkorderServiceImpl implements IMesWorkorderService {
             if (bom == null || !Objects.equals(bom.getMaterialId(), material.getMaterialId())) {
                 throw new ServiceException("物料清单不存在或不属于该产品");
             }
+            // 只在新建、修改草稿时校验；已下达的工单按下达时的物料清单继续领料，不受之后停用的影响
+            if (!SystemConstants.NORMAL.equals(bom.getStatus())) {
+                throw new ServiceException("物料清单“" + bom.getBomCode() + " " + bom.getBomVersion() + "”已停用");
+            }
         }
         MesWorkshop workshop = workshopMapper.selectById(workorder.getWorkshopId());
         if (workshop == null) {
@@ -474,18 +480,22 @@ public class MesWorkorderServiceImpl implements IMesWorkorderService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean completeIfFinished(Long workorderId) {
-        // 报工、完成工序任务之后的内部调用，调用方已锁定工单行，不加数据权限
+        // 工序任务完成之后的内部调用，不加数据权限。按 工单 → 工序任务 的顺序加锁（调用方已持有时不再等待），
+        // 读到的任务状态是最新的
         MesWorkorder workorder = workorderMapper.selectByIdForUpdate(workorderId);
-        if (workorder == null) {
+        if (workorder == null || !WorkorderStatus.IN_PROGRESS.code().equals(workorder.getWorkorderStatus())) {
             return false;
         }
-        // 判断与修改在同一条条件更新中完成：完工数量未达到计划数量或状态已变化时影响 0 行，工单保持原状
+        List<MesOperationTask> tasks = taskMapper.selectByWorkorderForUpdate(workorderId);
+        // 不要求完工数量达到计划数量：有不良时末道的合格数少于计划数，全部工序完成即完工
+        if (tasks.isEmpty() || !tasks.stream().allMatch(t -> TaskStatus.COMPLETED.code().equals(t.getTaskStatus()))) {
+            return false;
+        }
         LambdaUpdateWrapper<MesWorkorder> wrapper = Wrappers.lambdaUpdate(MesWorkorder.class)
             .set(MesWorkorder::getWorkorderStatus, WorkorderStatus.COMPLETED.code())
             .set(MesWorkorder::getActualEndTime, LocalDateTime.now())
             .eq(MesWorkorder::getWorkorderId, workorderId)
-            .eq(MesWorkorder::getWorkorderStatus, WorkorderStatus.IN_PROGRESS.code())
-            .apply("completed_qty >= plan_qty");
+            .eq(MesWorkorder::getWorkorderStatus, WorkorderStatus.IN_PROGRESS.code());
         if (workorderMapper.update(null, wrapper) == 0) {
             return false;
         }
@@ -503,13 +513,14 @@ public class MesWorkorderServiceImpl implements IMesWorkorderService {
     }
 
     /**
-     * 工单状态变为已完工之后：记录履历，未完成的工序任务一并完成
+     * 工单状态变为已完工之后：记录履历，未完成的工序任务一并完成，已生成的序列号改为已完工
      */
     private void afterFinished(MesWorkorder workorder, String action) {
         statusLogService.record(BizType.WORKORDER, workorder.getWorkorderId(), workorder.getWorkorderCode(), action,
             WorkorderStatus.IN_PROGRESS.code(), WorkorderStatus.COMPLETED.code(), null);
         changeTasks(workorder, TaskStatus.COMPLETED, action, "工单完工",
             TaskStatus.PENDING, TaskStatus.DISPATCHED, TaskStatus.IN_PROGRESS);
+        snService.completeByWorkorder(workorder.getWorkorderId());
     }
 
     @Override

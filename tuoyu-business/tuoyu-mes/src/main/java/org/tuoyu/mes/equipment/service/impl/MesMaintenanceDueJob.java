@@ -41,8 +41,6 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class MesMaintenanceDueJob implements SmartLifecycle {
 
-    private static final Duration MIN_INTERVAL = Duration.ofMinutes(1);
-
     private final MesMaintenancePlanMapper planMapper;
 
     private final MaintenanceOrderGenerator generator;
@@ -143,14 +141,18 @@ public class MesMaintenanceDueJob implements SmartLifecycle {
 
     @Override
     public void start() {
-        MesMaintenanceProperties.Generate config = properties.getGenerate();
-        if (!config.isEnabled() || scheduler != null) {
+        if (scheduler != null) {
             return;
         }
-        Duration interval = config.getInterval() == null || config.getInterval().compareTo(MIN_INTERVAL) < 0
-            ? MIN_INTERVAL : config.getInterval();
-        Duration delay = config.getInitialDelay() == null || config.getInitialDelay().isNegative()
-            ? Duration.ZERO : config.getInitialDelay();
+        MesMaintenanceProperties.Generate config = properties.getGenerate();
+        if (config != null && !config.isEnabled()) {
+            log.info("保养工单到期生成未在本服务中开启（tuoyu.mes.maintenance.generate.enabled=false）");
+            return;
+        }
+        // 配置无效时拒绝启动，而不是悄悄换成别的值
+        properties.validate();
+        Duration interval = config.getInterval();
+        Duration delay = config.getInitialDelay();
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(task -> {
             Thread thread = new Thread(task, "mes-maintenance-due");
             thread.setDaemon(true);

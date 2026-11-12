@@ -20,6 +20,7 @@ import org.tuoyu.mes.andon.mapper.MesAndonEventMapper;
 import org.tuoyu.mes.andon.mapper.MesDowntimeReasonMapper;
 import org.tuoyu.mes.andon.service.IMesDowntimeReasonService;
 import org.tuoyu.mes.common.CodeEnum;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 
 import java.util.Collection;
@@ -82,7 +83,7 @@ public class MesDowntimeReasonServiceImpl implements IMesDowntimeReasonService {
         if (reason.getSortNo() == null) {
             reason.setSortNo(0);
         }
-        reasonMapper.insert(reason);
+        UniqueCodes.write(() -> reasonMapper.insert(reason), duplicateCode(reason.getReasonCode()));
         bo.setReasonId(reason.getReasonId());
     }
 
@@ -90,7 +91,8 @@ public class MesDowntimeReasonServiceImpl implements IMesDowntimeReasonService {
     public void updateByBo(MesDowntimeReasonBo bo) {
         validate(bo);
         checkCodeUnique(bo.getReasonCode(), bo.getReasonId());
-        if (reasonMapper.updateById(BeanMapper.map(bo, MesDowntimeReason.class)) == 0) {
+        MesDowntimeReason reason = BeanMapper.map(bo, MesDowntimeReason.class);
+        if (UniqueCodes.write(() -> reasonMapper.updateById(reason), duplicateCode(bo.getReasonCode())) == 0) {
             throw new ServiceException("修改停机原因失败，停机原因不存在");
         }
     }
@@ -113,12 +115,16 @@ public class MesDowntimeReasonServiceImpl implements IMesDowntimeReasonService {
 
     private void checkCodeUnique(String code, Long excludeId) {
         boolean exists = reasonMapper.exists(QueryBuilder.lambda(MesDowntimeReason.class)
-            .eq(MesDowntimeReason::getReasonCode, code)
+            .func(UniqueCodes.sameCode(MesDowntimeReason::getReasonCode, code))
             .neIfPresent(MesDowntimeReason::getReasonId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("停机原因编码“" + code + "”已存在");
+            throw new ServiceException(duplicateCode(code));
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "停机原因编码“" + code + "”已存在";
     }
 
 }

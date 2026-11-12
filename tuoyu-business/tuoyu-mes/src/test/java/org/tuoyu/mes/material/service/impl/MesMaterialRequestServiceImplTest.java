@@ -357,6 +357,7 @@ class MesMaterialRequestServiceImplTest {
     @Test
     @DisplayName("提交：草稿 → 已提交，记录履历；状态已变化时提示刷新")
     void submit() {
+        when(workorderMapper.selectById(10L)).thenReturn(workorder("paused"));
         when(requestMapper.selectById(100L)).thenReturn(request("issue", "draft"));
         when(requestMapper.update(any(), any())).thenReturn(1);
 
@@ -375,6 +376,7 @@ class MesMaterialRequestServiceImplTest {
     @Test
     @DisplayName("完成领料：写入实发数、执行人与完成时间")
     void completeIssue() {
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("in_progress"));
         when(requestMapper.selectById(100L)).thenReturn(request("issue", "submitted"));
         when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(item(1L, 100L, 60L, "0")));
         when(requestMapper.update(any(), any())).thenReturn(1);
@@ -394,6 +396,7 @@ class MesMaterialRequestServiceImplTest {
     @Test
     @DisplayName("完成时必须填写全部明细，且明细必须属于该单据")
     void completeRequiresAllItems() {
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("in_progress"));
         when(requestMapper.selectById(100L)).thenReturn(request("issue", "submitted"));
         when(itemMapper.selectList(any(Wrapper.class)))
             .thenReturn(List.of(item(1L, 100L, 60L, "0"), item(2L, 100L, 61L, "0")));
@@ -475,7 +478,9 @@ class MesMaterialRequestServiceImplTest {
         when(requestMapper.selectById(100L)).thenReturn(request("issue", "draft"));
         when(workorderMapper.selectByIds(any())).thenReturn(List.of(workorder("released")));
         when(warehouseMapper.selectByIds(any())).thenReturn(List.of(warehouse(1L, "0")));
-        when(materialMapper.selectByIds(any())).thenReturn(List.of(material(50L, "0"), material(60L, "0")));
+        MesMaterial batch = material(60L, "0");
+        batch.setTraceMode("batch");
+        when(materialMapper.selectByIds(any())).thenReturn(List.of(material(50L, "0"), batch));
         when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(item(1L, 100L, 60L, "0")));
 
         MesMaterialRequestVo vo = service.queryById(100L);
@@ -486,6 +491,7 @@ class MesMaterialRequestServiceImplTest {
         assertThat(vo.getItems()).singleElement().satisfies(item -> {
             assertThat(item.getMaterialCode()).isEqualTo("M60");
             assertThat(item.getUnit()).isEqualTo("个");
+            assertThat(item.getTraceMode()).as("完成弹窗据此标出必填的批次号").isEqualTo("batch");
         });
         assertThatThrownBy(() -> service.logs(999L)).hasMessageContaining("不存在");
     }
@@ -493,14 +499,112 @@ class MesMaterialRequestServiceImplTest {
     @Test
     @DisplayName("重复或并发完成：状态条件更新影响 0 行时拒绝，不写入实发数量")
     void repeatedCompleteDoesNotWriteItems() {
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("in_progress"));
         when(requestMapper.selectById(100L)).thenReturn(request("issue", "submitted"));
         when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(item(1L, 100L, 60L, "0")));
         when(requestMapper.update(any(), any())).thenReturn(0);
 
         assertThatThrownBy(() -> service.complete(100L, completeBo(1L, "9.5"))).hasMessageContaining("状态已变化");
         verify(itemMapper, never()).updateById(anyCollection());
-        // 领料、补料没有上限，不锁工单
-        verify(workorderMapper, never()).selectOne(any(Wrapper.class));
+    }
+
+    @Test
+    @DisplayName("工单关闭、取消后不能提交与完成领退料单，提示可以取消单据；工单完工后领料、补料不能完成，退料可以")
+    void workorderStatusRechecked() {
+        when(requestMapper.selectById(100L)).thenReturn(request("issue", "draft"));
+        when(workorderMapper.selectById(10L)).thenReturn(workorder("closed"));
+        assertThatThrownBy(() -> service.submit(100L))
+            .hasMessage("工单“WO001”当前为“已关闭”，不能提交领料单“LL001”，可以取消该单据");
+
+        when(requestMapper.selectById(100L)).thenReturn(request("supplement", "submitted"));
+        when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(item(1L, 100L, 60L, "0")));
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("cancelled"));
+        assertThatThrownBy(() -> service.complete(100L, completeBo(1L, "1")))
+            .hasMessage("工单“WO001”当前为“已取消”，不能完成补料单“LL001”，可以取消该单据");
+
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("completed"));
+        assertThatThrownBy(() -> service.complete(100L, completeBo(1L, "1"))).hasMessageContaining("已完工");
+        verify(requestMapper, never()).update(any(), any());
+
+        // 退料在工单完工后仍可完成
+        when(requestMapper.selectById(100L)).thenReturn(request("return", "submitted"));
+        when(itemMapper.selectList(any(Wrapper.class)))
+            .thenReturn(List.of(item(1L, 100L, 60L, "0")))
+            .thenReturn(List.of(item(11L, 201L, 60L, "10")));
+        when(requestMapper.selectList(any(Wrapper.class))).thenReturn(List.of(request(201L, "issue")));
+        when(requestMapper.update(any(), any())).thenReturn(1);
+        service.complete(100L, completeBo(1L, "1"));
+        verify(statusLogService).record(BizType.MATERIAL_REQUEST, 100L, "LL001", "complete", "submitted", "completed", null);
+    }
+
+    @Test
+    @DisplayName("完成领料、补料也先锁住工单行，按加锁读到的工单状态判断")
+    void completeLocksWorkorder() {
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("released"));
+        when(requestMapper.selectById(100L)).thenReturn(request("issue", "submitted"));
+        when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(item(1L, 100L, 60L, "0")));
+        when(requestMapper.update(any(), any())).thenReturn(1);
+
+        service.complete(100L, completeBo(1L, "1"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Wrapper<MesWorkorder>> lock = ArgumentCaptor.forClass(Wrapper.class);
+        verify(workorderMapper).selectOne(lock.capture());
+        assertThat(lock.getValue().getSqlSegment()).endsWith("for update");
+        verify(workorderMapper, never()).selectById(any());
+    }
+
+    @Test
+    @DisplayName("按批次追溯的物料完成时必须填写物料批次号，缺少时列出物料；明细或本次填写的批次号都可以，实发为 0 的不要求")
+    void batchTracedMaterialRequiresBatchCode() {
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("in_progress"));
+        when(requestMapper.selectById(100L)).thenReturn(request("issue", "submitted"));
+        MesMaterialRequestItem batchItem = item(1L, 100L, 60L, "0");
+        MesMaterialRequestItem plainItem = item(2L, 100L, 61L, "0");
+        MesMaterial batch = material(60L, "0");
+        batch.setTraceMode("batch");
+        MesMaterial plain = material(61L, "0");
+        plain.setTraceMode("none");
+        when(materialMapper.selectByIds(any())).thenReturn(List.of(batch, plain));
+        when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(batchItem, plainItem));
+        MesMaterialRequestCompleteBo bo = completeBo(1L, "2");
+        MesMaterialRequestCompleteBo.Item second = new MesMaterialRequestCompleteBo.Item();
+        second.setItemId(2L);
+        second.setActualQty(new BigDecimal("3"));
+        bo.setItems(List.of(bo.getItems().getFirst(), second));
+
+        assertThatThrownBy(() -> service.complete(100L, bo)).hasMessage("物料“M60 物料60”按批次追溯，请填写物料批次号");
+        verify(requestMapper, never()).update(any(), any());
+
+        // 实发为 0：没有发出物料，不要求批次号
+        bo.getItems().getFirst().setActualQty(BigDecimal.ZERO);
+        when(requestMapper.update(any(), any())).thenReturn(1);
+        service.complete(100L, bo);
+
+        // 本次填写批次号
+        bo.getItems().getFirst().setActualQty(new BigDecimal("2"));
+        bo.getItems().getFirst().setBatchCode(" LOT-2 ");
+        service.complete(100L, bo);
+
+        // 明细中已有批次号（新建时填写）
+        bo.getItems().getFirst().setBatchCode(null);
+        batchItem.setBatchCode("LOT-1");
+        service.complete(100L, bo);
+        verify(requestMapper, times(3)).update(any(), any());
+    }
+
+    @Test
+    @DisplayName("退料同样要求按批次追溯的物料填写批次号")
+    void batchTracedReturnRequiresBatchCode() {
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("completed"));
+        when(requestMapper.selectById(100L)).thenReturn(request("return", "submitted"));
+        when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(item(1L, 100L, 60L, "0")));
+        MesMaterial batch = material(60L, "0");
+        batch.setTraceMode("batch");
+        when(materialMapper.selectByIds(any())).thenReturn(List.of(batch));
+
+        assertThatThrownBy(() -> service.complete(100L, completeBo(1L, "1"))).hasMessageContaining("按批次追溯");
+        verify(requestMapper, never()).update(any(), any());
     }
 
     @Test

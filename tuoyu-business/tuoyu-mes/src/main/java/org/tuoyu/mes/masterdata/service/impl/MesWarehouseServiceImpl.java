@@ -11,6 +11,7 @@ import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.mes.common.CodeEnum;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.masterdata.domain.MesFactory;
 import org.tuoyu.mes.masterdata.domain.MesLocation;
@@ -120,7 +121,7 @@ public class MesWarehouseServiceImpl implements IMesWarehouseService {
         MesWarehouse warehouse = BeanMapper.map(bo, MesWarehouse.class);
         warehouse.setWarehouseId(null);
         normalize(warehouse);
-        warehouseMapper.insert(warehouse);
+        UniqueCodes.write(() -> warehouseMapper.insert(warehouse), duplicateCode(warehouse.getWarehouseCode()));
         bo.setWarehouseId(warehouse.getWarehouseId());
     }
 
@@ -130,7 +131,7 @@ public class MesWarehouseServiceImpl implements IMesWarehouseService {
         MasterdataSupport.require(factoryMapper.selectById(bo.getFactoryId()), "所属工厂不存在");
         MesWarehouse warehouse = BeanMapper.map(bo, MesWarehouse.class);
         normalize(warehouse);
-        if (warehouseMapper.updateById(warehouse) == 0) {
+        if (UniqueCodes.write(() -> warehouseMapper.updateById(warehouse), duplicateCode(bo.getWarehouseCode())) == 0) {
             throw new ServiceException("修改仓库失败，仓库不存在");
         }
     }
@@ -143,12 +144,16 @@ public class MesWarehouseServiceImpl implements IMesWarehouseService {
 
     private void checkWarehouseCodeUnique(String code, Long excludeId) {
         boolean exists = warehouseMapper.exists(QueryBuilder.lambda(MesWarehouse.class)
-            .eq(MesWarehouse::getWarehouseCode, code)
+            .func(UniqueCodes.sameCode(MesWarehouse::getWarehouseCode, code))
             .neIfPresent(MesWarehouse::getWarehouseId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("仓库编码“" + code + "”已存在");
+            throw new ServiceException(duplicateCode(code));
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "仓库编码“" + code + "”已存在";
     }
 
     @Override
@@ -218,7 +223,7 @@ public class MesWarehouseServiceImpl implements IMesWarehouseService {
         location.setLocationId(null);
         location.setStatus(MasterdataSupport.statusOrNormal(location.getStatus()));
         location.setSortNo(MasterdataSupport.sortOrZero(location.getSortNo()));
-        locationMapper.insert(location);
+        UniqueCodes.write(() -> locationMapper.insert(location), duplicateLocationCode(location.getLocationCode()));
         bo.setLocationId(location.getLocationId());
     }
 
@@ -227,7 +232,7 @@ public class MesWarehouseServiceImpl implements IMesWarehouseService {
         MasterdataSupport.require(warehouseMapper.selectById(bo.getWarehouseId()), "所属仓库不存在");
         checkLocationCodeUnique(bo.getWarehouseId(), bo.getLocationCode(), bo.getLocationId());
         MesLocation location = BeanMapper.map(bo, MesLocation.class);
-        if (locationMapper.updateById(location) == 0) {
+        if (UniqueCodes.write(() -> locationMapper.updateById(location), duplicateLocationCode(bo.getLocationCode())) == 0) {
             throw new ServiceException("修改库位失败，库位不存在");
         }
     }
@@ -238,12 +243,16 @@ public class MesWarehouseServiceImpl implements IMesWarehouseService {
     private void checkLocationCodeUnique(Long warehouseId, String code, Long excludeId) {
         boolean exists = locationMapper.exists(QueryBuilder.lambda(MesLocation.class)
             .eq(MesLocation::getWarehouseId, warehouseId)
-            .eq(MesLocation::getLocationCode, code)
+            .func(UniqueCodes.sameCode(MesLocation::getLocationCode, code))
             .neIfPresent(MesLocation::getLocationId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("库位编码“" + code + "”在该仓库中已存在");
+            throw new ServiceException(duplicateLocationCode(code));
         }
+    }
+
+    private static String duplicateLocationCode(String code) {
+        return "库位编码“" + code + "”在该仓库中已存在";
     }
 
     @Override

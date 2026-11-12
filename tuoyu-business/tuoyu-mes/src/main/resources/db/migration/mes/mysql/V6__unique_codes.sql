@@ -1,0 +1,38 @@
+-- 用户填写的编码在租户内唯一、不区分大小写，由唯一索引保证（服务层的校验在并发时挡不住重复）
+-- 只约束未删除（del_flag = '0'）的行：删除后编码可以重新使用。库位编码在同一仓库内唯一
+--
+-- 注意：已有库中存在重复的编码（同一租户内只有大小写不同的也算重复）时，本迁移会失败、服务拒绝启动。
+-- 升级前先执行 tuoyu-business/tuoyu-mes/deploy/upgrade/mysql/check-duplicate-codes.sql 找出重复的编码并处理，
+-- 说明见 tuoyu-business/tuoyu-mes/deploy/upgrade/README.md
+--
+-- MySQL 8.0.13 起支持函数索引。索引的前两部分是 tenant_id 与 lower(编码)，按 lower(编码) 的查询可以用上它；
+-- 最后一部分只在未删除的行上有值，已删除的行为 null，不参与唯一约束
+
+-- 工厂
+create unique index uk_factory_code on mes_factory (tenant_id, (lower(factory_code)), (case when del_flag = '0' then 0 end));
+-- 车间
+create unique index uk_workshop_code on mes_workshop (tenant_id, (lower(workshop_code)), (case when del_flag = '0' then 0 end));
+-- 产线
+create unique index uk_line_code on mes_line (tenant_id, (lower(line_code)), (case when del_flag = '0' then 0 end));
+-- 工位
+create unique index uk_station_code on mes_station (tenant_id, (lower(station_code)), (case when del_flag = '0' then 0 end));
+-- 班组
+create unique index uk_team_code on mes_team (tenant_id, (lower(team_code)), (case when del_flag = '0' then 0 end));
+-- 物料
+create unique index uk_material_code on mes_material (tenant_id, (lower(material_code)), (case when del_flag = '0' then 0 end));
+-- 物料清单
+create unique index uk_bom_code on mes_bom (tenant_id, (lower(bom_code)), (case when del_flag = '0' then 0 end));
+-- 工艺路线
+create unique index uk_route_code on mes_route (tenant_id, (lower(route_code)), (case when del_flag = '0' then 0 end));
+-- 设备
+create unique index uk_device_code on mes_device (tenant_id, (lower(device_code)), (case when del_flag = '0' then 0 end));
+-- 仓库
+create unique index uk_warehouse_code on mes_warehouse (tenant_id, (lower(warehouse_code)), (case when del_flag = '0' then 0 end));
+-- 库位（同一仓库内）
+create unique index uk_location_code on mes_location (tenant_id, warehouse_id, (lower(location_code)), (case when del_flag = '0' then 0 end));
+-- 停机原因
+create unique index uk_downtime_reason_code on mes_downtime_reason (tenant_id, (lower(reason_code)), (case when del_flag = '0' then 0 end));
+-- 检验方案
+create unique index uk_inspection_scheme_code on mes_inspection_scheme (tenant_id, (lower(scheme_code)), (case when del_flag = '0' then 0 end));
+-- 编码规则
+create unique index uk_code_rule_code on mes_code_rule (tenant_id, (lower(rule_code)), (case when del_flag = '0' then 0 end));

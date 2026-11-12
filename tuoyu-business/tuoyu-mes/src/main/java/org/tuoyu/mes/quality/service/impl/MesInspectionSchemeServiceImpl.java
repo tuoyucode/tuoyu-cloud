@@ -15,6 +15,7 @@ import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.mes.common.CodeEnum;
 import org.tuoyu.mes.common.MesLookups;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.masterdata.domain.MesMaterial;
 import org.tuoyu.mes.masterdata.mapper.MesMaterialMapper;
@@ -174,7 +175,7 @@ public class MesInspectionSchemeServiceImpl implements IMesInspectionSchemeServi
         if (scheme.getStatus() == null) {
             scheme.setStatus(SystemConstants.NORMAL);
         }
-        schemeMapper.insert(scheme);
+        UniqueCodes.write(() -> schemeMapper.insert(scheme), duplicateCode(bo.getSchemeCode()));
         bo.setSchemeId(scheme.getSchemeId());
     }
 
@@ -187,13 +188,13 @@ public class MesInspectionSchemeServiceImpl implements IMesInspectionSchemeServi
         scheme.setInspectionType(bo.getInspectionType());
         scheme.setStatus(bo.getStatus());
         // 可清空的字段显式写入，为空时清空
-        int rows = schemeMapper.update(scheme, Wrappers.<MesInspectionScheme>lambdaUpdate()
+        int rows = UniqueCodes.write(() -> schemeMapper.update(scheme, Wrappers.<MesInspectionScheme>lambdaUpdate()
             .set(MesInspectionScheme::getMaterialId, bo.getMaterialId())
             .set(MesInspectionScheme::getOperationCode, StringUtils.trimToNull(bo.getOperationCode()))
             .set(MesInspectionScheme::getSampleQty, bo.getSampleQty())
             .set(MesInspectionScheme::getCheckItems, bo.getCheckItems())
             .set(MesInspectionScheme::getRemark, bo.getRemark())
-            .eq(MesInspectionScheme::getSchemeId, bo.getSchemeId()));
+            .eq(MesInspectionScheme::getSchemeId, bo.getSchemeId())), duplicateCode(bo.getSchemeCode()));
         if (rows == 0) {
             throw new ServiceException("修改检验方案失败，检验方案不存在");
         }
@@ -202,15 +203,19 @@ public class MesInspectionSchemeServiceImpl implements IMesInspectionSchemeServi
     private void validate(MesInspectionSchemeBo bo) {
         CodeEnum.of(InspectionType.class, bo.getInspectionType(), "检验类型");
         boolean exists = schemeMapper.exists(QueryBuilder.lambda(MesInspectionScheme.class)
-            .eq(MesInspectionScheme::getSchemeCode, bo.getSchemeCode())
+            .func(UniqueCodes.sameCode(MesInspectionScheme::getSchemeCode, bo.getSchemeCode()))
             .neIfPresent(MesInspectionScheme::getSchemeId, bo.getSchemeId())
             .build());
         if (exists) {
-            throw new ServiceException("方案编码“" + bo.getSchemeCode() + "”已存在");
+            throw new ServiceException(duplicateCode(bo.getSchemeCode()));
         }
         if (bo.getMaterialId() != null && materialMapper.selectById(bo.getMaterialId()) == null) {
             throw new ServiceException("适用产品不存在");
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "方案编码“" + code + "”已存在";
     }
 
     @Override

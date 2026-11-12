@@ -72,7 +72,7 @@ public interface IMesWorkorderService {
     void resume(Long workorderId);
 
     /**
-     * 完工：生产中 → 已完工，未完成的工序任务一并完成
+     * 完工：生产中 → 已完工，未完成的工序任务一并完成，已生成的序列号改为已完工
      */
     void complete(Long workorderId);
 
@@ -87,7 +87,8 @@ public interface IMesWorkorderService {
     void cancel(Long workorderId, String reason);
 
     /**
-     * 末道工序完成后调用：工单生产中且完工数量达到计划数量时自动完工
+     * 工序任务完成后调用：工单生产中且全部工序任务已完成时自动完工（不要求完工数量达到计划数量，
+     * 有不良时末道的合格数会少于计划数），已生成的序列号一并改为已完工
      *
      * @return 是否已自动完工
      */

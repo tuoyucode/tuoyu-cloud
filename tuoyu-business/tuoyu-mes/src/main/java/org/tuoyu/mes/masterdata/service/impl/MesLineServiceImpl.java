@@ -12,6 +12,7 @@ import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.mes.andon.domain.MesAndonEvent;
 import org.tuoyu.mes.andon.mapper.MesAndonEventMapper;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.masterdata.domain.MesDevice;
 import org.tuoyu.mes.masterdata.domain.MesFactory;
@@ -119,7 +120,7 @@ public class MesLineServiceImpl implements IMesLineService {
         line.setFactoryId(requireWorkshop(bo.getWorkshopId()).getFactoryId());
         line.setStatus(MasterdataSupport.statusOrNormal(line.getStatus()));
         line.setSortNo(MasterdataSupport.sortOrZero(line.getSortNo()));
-        lineMapper.insert(line);
+        UniqueCodes.write(() -> lineMapper.insert(line), duplicateCode(line.getLineCode()));
         bo.setLineId(line.getLineId());
     }
 
@@ -134,7 +135,7 @@ public class MesLineServiceImpl implements IMesLineService {
         }
         MesLine line = BeanMapper.map(bo, MesLine.class);
         line.setFactoryId(workshop.getFactoryId());
-        if (lineMapper.updateById(line) == 0) {
+        if (UniqueCodes.write(() -> lineMapper.updateById(line), duplicateCode(bo.getLineCode())) == 0) {
             throw new ServiceException("修改产线失败，产线不存在");
         }
     }
@@ -150,12 +151,16 @@ public class MesLineServiceImpl implements IMesLineService {
 
     private void checkCodeUnique(String code, Long excludeId) {
         boolean exists = lineMapper.exists(QueryBuilder.lambda(MesLine.class)
-            .eq(MesLine::getLineCode, code)
+            .func(UniqueCodes.sameCode(MesLine::getLineCode, code))
             .neIfPresent(MesLine::getLineId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("产线编码“" + code + "”已存在");
+            throw new ServiceException(duplicateCode(code));
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "产线编码“" + code + "”已存在";
     }
 
     @Override

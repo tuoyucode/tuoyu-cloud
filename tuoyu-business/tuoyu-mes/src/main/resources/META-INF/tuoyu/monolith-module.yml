@@ -15,6 +15,38 @@ tuoyu:
         url: ${datasource.mes.url}
         user: ${datasource.mes.username}
         password: ${datasource.mes.password}
+  # MES 的业务开关，与微服务的 Nacos 配置 tuoyu-mes.yml 中的默认值相同（单体不读取 tuoyu-mes.yml）
+  # 需要调整时在 tuoyu-boot-all.yml 中写同名的配置项即可覆盖，不用修改本文件
+  mes:
+    # 单据审批（工作流）：默认关闭，关闭时单据照常直接流转
+    # 开启前先在“流程定义”中导入并发布对应编码的流程，步骤见 tuoyu-business/tuoyu-mes/deploy/workflow/README.md
+    approval:
+      # 不良处置评审：处置方式为让步接收、报废时，审批通过后才执行处置
+      defect-disposition:
+        enabled: false
+        flow-code: mes_defect_disposition
+      # 补料申请：补料单审批通过后才变为已提交，仓库才能执行
+      supplement:
+        enabled: false
+        flow-code: mes_material_supplement
+    maintenance:
+      # 按保养计划自动生成到期的保养工单（所有租户）
+      generate:
+        enabled: true
+        # 执行间隔，至少 1 分钟（每天一次写 24h）
+        interval: 1h
+        # 服务启动后首次执行前的等待
+        initial-delay: 2m
+    # 安灯超时检查：按“安灯升级规则”找出超时未响应、超时未解决的事件，升级并提醒（默认值即推荐值，一般不需要配置）
+    #andon:
+    #  escalation:
+    #    enabled: true
+    #    # 两次检查之间的间隔，不小于 10 秒
+    #    interval: 1m
+    #    # 服务启动后多久开始第一次检查
+    #    initial-delay: 30s
+    #    # 每次检查最多处理的事件数（1 ~ 1000），其余的留给下一次
+    #    batch-size: 200
 
 spring:
   datasource:

@@ -3,6 +3,7 @@ package org.tuoyu.mes.trace.service.impl;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.core.utils.StringUtils;
@@ -61,6 +62,7 @@ import org.tuoyu.mes.trace.service.IMesTraceService;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,11 +72,15 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
  * 追溯查询（只读）：识别关键字后，按工单批量读取工序任务、报工、领退料、检验、不良、入库与状态履历，组装成追溯结果。
  * 各类记录都按工单 ID 一次查出，不逐行查询。
+ * <p>
+ * 追溯权限（{@code mes:trace:query}）只开放工单、工序任务与状态履历；报工、用料、检验、不良、入库各段还要求对应模块的
+ * 查询权限（列表或详情任一），没有时不读取该段，段内为空、时间线中没有它的事件，并在 {@link MesTraceVo#getDeniedSections()} 中列出。
  *
  * @author tuoyu
  */
@@ -86,6 +92,17 @@ public class MesTraceServiceImpl implements IMesTraceService {
     public static final String MATCH_BATCH = "batch";
     public static final String MATCH_MATERIAL_BATCH = "material_batch";
     public static final String MATCH_WORKORDER = "workorder";
+
+    public static final String SECTION_REPORTS = "reports";
+    public static final String SECTION_MATERIALS = "materials";
+    public static final String SECTION_INSPECTIONS = "inspections";
+    public static final String SECTION_DEFECTS = "defects";
+    public static final String SECTION_STOCK_INS = "stockIns";
+
+    /**
+     * 各段 → 对应模块的权限码前缀（有 {@code :list} 或 {@code :query} 之一即可查看），按页面上的顺序
+     */
+    static final Map<String, String> SECTION_PERMISSIONS = sectionPermissions();
 
     /**
      * 一次最多返回的工单数
@@ -116,6 +133,41 @@ public class MesTraceServiceImpl implements IMesTraceService {
     private final MesTeamMapper teamMapper;
     private final MesWarehouseMapper warehouseMapper;
     private final MesLocationMapper locationMapper;
+
+    private Predicate<String> permissionChecker = permission -> UserContext.current()
+        .map(user -> user.getPermissions().contains(permission))
+        .orElse(false);
+
+    /**
+     * 测试中替换权限判断
+     */
+    void setPermissionChecker(Predicate<String> permissionChecker) {
+        this.permissionChecker = permissionChecker;
+    }
+
+    private static Map<String, String> sectionPermissions() {
+        Map<String, String> permissions = new LinkedHashMap<>();
+        permissions.put(SECTION_REPORTS, "mes:productionReport");
+        permissions.put(SECTION_MATERIALS, "mes:materialRequest");
+        permissions.put(SECTION_INSPECTIONS, "mes:inspection");
+        permissions.put(SECTION_DEFECTS, "mes:defect");
+        permissions.put(SECTION_STOCK_INS, "mes:stockIn");
+        return Collections.unmodifiableMap(permissions);
+    }
+
+    /**
+     * 当前用户可以查看的段（超级管理员全部可以）
+     */
+    private Set<String> allowedSections() {
+        Set<String> allowed = new HashSet<>();
+        boolean superAdmin = UserContext.isSuperAdmin();
+        SECTION_PERMISSIONS.forEach((section, prefix) -> {
+            if (superAdmin || permissionChecker.test(prefix + ":list") || permissionChecker.test(prefix + ":query")) {
+                allowed.add(section);
+            }
+        });
+        return allowed;
+    }
 
     @Override
     public MesTraceVo trace(String keyword) {
@@ -175,7 +227,10 @@ public class MesTraceServiceImpl implements IMesTraceService {
             result.setMatchType(null);
             return result;
         }
-        assemble(result, workorders, sn);
+        Set<String> allowed = allowedSections();
+        SECTION_PERMISSIONS.keySet().stream().filter(section -> !allowed.contains(section))
+            .forEach(result.getDeniedSections()::add);
+        assemble(result, workorders, sn, allowed);
         return result;
     }
 
@@ -203,7 +258,7 @@ public class MesTraceServiceImpl implements IMesTraceService {
         return workorders.stream().map(MesWorkorder::getWorkorderId).filter(Objects::nonNull).toList();
     }
 
-    private void assemble(MesTraceVo result, List<MesWorkorder> workorders, MesSn matchedSn) {
+    private void assemble(MesTraceVo result, List<MesWorkorder> workorders, MesSn matchedSn, Set<String> allowed) {
         List<Long> ids = workorderIds(workorders);
         Map<Long, MesWorkorder> workorderById = workorders.stream()
             .collect(Collectors.toMap(MesWorkorder::getWorkorderId, Function.identity()));
@@ -212,32 +267,38 @@ public class MesTraceServiceImpl implements IMesTraceService {
             .in(MesOperationTask::getWorkorderId, ids)
             .orderByAsc(MesOperationTask::getWorkorderId, MesOperationTask::getSeqNo)
             .build());
-        List<MesProductionReport> reports = reportMapper.selectList(QueryBuilder.lambda(MesProductionReport.class)
-            .in(MesProductionReport::getWorkorderId, ids)
-            .orderByAsc(MesProductionReport::getReportTime, MesProductionReport::getReportId)
-            .build());
-        List<MesMaterialRequest> requests = requestMapper.selectList(QueryBuilder.lambda(MesMaterialRequest.class)
-            .in(MesMaterialRequest::getWorkorderId, ids)
-            .eq(MesMaterialRequest::getRequestStatus, MaterialRequestStatus.COMPLETED.code())
-            .orderByAsc(MesMaterialRequest::getCompleteTime, MesMaterialRequest::getRequestId)
-            .build());
+        // 没有权限的段不读取
+        List<MesProductionReport> reports = !allowed.contains(SECTION_REPORTS) ? List.of()
+            : reportMapper.selectList(QueryBuilder.lambda(MesProductionReport.class)
+                .in(MesProductionReport::getWorkorderId, ids)
+                .orderByAsc(MesProductionReport::getReportTime, MesProductionReport::getReportId)
+                .build());
+        List<MesMaterialRequest> requests = !allowed.contains(SECTION_MATERIALS) ? List.of()
+            : requestMapper.selectList(QueryBuilder.lambda(MesMaterialRequest.class)
+                .in(MesMaterialRequest::getWorkorderId, ids)
+                .eq(MesMaterialRequest::getRequestStatus, MaterialRequestStatus.COMPLETED.code())
+                .orderByAsc(MesMaterialRequest::getCompleteTime, MesMaterialRequest::getRequestId)
+                .build());
         List<MesMaterialRequestItem> items = requests.isEmpty() ? List.of()
             : requestItemMapper.selectList(QueryBuilder.lambda(MesMaterialRequestItem.class)
                 .in(MesMaterialRequestItem::getRequestId, MesLookups.ids(requests, MesMaterialRequest::getRequestId))
                 .orderByAsc(MesMaterialRequestItem::getItemId)
                 .build());
-        List<MesInspection> inspections = inspectionMapper.selectList(QueryBuilder.lambda(MesInspection.class)
-            .in(MesInspection::getWorkorderId, ids)
-            .orderByAsc(MesInspection::getInspectionId)
-            .build());
-        List<MesDefectRecord> defects = defectMapper.selectList(QueryBuilder.lambda(MesDefectRecord.class)
-            .in(MesDefectRecord::getWorkorderId, ids)
-            .orderByAsc(MesDefectRecord::getDefectId)
-            .build());
-        List<MesStockIn> stockIns = stockInMapper.selectList(QueryBuilder.lambda(MesStockIn.class)
-            .in(MesStockIn::getWorkorderId, ids)
-            .orderByAsc(MesStockIn::getStockInId)
-            .build());
+        List<MesInspection> inspections = !allowed.contains(SECTION_INSPECTIONS) ? List.of()
+            : inspectionMapper.selectList(QueryBuilder.lambda(MesInspection.class)
+                .in(MesInspection::getWorkorderId, ids)
+                .orderByAsc(MesInspection::getInspectionId)
+                .build());
+        List<MesDefectRecord> defects = !allowed.contains(SECTION_DEFECTS) ? List.of()
+            : defectMapper.selectList(QueryBuilder.lambda(MesDefectRecord.class)
+                .in(MesDefectRecord::getWorkorderId, ids)
+                .orderByAsc(MesDefectRecord::getDefectId)
+                .build());
+        List<MesStockIn> stockIns = !allowed.contains(SECTION_STOCK_INS) ? List.of()
+            : stockInMapper.selectList(QueryBuilder.lambda(MesStockIn.class)
+                .in(MesStockIn::getWorkorderId, ids)
+                .orderByAsc(MesStockIn::getStockInId)
+                .build());
         Map<Long, Long> snCounts = snCounts(ids);
 
         // 关联的主数据名称

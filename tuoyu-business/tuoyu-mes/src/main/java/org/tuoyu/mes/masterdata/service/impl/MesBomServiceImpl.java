@@ -15,6 +15,7 @@ import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.mes.common.CodeEnum;
 import org.tuoyu.mes.common.MesLookups;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.common.excel.ImportErrors;
 import org.tuoyu.mes.common.excel.ImportFields;
@@ -93,6 +94,7 @@ public class MesBomServiceImpl implements IMesBomService {
                 item.setUnit(material.getUnit());
             });
         vo.setItems(items);
+        vo.setUsed(usedByWorkorder(List.of(bomId)));
         return vo;
     }
 
@@ -160,7 +162,7 @@ public class MesBomServiceImpl implements IMesBomService {
         validate(bo);
         MesBom bom = toEntity(bo);
         bom.setBomId(null);
-        bomMapper.insert(bom);
+        UniqueCodes.write(() -> bomMapper.insert(bom), duplicateCode(bom.getBomCode()));
         bo.setBomId(bom.getBomId());
         saveItems(bom.getBomId(), bo.getItems());
         clearOtherDefaults(bom);
@@ -172,16 +174,69 @@ public class MesBomServiceImpl implements IMesBomService {
         MesBom current = MasterdataSupport.require(bomMapper.selectById(bo.getBomId()),
             "修改物料清单失败，物料清单不存在");
         validate(bo);
-        if (!Objects.equals(current.getMaterialId(), bo.getMaterialId()) && usedByWorkorder(List.of(bo.getBomId()))) {
-            throw new ServiceException("已有工单使用该物料清单，不能更换产品");
-        }
         MesBom bom = toEntity(bo);
-        if (bomMapper.updateById(bom) == 0) {
+        boolean replaceItems = true;
+        if (usedByWorkorder(List.of(bo.getBomId()))) {
+            // 领料按工单引用的物料清单现算需求（明细用量、损耗率与基准数量），已被使用的只允许改表头
+            if (!Objects.equals(current.getMaterialId(), bo.getMaterialId())) {
+                throw new ServiceException("已有工单使用该物料清单，不能更换产品");
+            }
+            if (!sameQty(current.getBaseQty(), bom.getBaseQty()) || !sameItems(listItems(bo.getBomId()), bo.getItems())) {
+                throw new ServiceException("已有工单使用该物料清单，不能修改基准数量与子件，请新建版本");
+            }
+            replaceItems = false;
+        }
+        if (UniqueCodes.write(() -> bomMapper.updateById(bom), duplicateCode(bo.getBomCode())) == 0) {
             throw new ServiceException("修改物料清单失败，物料清单不存在");
         }
-        bomItemMapper.delete(QueryBuilder.lambda(MesBomItem.class).eq(MesBomItem::getBomId, bom.getBomId()).build());
-        saveItems(bom.getBomId(), bo.getItems());
+        if (replaceItems) {
+            bomItemMapper.delete(QueryBuilder.lambda(MesBomItem.class).eq(MesBomItem::getBomId, bom.getBomId()).build());
+            saveItems(bom.getBomId(), bo.getItems());
+        }
         clearOtherDefaults(bom);
+    }
+
+    private List<MesBomItem> listItems(Long bomId) {
+        return bomItemMapper.selectList(QueryBuilder.lambda(MesBomItem.class).eq(MesBomItem::getBomId, bomId).build());
+    }
+
+    /**
+     * 提交的明细与库中的是否相同：按子件物料对应（同一物料清单中子件不重复），比较用量、损耗率与备注；
+     * 未填的损耗率按 0 比较，与保存时补齐的默认值一致。排序号只决定显示顺序，不参与比较
+     */
+    static boolean sameItems(List<MesBomItem> existing, List<MesBomItemBo> submitted) {
+        if (existing.size() != submitted.size()) {
+            return false;
+        }
+        Map<Long, MesBomItem> byMaterial = new HashMap<>();
+        existing.forEach(item -> byMaterial.put(item.getMaterialId(), item));
+        for (MesBomItemBo b : submitted) {
+            MesBomItem a = byMaterial.get(b.getMaterialId());
+            boolean same = a != null
+                && sameQty(a.getQty(), b.getQty())
+                && sameQty(lossOrZero(a.getLossRate()), lossOrZero(b.getLossRate()))
+                && Objects.equals(emptyToNull(a.getRemark()), emptyToNull(b.getRemark()));
+            if (!same) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean sameQty(BigDecimal a, BigDecimal b) {
+        return a == null ? b == null : b != null && a.compareTo(b) == 0;
+    }
+
+    private static BigDecimal lossOrZero(BigDecimal lossRate) {
+        return lossRate == null ? BigDecimal.ZERO : lossRate;
+    }
+
+    private static String emptyToNull(String value) {
+        return value == null || value.isEmpty() ? null : value;
+    }
+
+    private static String duplicateCode(String code) {
+        return "BOM 编码“" + code + "”已存在";
     }
 
     private static MesBom toEntity(MesBomBo bo) {
@@ -204,11 +259,11 @@ public class MesBomServiceImpl implements IMesBomService {
             throw new ServiceException("请至少添加一个子件");
         }
         boolean codeExists = bomMapper.exists(QueryBuilder.lambda(MesBom.class)
-            .eq(MesBom::getBomCode, bo.getBomCode())
+            .func(UniqueCodes.sameCode(MesBom::getBomCode, bo.getBomCode()))
             .neIfPresent(MesBom::getBomId, bo.getBomId())
             .build());
         if (codeExists) {
-            throw new ServiceException("BOM 编码“" + bo.getBomCode() + "”已存在");
+            throw new ServiceException(duplicateCode(bo.getBomCode()));
         }
         boolean versionExists = bomMapper.exists(QueryBuilder.lambda(MesBom.class)
             .eq(MesBom::getMaterialId, bo.getMaterialId())
@@ -318,7 +373,7 @@ public class MesBomServiceImpl implements IMesBomService {
         }
         errors.throwIfAny();
         for (ImportedBom bom : imported) {
-            bomMapper.insert(bom.header());
+            UniqueCodes.write(() -> bomMapper.insert(bom.header()), duplicateCode(bom.header().getBomCode()));
             bom.items().forEach(item -> item.setBomId(bom.header().getBomId()));
             bomItemMapper.insert(bom.items());
             clearOtherDefaults(bom.header());

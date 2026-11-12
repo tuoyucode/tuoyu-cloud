@@ -50,8 +50,8 @@ import java.util.stream.Collectors;
  * 按日期汇总在 Java 中完成（不用数据库的日期函数），SQL 只用两种数据库都支持的比较、IN、分组与 SUM，
  * 同一套代码在 MySQL 与 PostgreSQL 上结果相同。只统计未撤销的报工（已提交、已确认）。
  * <p>
- * 报工与工单的统计受数据权限约束（按创建部门与创建者），与报工记录、工单列表看到的范围一致；
- * 不良排行中按任务取工序名称属于内部读取，只取已统计到的任务。安灯与待处置不良的计数由各自的模块负责数据范围。
+ * 报工、工单、安灯与不良的统计都受数据权限约束（按创建部门与创建者），与报工记录、工单、安灯事件、不良记录列表看到的范围一致；
+ * 不良排行中按任务取工序名称属于内部读取，只取已统计到的任务。
  *
  * @author tuoyu
  */
@@ -120,7 +120,8 @@ public class MesDashboardServiceImpl implements IMesDashboardService {
                 WorkorderStatus.PAUSED.code())
             .eqIfPresent(MesWorkorder::getWorkshopId, workshopId)
             .build()));
-        summary.setOpenAndons(andonMapper.selectCount(QueryBuilder.lambda(MesAndonEvent.class)
+        // 未解决的安灯：已上报、已派单、处理中，与安灯事件列表中“未解决”的口径一致
+        summary.setOpenAndons(andonMapper.countInScope(QueryBuilder.lambda(MesAndonEvent.class)
             .in(MesAndonEvent::getEventStatus, AndonStatus.REPORTED.code(), AndonStatus.ASSIGNED.code(),
                 AndonStatus.PROCESSING.code())
             .eqIfPresent(MesAndonEvent::getWorkshopId, workshopId)
@@ -132,11 +133,11 @@ public class MesDashboardServiceImpl implements IMesDashboardService {
                 .select(MesWorkorder::getWorkorderId)
                 .eq(MesWorkorder::getWorkshopId, workshopId));
         }
-        summary.setPendingDefects(defectMapper.selectCount(defects.build()));
+        summary.setPendingDefects(defectMapper.countInScope(defects.build()));
 
         vo.setWorkorderProgress(workorderProgress(workshopId, now));
         vo.setDefectTop(defectTop(workshopId, begin, end));
-        vo.setAndonByType(andonByType(andonMapper.selectList(QueryBuilder.lambda(MesAndonEvent.class)
+        vo.setAndonByType(andonByType(andonMapper.selectListInScope(QueryBuilder.lambda(MesAndonEvent.class)
             .select(MesAndonEvent::getEventType, MesAndonEvent::getDowntimeMinutes)
             .eqIfPresent(MesAndonEvent::getWorkshopId, workshopId)
             .ge(MesAndonEvent::getReportTime, begin)

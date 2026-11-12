@@ -54,6 +54,7 @@ import org.tuoyu.mes.quality.mapper.MesDefectRecordMapper;
 import org.tuoyu.mes.quality.mapper.MesInspectionMapper;
 import org.tuoyu.mes.report.service.impl.MesDashboardServiceImpl;
 import org.tuoyu.mes.support.MesTestSupport;
+import org.tuoyu.mes.trace.service.IMesSnService;
 import org.tuoyu.system.api.RemoteUserService;
 
 import java.lang.reflect.InvocationHandler;
@@ -307,7 +308,7 @@ class ProductionDataPermissionTest {
             MesTestSupport.mapper(MesRouteMapper.class), MesTestSupport.mapper(MesRouteOperationMapper.class),
             MesTestSupport.mapper(MesFactoryMapper.class), MesTestSupport.mapper(MesWorkshopMapper.class),
             MesTestSupport.mapper(MesLineMapper.class), Mockito.mock(IMesCodeService.class),
-            Mockito.mock(IMesStatusLogService.class), assembler(workorders, tasks));
+            Mockito.mock(IMesStatusLogService.class), assembler(workorders, tasks), Mockito.mock(IMesSnService.class));
     }
 
     private static MesOperationTaskAssembler assembler(MesWorkorderMapper workorders, MesOperationTaskMapper tasks) {

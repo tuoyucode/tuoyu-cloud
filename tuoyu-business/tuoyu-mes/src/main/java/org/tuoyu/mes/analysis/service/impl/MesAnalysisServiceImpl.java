@@ -36,6 +36,7 @@ import org.tuoyu.mes.analysis.mapper.MesAnalysisMapper;
 import org.tuoyu.mes.analysis.service.IMesAnalysisService;
 import org.tuoyu.mes.andon.domain.MesDowntimeReason;
 import org.tuoyu.mes.andon.enums.AndonLevel;
+import org.tuoyu.mes.andon.enums.AndonStatus;
 import org.tuoyu.mes.andon.mapper.MesDowntimeReasonMapper;
 import org.tuoyu.mes.common.CodeEnum;
 import org.tuoyu.mes.common.MesLookups;
@@ -103,6 +104,11 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
      * 计入统计的报工状态：已提交与已确认（已撤销的不计入）
      */
     static final List<String> VALID_REPORTS = codes(ReportStatus.REPORTED, ReportStatus.CONFIRMED);
+
+    /**
+     * 未解决的安灯状态：已上报、已派单、处理中（与安灯事件列表、看板中“未解决”的口径一致）
+     */
+    static final List<String> OPEN_ANDONS = codes(AndonStatus.REPORTED, AndonStatus.ASSIGNED, AndonStatus.PROCESSING);
 
     static final String NO_LINE = "未指定产线";
     static final String NO_TEAM = "未指定班组";
@@ -550,7 +556,8 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
      * 停机分析：统计范围内上报的停机事件（停线级别、或填写了停机原因的安灯事件）。
      * <ul>
      *     <li>停机时长取安灯事件解决时记录的停机分钟数（上报到解决）；<b>未解决的事件只计次数、不计时长</b>，
-     *     另列“其中未解决”，平均时长 = 停机时长 ÷ 已解决次数；</li>
+     *     另列“其中未解决”（按状态：已上报、已派单、处理中），平均时长 = 停机时长 ÷ 已解决次数；</li>
+     *     <li>未经解决直接关闭（误报）的事件计入停机次数，不算未解决，也不计时长、不计入平均时长的分母；</li>
      *     <li>按停机原因（默认，没有原因的停线事件归为“未填写原因”）、产线或日期（日、周、月）统计。</li>
      * </ul>
      */
@@ -562,7 +569,7 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
         Granularity granularity = granularity(bo.getGranularity());
         boolean byDate = dimension == AnalysisDimension.DATE;
         List<DowntimeGroupRow> groups = analysisMapper.selectDowntimeGroups(scope, AndonLevel.CRITICAL.code(),
-            dimension.code());
+            OPEN_ANDONS, dimension.code());
 
         Map<String, DowntimeBucket> buckets = new LinkedHashMap<>();
         if (byDate) {
@@ -601,7 +608,7 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
             row.setEventCount(bucket.events);
             row.setOpenCount(bucket.open);
             row.setDowntimeMinutes(bucket.minutes);
-            row.setAvgDowntimeMinutes(AnalysisMath.divide(BigDecimal.valueOf(bucket.minutes), bucket.events - bucket.open));
+            row.setAvgDowntimeMinutes(AnalysisMath.divide(BigDecimal.valueOf(bucket.minutes), bucket.resolved));
             row.setRatio(AnalysisMath.percent(BigDecimal.valueOf(bucket.minutes), BigDecimal.valueOf(totalMinutes)));
             rows.add(row);
         }
@@ -617,10 +624,11 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
         vo.setGeneratedAt(scope.getNow());
         long events = buckets.values().stream().mapToLong(b -> b.events).sum();
         long open = buckets.values().stream().mapToLong(b -> b.open).sum();
+        long resolved = buckets.values().stream().mapToLong(b -> b.resolved).sum();
         vo.setEventCount(events);
         vo.setOpenCount(open);
         vo.setDowntimeMinutes(totalMinutes);
-        vo.setAvgDowntimeMinutes(AnalysisMath.divide(BigDecimal.valueOf(totalMinutes), events - open));
+        vo.setAvgDowntimeMinutes(AnalysisMath.divide(BigDecimal.valueOf(totalMinutes), resolved));
         vo.setRows(rows);
         return vo;
     }
@@ -631,6 +639,7 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
         private final String label;
         private long events;
         private long open;
+        private long resolved;
         private long minutes;
 
         private DowntimeBucket(String key, String label) {
@@ -641,6 +650,7 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
         private void add(DowntimeGroupRow group) {
             events += AnalysisMath.orZero(group.getEventCount());
             open += AnalysisMath.orZero(group.getOpenCount());
+            resolved += AnalysisMath.orZero(group.getResolvedCount());
             minutes += AnalysisMath.orZero(group.getDowntimeMinutes());
         }
     }
@@ -715,7 +725,8 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
     /**
      * 班组绩效：统计范围内未撤销的报工按报工时记录的班组汇总（没有班组的归为“未指定班组”）。
      * 产量 = 报工数（合格 + 不良），良率 = 合格数 ÷ 报工数，工时口径同工时报表，
-     * 报工人数 = 在该班组报过工的人数（去重），人均合格数 = 合格数 ÷ 报工人数，每小时合格数 = 合格数 ÷ 工时
+     * 报工人数 = 在该班组报过工的人数（去重），人均合格数 = 合格数 ÷ 报工人数，每小时合格数 = 合格数 ÷ 工时。
+     * 合计的报工人数对整个统计范围单独去重（同一人在几个班组报过工只算一次），不是各班组人数之和
      */
     @Override
     public MesTeamAnalysisVo team(MesAnalysisQueryBo bo) {
@@ -753,7 +764,7 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
         vo.setGeneratedAt(scope.getNow());
         BigDecimal reported = sum(buckets.values(), b -> b.reported);
         BigDecimal qualified = sum(buckets.values(), b -> b.qualified);
-        long members = buckets.values().stream().mapToLong(b -> b.users).sum();
+        long members = buckets.isEmpty() ? 0 : distinctReporters(scope);
         vo.setReportCount(buckets.values().stream().mapToLong(b -> b.reports).sum());
         vo.setReportQty(AnalysisMath.plain(reported));
         vo.setQualifiedQty(AnalysisMath.plain(qualified));
@@ -763,6 +774,15 @@ public class MesAnalysisServiceImpl implements IMesAnalysisService {
         vo.setPerCapitaQty(AnalysisMath.divide(qualified, members));
         vo.setRows(rows);
         return vo;
+    }
+
+    /**
+     * 统计范围内报过工的人数（去重）：按人员汇总的行数，条件与数据权限同班组的汇总；没有报工人的报工不计
+     */
+    private long distinctReporters(AnalysisScope scope) {
+        return analysisMapper.selectReportTotals(scope, VALID_REPORTS, AnalysisDimension.USER.code()).stream()
+            .filter(total -> total.getUserId() != null)
+            .count();
     }
 
     /**

@@ -123,8 +123,8 @@ class MesDashboardServiceImplTest {
         when(taskMapper.selectList(any(Wrapper.class))).thenReturn(
             List.of(task(1L, "装配"), task(2L, "焊接"), task(3L, "装配")));
         when(workorderMapper.selectCount(any(Wrapper.class))).thenReturn(3L);
-        when(andonMapper.selectCount(any(Wrapper.class))).thenReturn(2L);
-        when(defectMapper.selectCount(any(Wrapper.class))).thenReturn(4L);
+        when(andonMapper.countInScope(any(Wrapper.class))).thenReturn(2L);
+        when(defectMapper.countInScope(any(Wrapper.class))).thenReturn(4L);
 
         MesWorkorder late = new MesWorkorder();
         late.setWorkorderId(1L);
@@ -141,7 +141,7 @@ class MesDashboardServiceImplTest {
         material.setMaterialId(10L);
         material.setMaterialName("控制器");
         when(materialMapper.selectByIds(anyCollection())).thenReturn(List.of(material));
-        when(andonMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+        when(andonMapper.selectListInScope(any(Wrapper.class))).thenReturn(List.of(
             andon("equipment", 30), andon("equipment", 45), andon("equipment", null), andon("quality", null)));
 
         MesDashboardVo vo = service.overview(null, null);
@@ -179,6 +179,10 @@ class MesDashboardServiceImplTest {
         verify(reportMapper, times(2)).selectListInScope(any(Wrapper.class));
         verify(workorderMapper).countInScope(any(Wrapper.class));
         verify(workorderMapper, times(2)).selectListInScope(any(Wrapper.class));
+        // 未解决的安灯、待处置的不良与按类型的安灯统计同样走数据权限的查询
+        verify(andonMapper).countInScope(any(Wrapper.class));
+        verify(defectMapper).countInScope(any(Wrapper.class));
+        verify(andonMapper).selectListInScope(any(Wrapper.class));
     }
 
     @Test

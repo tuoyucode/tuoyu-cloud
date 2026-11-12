@@ -14,6 +14,7 @@ import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.query.LambdaQueryBuilder;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
+import org.tuoyu.mes.common.CodeEnum;
 import org.tuoyu.mes.common.StateGuard;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.common.enums.BizType;
@@ -38,6 +39,7 @@ import org.tuoyu.mes.plan.service.IMesOperationTaskService;
 import org.tuoyu.mes.plan.service.IMesWorkorderService;
 import org.tuoyu.system.api.RemoteUserService;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -48,6 +50,9 @@ import java.util.Objects;
  * <p>
  * 列表、下拉、详情与派工、完成等按 ID 的操作受数据权限约束；“我的任务”只按派给谁过滤，不加数据权限
  * （任务由下达工单的人创建，作业人通常不在那个部门）。派工与完成先锁定所属工单行，与同一工单的报工、状态动作依次执行。
+ * <p>
+ * 完成条件：上一道工序已完成，且本道已报数量（合格 + 不良）不少于上一道的合格数（首道为工单计划数）。
+ * 报工后与前道完成后按这个条件自动完成，依次带动后续工序；全部工序完成时工单自动完工。
  *
  * @author tuoyu
  */
@@ -205,8 +210,12 @@ public class MesOperationTaskServiceImpl implements IMesOperationTaskService {
     public void complete(Long taskId) {
         MesOperationTask scoped = requireInScope(taskId);
         MesWorkorder workorder = lockWorkorder(scoped.getWorkorderId());
-        MesOperationTask task = lockedTask(workorder, taskId);
+        List<MesOperationTask> tasks = taskMapper.selectByWorkorderForUpdate(workorder.getWorkorderId());
+        MesOperationTask task = find(tasks, taskId);
         StateGuard.require(OBJECT, TaskStatus.class, task.getTaskStatus(), "完成", TaskStatus.IN_PROGRESS);
+        // 工单暂停时生产停止，不能结束工序；按加锁读到的工单状态判断，与暂停、恢复依次执行
+        StateGuard.require("工单", WorkorderStatus.class, workorder.getWorkorderStatus(), "完成工序",
+            WorkorderStatus.RELEASED, WorkorderStatus.IN_PROGRESS);
         LambdaUpdateWrapper<MesOperationTask> wrapper = Wrappers.lambdaUpdate(MesOperationTask.class)
             .set(MesOperationTask::getTaskStatus, TaskStatus.COMPLETED.code())
             .set(MesOperationTask::getActualEndTime, LocalDateTime.now())
@@ -215,45 +224,78 @@ public class MesOperationTaskServiceImpl implements IMesOperationTaskService {
         if (taskMapper.update(null, wrapper) == 0) {
             throw new ServiceException("工序任务状态已变化，请刷新后重试");
         }
-        afterFinished(task, "complete");
+        task.setTaskStatus(TaskStatus.COMPLETED.code());
+        afterFinished(workorder, tasks, task, TaskStatus.IN_PROGRESS, "complete");
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean completeIfReached(Long taskId) {
-        // 报工之后的内部调用，调用方已锁定工单行，不加数据权限；这里只取任务编号、所属工单与工序顺序（创建后不变）
-        MesOperationTask task = taskId == null ? null : taskMapper.selectById(taskId);
-        if (task == null) {
+        // 报工、撤销报工之后的内部调用，不加数据权限；这里只取所属工单（创建后不变）
+        MesOperationTask target = taskId == null ? null : taskMapper.selectById(taskId);
+        if (target == null) {
             return false;
         }
-        // 判断与修改在同一条条件更新中完成：合格数未达到计划数或任务已不在生产中时影响 0 行，任务保持原状
+        // 加锁顺序：工单 → 工序任务，与报工、派工、状态动作一致；调用方已持有这些锁时不再等待，读到的是最新数据
+        MesWorkorder workorder = workorderMapper.selectByIdForUpdate(target.getWorkorderId());
+        if (workorder == null) {
+            return false;
+        }
+        List<MesOperationTask> tasks = taskMapper.selectByWorkorderForUpdate(workorder.getWorkorderId());
+        MesOperationTask task = tasks.stream().filter(t -> Objects.equals(t.getTaskId(), taskId)).findFirst().orElse(null);
+        return task != null && tryAutoComplete(workorder, tasks, task);
+    }
+
+    /**
+     * 达到完成条件时自动完成任务：工单已下达或生产中（暂停时不自动完成），任务未结束，
+     * 上一道工序已完成（首道不要求），本道已报数量（合格 + 不良）不少于上一道的合格数（首道为工单计划数）。
+     * 待派工、已派工的任务只有上一道合格数为 0（上一道全部不良）时才满足，这时本道没有可做的数量，也一并完成
+     *
+     * @param tasks 加锁读到的工单全部工序任务，完成后同步修改其中本任务的状态，供后续工序的判断使用
+     */
+    private boolean tryAutoComplete(MesWorkorder workorder, List<MesOperationTask> tasks, MesOperationTask task) {
+        if (!CodeEnum.in(workorder.getWorkorderStatus(), WorkorderStatus.RELEASED, WorkorderStatus.IN_PROGRESS)) {
+            return false;
+        }
+        TaskStatus from = CodeEnum.find(TaskStatus.class, task.getTaskStatus()).orElse(null);
+        if (from != TaskStatus.PENDING && from != TaskStatus.DISPATCHED && from != TaskStatus.IN_PROGRESS) {
+            return false;
+        }
+        if (!TaskSequence.reached(workorder.getPlanQty(), tasks, task)) {
+            return false;
+        }
+        BigDecimal capacity = TaskSequence.capacity(workorder.getPlanQty(), TaskSequence.previous(tasks, task));
+        // 条件中再带上原状态与数量条件，以数据库中的当前值为准，不满足时影响 0 行，任务保持原状
         LambdaUpdateWrapper<MesOperationTask> wrapper = Wrappers.lambdaUpdate(MesOperationTask.class)
             .set(MesOperationTask::getTaskStatus, TaskStatus.COMPLETED.code())
             .set(MesOperationTask::getActualEndTime, LocalDateTime.now())
-            .eq(MesOperationTask::getTaskId, taskId)
-            .eq(MesOperationTask::getTaskStatus, TaskStatus.IN_PROGRESS.code())
-            .apply("qualified_qty >= plan_qty");
+            .eq(MesOperationTask::getTaskId, task.getTaskId())
+            .eq(MesOperationTask::getTaskStatus, from.code())
+            .apply("qualified_qty + defect_qty >= {0}", capacity);
         if (taskMapper.update(null, wrapper) == 0) {
             return false;
         }
-        afterFinished(task, "auto_complete");
+        task.setTaskStatus(TaskStatus.COMPLETED.code());
+        afterFinished(workorder, tasks, task, from, "auto_complete");
         return true;
     }
 
     /**
-     * 任务状态变为已完成之后：记录履历，末道工序完成时判断工单是否自动完工
+     * 任务状态变为已完成之后：记录履历；下一道工序可能因此达到完成条件，先检查它（它完成后继续往后检查）；
+     * 全部工序都已完成时判断工单是否自动完工
      *
-     * @param action 履历中的动作：complete 手动完成，auto_complete 合格数达到计划数后自动完成
+     * @param action 履历中的动作：complete 手动完成，auto_complete 达到完成条件后自动完成
      */
-    private void afterFinished(MesOperationTask task, String action) {
+    private void afterFinished(MesWorkorder workorder, List<MesOperationTask> tasks, MesOperationTask task,
+                               TaskStatus from, String action) {
         statusLogService.record(BizType.OPERATION_TASK, task.getTaskId(), task.getTaskCode(), action,
-            TaskStatus.IN_PROGRESS.code(), TaskStatus.COMPLETED.code(), null);
-        boolean last = !taskMapper.exists(QueryBuilder.lambda(MesOperationTask.class)
-            .eq(MesOperationTask::getWorkorderId, task.getWorkorderId())
-            .gt(MesOperationTask::getSeqNo, task.getSeqNo())
-            .build());
-        if (last) {
-            workorderService.completeIfFinished(task.getWorkorderId());
+            from.code(), TaskStatus.COMPLETED.code(), null);
+        MesOperationTask next = TaskSequence.next(tasks, task);
+        if (next != null && tryAutoComplete(workorder, tasks, next)) {
+            return;
+        }
+        if (tasks.stream().allMatch(t -> TaskStatus.COMPLETED.code().equals(t.getTaskStatus()))) {
+            workorderService.completeIfFinished(workorder.getWorkorderId());
         }
     }
 
@@ -292,7 +334,11 @@ public class MesOperationTaskServiceImpl implements IMesOperationTaskService {
      * 锁定工单的工序任务后取出本任务，状态按加锁读到的最新数据判断
      */
     private MesOperationTask lockedTask(MesWorkorder workorder, Long taskId) {
-        return taskMapper.selectByWorkorderForUpdate(workorder.getWorkorderId()).stream()
+        return find(taskMapper.selectByWorkorderForUpdate(workorder.getWorkorderId()), taskId);
+    }
+
+    private static MesOperationTask find(List<MesOperationTask> tasks, Long taskId) {
+        return tasks.stream()
             .filter(t -> Objects.equals(t.getTaskId(), taskId))
             .findFirst()
             .orElseThrow(() -> new ServiceException("工序任务不存在"));

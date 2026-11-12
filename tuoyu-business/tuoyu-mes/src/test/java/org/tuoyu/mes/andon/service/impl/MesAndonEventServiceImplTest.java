@@ -209,6 +209,28 @@ class MesAndonEventServiceImplTest {
     }
 
     @Test
+    @DisplayName("没有车间、直接挂在工厂下的设备：属于所选车间的工厂时可以上报，属于其他工厂时拒绝")
+    void factoryLevelDevice() {
+        MesWorkshop workshop = workshop();
+        workshop.setFactoryId(7L);
+        when(workshopMapper.selectById(1L)).thenReturn(workshop);
+        when(codeService.next(CodeRules.ANDON)).thenReturn("AD002");
+        MesDevice device = new MesDevice();
+        device.setDeviceId(4L);
+        device.setDeviceName("空压机");
+        device.setFactoryId(7L);
+        when(deviceMapper.selectById(4L)).thenReturn(device);
+        MesAndonEventBo bo = reportBo();
+        bo.setDeviceId(4L);
+
+        service.report(bo);
+        verify(eventMapper).insert(any(MesAndonEvent.class));
+
+        device.setFactoryId(8L);
+        assertThatThrownBy(() -> service.report(bo)).hasMessageContaining("空压机").hasMessageContaining("不属于所选车间");
+    }
+
+    @Test
     @DisplayName("异常类型、车间不正确时拒绝上报")
     void rejectsInvalidReport() {
         MesAndonEventBo bo = reportBo();

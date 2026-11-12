@@ -1,5 +1,6 @@
 package org.tuoyu.mes.trace.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.junit.jupiter.api.AfterEach;
@@ -37,6 +38,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -110,6 +112,14 @@ class MesSnServiceImplTest {
         when(materialMapper.selectById(10L)).thenReturn(product("sn"));
         when(snMapper.selectCount(any(Wrapper.class))).thenReturn(8L);
         when(codeService.next(CodeRules.SN, 2)).thenReturn(List.of("SN1", "SN2"));
+        // 与运行时相同：批量插入时为每行分配主键
+        when(snMapper.insert(anyCollection())).thenAnswer(invocation -> {
+            long id = 100;
+            for (MesSn row : invocation.<Collection<MesSn>>getArgument(0)) {
+                row.setSnId(++id);
+            }
+            return List.of();
+        });
 
         service.generate(generate(2));
 
@@ -123,6 +133,63 @@ class MesSnServiceImplTest {
             assertThat(row.getBatchCode()).isEqualTo("B261108001");
             assertThat(row.getSnStatus()).isEqualTo("created");
         });
+        // 每个序列号记录生成的履历
+        verify(statusLogService).record(BizType.SN, 101L, "SN1", "create", null, "created", "工单 WO001");
+        verify(statusLogService).record(BizType.SN, 102L, "SN2", "create", null, "created", "工单 WO001");
+    }
+
+    @Test
+    @DisplayName("工单完工：已生成的序列号改为已完工，逐个记录履历；加锁读取后按工单与原状态条件更新")
+    @SuppressWarnings("unchecked")
+    void completeByWorkorder() {
+        MesSn first = sn("created");
+        MesSn second = sn("created");
+        second.setSnId(6L);
+        second.setSnCode("SN261108000002");
+        when(snMapper.selectList(any(Wrapper.class))).thenReturn(List.of(first, second));
+
+        assertThat(service.completeByWorkorder(1L)).isEqualTo(2);
+
+        ArgumentCaptor<Wrapper<MesSn>> query = ArgumentCaptor.forClass(Wrapper.class);
+        verify(snMapper).selectList(query.capture());
+        assertThat(query.getValue().getSqlSegment()).contains("workorder_id =", "sn_status =").endsWith("for update");
+        ArgumentCaptor<Wrapper<MesSn>> update = ArgumentCaptor.forClass(Wrapper.class);
+        verify(snMapper).update(isNull(), update.capture());
+        assertThat(update.getValue().getSqlSet()).contains("sn_status");
+        assertThat(update.getValue().getSqlSegment()).contains("workorder_id =", "sn_status =");
+        assertThat(((AbstractWrapper<?, ?, ?>) update.getValue())
+            .getParamNameValuePairs()).containsValues("completed", 1L, "created");
+        verify(statusLogService).record(BizType.SN, 5L, "SN261108000001", "complete", "created", "completed", "工单完工");
+        verify(statusLogService).record(BizType.SN, 6L, "SN261108000002", "complete", "created", "completed", "工单完工");
+    }
+
+    @Test
+    @DisplayName("工单没有已生成的序列号时不更新、不记履历")
+    void completeByWorkorderWithoutSn() {
+        assertThat(service.completeByWorkorder(1L)).isZero();
+
+        verify(snMapper, never()).update(any(), any(Wrapper.class));
+        verify(statusLogService, never()).record(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("数据权限：列表、导出、统计、详情、履历与报废都走数据权限内的查询，不在范围内的按不存在处理")
+    @SuppressWarnings("unchecked")
+    void usesDataScope() {
+        service.queryPageList(new MesSnBo(), new PageParam(1, 10));
+        verify(snMapper).selectPageInScope(any(), any(Wrapper.class));
+        service.queryList(new MesSnBo());
+        verify(snMapper).selectListInScope(any(Wrapper.class));
+        service.countList(new MesSnBo());
+        verify(snMapper).countInScope(any(Wrapper.class));
+
+        when(snMapper.selectById(5L)).thenReturn(sn("created"));
+        doReturn(null).when(snMapper).selectByIdInScope(5L);
+        assertThatThrownBy(() -> service.queryById(5L)).hasMessage("序列号不存在");
+        assertThatThrownBy(() -> service.logs(5L)).hasMessage("序列号不存在");
+        assertThatThrownBy(() -> service.scrap(5L, "损坏")).hasMessage("序列号不存在");
+        verify(snMapper, never()).update(any(), any(Wrapper.class));
+        verify(statusLogService, never()).list(any(), any());
     }
 
     @Test

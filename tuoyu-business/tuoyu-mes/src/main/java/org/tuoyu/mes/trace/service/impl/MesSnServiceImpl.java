@@ -45,6 +45,9 @@ import java.util.function.Function;
 
 /**
  * 产品序列号
+ * <p>
+ * 列表、导出、详情、履历与报废按序列号自己的创建部门与创建者限定在当前用户的数据权限内，不在其内的按不存在处理；
+ * 生成时读取工单、工单完工时改状态是单据之间的内部操作，不加数据权限。每次状态变化（生成、完工、报废）都写状态履历。
  *
  * @author tuoyu
  */
@@ -70,21 +73,22 @@ public class MesSnServiceImpl implements IMesSnService {
     @Override
     public PageResult<MesSnVo> queryPageList(MesSnBo bo, PageParam pageParam) {
         PageResult<MesSnVo> result = PageResults.of(
-            snMapper.selectPage(pageParam.toPage(MesSn.class), buildQueryWrapper(bo, !pageParam.hasSort())), MesSnVo.class);
+            snMapper.selectPageInScope(pageParam.toPage(MesSn.class), buildQueryWrapper(bo, !pageParam.hasSort())),
+            MesSnVo.class);
         fillNames(result.getItems());
         return result;
     }
 
     @Override
     public List<MesSnVo> queryList(MesSnBo bo) {
-        List<MesSnVo> list = BeanMapper.mapList(snMapper.selectList(buildQueryWrapper(bo, true)), MesSnVo.class);
+        List<MesSnVo> list = BeanMapper.mapList(snMapper.selectListInScope(buildQueryWrapper(bo, true)), MesSnVo.class);
         fillNames(list);
         return list;
     }
 
     @Override
     public long countList(MesSnBo bo) {
-        return snMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(bo, false)).getTotal();
+        return snMapper.countInScope(buildQueryWrapper(bo, false));
     }
 
     private LambdaQueryWrapper<MesSn> buildQueryWrapper(MesSnBo bo, boolean defaultOrder) {
@@ -175,6 +179,34 @@ public class MesSnServiceImpl implements IMesSnService {
             rows.add(sn);
         }
         snMapper.insert(rows);
+        for (MesSn sn : rows) {
+            statusLogService.record(BizType.SN, sn.getSnId(), sn.getSnCode(), "create", null, SnStatus.CREATED.code(),
+                "工单 " + workorder.getWorkorderCode());
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int completeByWorkorder(Long workorderId) {
+        // 加锁读取：与报废同一序列号的操作依次执行，下面的条件更新恰好改这些行，履历中的原状态取自最新数据
+        List<MesSn> sns = snMapper.selectList(QueryBuilder.lambda(MesSn.class)
+            .select(MesSn::getSnId, MesSn::getSnCode)
+            .eq(MesSn::getWorkorderId, workorderId)
+            .eq(MesSn::getSnStatus, SnStatus.CREATED.code())
+            .last("for update")
+            .build());
+        if (sns.isEmpty()) {
+            return 0;
+        }
+        snMapper.update(null, Wrappers.<MesSn>lambdaUpdate()
+            .set(MesSn::getSnStatus, SnStatus.COMPLETED.code())
+            .eq(MesSn::getWorkorderId, workorderId)
+            .eq(MesSn::getSnStatus, SnStatus.CREATED.code()));
+        for (MesSn sn : sns) {
+            statusLogService.record(BizType.SN, sn.getSnId(), sn.getSnCode(), "complete", SnStatus.CREATED.code(),
+                SnStatus.COMPLETED.code(), "工单完工");
+        }
+        return sns.size();
     }
 
     @Override
@@ -202,8 +234,11 @@ public class MesSnServiceImpl implements IMesSnService {
         return statusLogService.list(BizType.SN, snId);
     }
 
+    /**
+     * 按 ID 取当前用户数据权限内的序列号，不存在或不在数据权限内时抛出业务异常
+     */
     private MesSn requireSn(Long snId) {
-        MesSn sn = snId == null ? null : snMapper.selectById(snId);
+        MesSn sn = snId == null ? null : snMapper.selectByIdInScope(snId);
         if (sn == null) {
             throw new ServiceException("序列号不存在");
         }

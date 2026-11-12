@@ -273,15 +273,43 @@ class MesOperationTaskServiceImplTest {
         verify(statusLogService, never()).list(any(), anyLong());
     }
 
+    /**
+     * 工单的多道工序：按 ID、数据权限内读取都返回各自的任务，加锁读取返回全部任务（同一批对象，完成后的状态在其上可见）
+     */
+    private void givenTasks(MesWorkorder workorder, MesOperationTask... tasks) {
+        for (MesOperationTask task : tasks) {
+            when(taskMapper.selectById(task.getTaskId())).thenReturn(task);
+            doReturn(task).when(taskMapper).selectByIdInScope(task.getTaskId());
+        }
+        doReturn(workorder).when(workorderMapper).selectByIdForUpdate(workorder.getWorkorderId());
+        doReturn(List.of(tasks)).when(taskMapper).selectByWorkorderForUpdate(workorder.getWorkorderId());
+        when(taskMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
+    }
+
+    private static MesOperationTask task(long id, int seqNo, String status, String qualified, String defect) {
+        MesOperationTask task = task(status);
+        task.setTaskId(id);
+        task.setTaskCode("OT" + id);
+        task.setSeqNo(seqNo);
+        task.setQualifiedQty(new BigDecimal(qualified));
+        task.setDefectQty(new BigDecimal(defect));
+        return task;
+    }
+
+    private List<LambdaUpdateWrapper<MesOperationTask>> taskUpdates() {
+        ArgumentCaptor<Wrapper<MesOperationTask>> captor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(taskMapper, Mockito.atLeastOnce()).update(isNull(), captor.capture());
+        return captor.getAllValues().stream().map(w -> (LambdaUpdateWrapper<MesOperationTask>) w).toList();
+    }
+
     @Test
-    @DisplayName("手动完成：只有生产中可以完成；末道工序完成时检查工单是否自动完工")
+    @DisplayName("手动完成：只有生产中可以完成；末道工序完成、全部工序已完成时检查工单是否自动完工")
     void completeLastOperation() {
         given(task("dispatched"), workorder("in_progress"));
         assertThatThrownBy(() -> service.complete(1L)).hasMessageContaining("不能完成");
 
         given(task("in_progress"), workorder("in_progress"));
         when(taskMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
-        when(taskMapper.exists(any(Wrapper.class))).thenReturn(false);
         service.complete(1L);
 
         verify(statusLogService).record(BizType.OPERATION_TASK, 1L, "OT1", "complete", "in_progress", "completed", null);
@@ -289,45 +317,172 @@ class MesOperationTaskServiceImplTest {
     }
 
     @Test
-    @DisplayName("不是末道工序时完成任务不触发工单完工")
-    void completeMiddleOperation() {
-        given(task("in_progress"), workorder("in_progress"));
-        when(taskMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
-        when(taskMapper.exists(any(Wrapper.class))).thenReturn(true);
+    @DisplayName("工单已暂停时不能完成工序，任务不变")
+    void completeRejectsPausedWorkorder() {
+        given(task("in_progress"), workorder("paused"));
 
-        service.complete(1L);
-
+        assertThatThrownBy(() -> service.complete(1L)).hasMessageContaining("工单当前为“已暂停”，不能完成工序");
+        verify(taskMapper, never()).update(any(), any(Wrapper.class));
         verify(workorderService, never()).completeIfFinished(anyLong());
     }
 
     @Test
-    @DisplayName("报工后自动完成：判断与修改在同一条条件更新中（生产中且合格数达到计划数）")
+    @DisplayName("手动完成先锁工单、再加锁读取工序任务，状态按加锁读到的数据判断")
+    void completeLockOrder() {
+        given(task("in_progress"), task("completed"), workorder("in_progress"));
+
+        assertThatThrownBy(() -> service.complete(1L)).hasMessageContaining("不能完成");
+
+        InOrder order = inOrder(workorderMapper, taskMapper);
+        order.verify(taskMapper).selectByIdInScope(1L);
+        order.verify(workorderMapper).selectByIdForUpdate(100L);
+        order.verify(taskMapper).selectByWorkorderForUpdate(100L);
+    }
+
+    @Test
+    @DisplayName("不是末道工序时：下一道未达到完成条件，完成任务不触发工单完工")
+    void completeMiddleOperation() {
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "5", "0"),
+            task(2L, 20, "dispatched", "0", "0"));
+
+        service.complete(1L);
+
+        assertThat(taskUpdates()).hasSize(1);
+        verify(workorderService, never()).completeIfFinished(anyLong());
+    }
+
+    @Test
+    @DisplayName("手动完成前道时检查下一道：下一道已报数量达到前道合格数则自动完成，全部完成后工单完工")
+    void completeChecksNextOperation() {
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "8", "1"),
+            task(2L, 20, "in_progress", "7", "1"));
+
+        service.complete(1L);
+
+        verify(statusLogService).record(BizType.OPERATION_TASK, 1L, "OT1", "complete", "in_progress", "completed", null);
+        verify(statusLogService).record(BizType.OPERATION_TASK, 2L, "OT2", "auto_complete", "in_progress", "completed",
+            null);
+        verify(workorderService).completeIfFinished(100L);
+    }
+
+    @Test
+    @DisplayName("自动完成（首道、无不良）：已报数量达到工单计划数，判断与修改在同一条条件更新中，单道工序时工单随之完工")
     void completeIfReached() {
-        when(taskMapper.selectById(1L)).thenReturn(task("in_progress"));
-        when(taskMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "10", "0"));
 
         assertThat(service.completeIfReached(1L)).isTrue();
 
-        ArgumentCaptor<Wrapper<MesOperationTask>> captor = ArgumentCaptor.forClass(Wrapper.class);
-        verify(taskMapper).update(isNull(), captor.capture());
-        LambdaUpdateWrapper<MesOperationTask> update = (LambdaUpdateWrapper<MesOperationTask>) captor.getValue();
+        LambdaUpdateWrapper<MesOperationTask> update = taskUpdates().getFirst();
         assertThat(update.getSqlSet()).contains("task_status", "actual_end_time");
-        assertThat(update.getSqlSegment()).contains("task_status =", "qualified_qty >= plan_qty");
+        assertThat(update.getSqlSegment()).contains("task_status =", "qualified_qty + defect_qty >=");
+        assertThat(update.getParamNameValuePairs()).containsValue(new BigDecimal("10"));
         verify(statusLogService).record(BizType.OPERATION_TASK, 1L, "OT1", "auto_complete", "in_progress", "completed",
             null);
         verify(workorderService).completeIfFinished(100L);
     }
 
     @Test
-    @DisplayName("合格数未达到计划数、任务已不在生产中（例如被并发完成）时条件更新落空，不记履历、不触发工单完工")
+    @DisplayName("自动完成（首道、有不良）：合格数少于计划数，合格 + 不良达到计划数即完成")
+    void completeIfReachedWithDefects() {
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "8", "2"),
+            task(2L, 20, "pending", "0", "0"));
+
+        assertThat(service.completeIfReached(1L)).isTrue();
+
+        verify(statusLogService).record(BizType.OPERATION_TASK, 1L, "OT1", "auto_complete", "in_progress", "completed",
+            null);
+        // 下一道还没有报工（上限 8），不完成；工单不完工
+        assertThat(taskUpdates()).hasSize(1);
+        verify(workorderService, never()).completeIfFinished(anyLong());
+    }
+
+    @Test
+    @DisplayName("未达到完成条件：已报数量少于上限、上一道未完成、工单已暂停时不更新任务")
     void completeIfReachedNotReached() {
         assertThat(service.completeIfReached(1L)).as("任务不存在").isFalse();
 
-        when(taskMapper.selectById(1L)).thenReturn(task("in_progress"));
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "7", "2"));
+        assertThat(service.completeIfReached(1L)).as("已报 9，少于计划数 10").isFalse();
+
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "9", "0"),
+            task(2L, 20, "in_progress", "9", "0"));
+        assertThat(service.completeIfReached(2L)).as("上一道还在生产中").isFalse();
+
+        givenTasks(workorder("paused"), task(1L, 10, "in_progress", "10", "0"));
+        assertThat(service.completeIfReached(1L)).as("工单已暂停").isFalse();
+
+        verify(taskMapper, never()).update(any(), any(Wrapper.class));
+        verify(statusLogService, never()).record(any(), anyLong(), any(), any(), any(), any(), any());
+        verify(workorderService, never()).completeIfFinished(anyLong());
+    }
+
+    @Test
+    @DisplayName("末道：上一道已完成，末道已报数量达到上一道合格数即完成，工单随之完工")
+    void completeIfReachedLastOperation() {
+        givenTasks(workorder("in_progress"), task(1L, 10, "completed", "9", "1"),
+            task(2L, 20, "in_progress", "8", "1"));
+
+        assertThat(service.completeIfReached(2L)).isTrue();
+
+        LambdaUpdateWrapper<MesOperationTask> update = taskUpdates().getFirst();
+        assertThat(update.getSqlSegment()).contains("qualified_qty + defect_qty >=");
+        assertThat(update.getParamNameValuePairs()).containsValue(new BigDecimal("9"));
+        verify(workorderService).completeIfFinished(100L);
+    }
+
+    @Test
+    @DisplayName("多道连锁：首道完成后依次带动已达到条件的后续工序，全部完成时只检查一次工单完工")
+    void completeIfReachedChain() {
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "9", "1"),
+            task(2L, 20, "in_progress", "8", "1"), task(3L, 30, "in_progress", "7", "1"));
+
+        assertThat(service.completeIfReached(1L)).isTrue();
+
+        for (long id = 1; id <= 3; id++) {
+            verify(statusLogService).record(BizType.OPERATION_TASK, id, "OT" + id, "auto_complete", "in_progress",
+                "completed", null);
+        }
+        assertThat(taskUpdates()).hasSize(3);
+        verify(workorderService, Mockito.times(1)).completeIfFinished(100L);
+    }
+
+    @Test
+    @DisplayName("多道连锁在未达到条件的工序处停止")
+    void completeIfReachedChainStops() {
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "9", "1"),
+            task(2L, 20, "in_progress", "6", "1"), task(3L, 30, "in_progress", "6", "0"));
+
+        assertThat(service.completeIfReached(1L)).isTrue();
+
+        assertThat(taskUpdates()).hasSize(1);
+        verify(workorderService, never()).completeIfFinished(anyLong());
+    }
+
+    @Test
+    @DisplayName("上一道全部不良（合格数为 0）时，还没有报工的下一道没有可做的数量，一并完成")
+    void completeIfReachedZeroCapacity() {
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "0", "10"),
+            task(2L, 20, "dispatched", "0", "0"));
+
+        assertThat(service.completeIfReached(1L)).isTrue();
+
+        verify(statusLogService).record(BizType.OPERATION_TASK, 2L, "OT2", "auto_complete", "dispatched", "completed",
+            null);
+        verify(workorderService).completeIfFinished(100L);
+    }
+
+    @Test
+    @DisplayName("自动完成的加锁顺序：工单 → 工序任务；条件更新落空（例如被并发完成）时不记履历、不触发工单完工")
+    void completeIfReachedLockOrderAndConcurrent() {
+        givenTasks(workorder("in_progress"), task(1L, 10, "in_progress", "10", "0"));
         when(taskMapper.update(isNull(), any(Wrapper.class))).thenReturn(0);
 
         assertThat(service.completeIfReached(1L)).isFalse();
 
+        InOrder order = inOrder(workorderMapper, taskMapper);
+        order.verify(workorderMapper).selectByIdForUpdate(100L);
+        order.verify(taskMapper).selectByWorkorderForUpdate(100L);
+        order.verify(taskMapper).update(isNull(), any(Wrapper.class));
         verify(statusLogService, never()).record(any(), anyLong(), any(), any(), any(), any(), any());
         verify(workorderService, never()).completeIfFinished(anyLong());
     }

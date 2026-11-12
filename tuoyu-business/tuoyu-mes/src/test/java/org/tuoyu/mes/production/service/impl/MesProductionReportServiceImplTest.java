@@ -49,6 +49,7 @@ import org.tuoyu.mes.quality.domain.MesDefectRecord;
 import org.tuoyu.mes.quality.mapper.MesDefectRecordMapper;
 import org.tuoyu.mes.quality.mapper.MesInspectionMapper;
 import org.tuoyu.mes.support.MesTestSupport;
+import org.tuoyu.mes.trace.service.IMesSnService;
 import org.tuoyu.system.api.RemoteUserService;
 
 import java.math.BigDecimal;
@@ -440,52 +441,95 @@ class MesProductionReportServiceImplTest {
             verify(reportMapper, never()).insert(any(MesProductionReport.class));
         }
 
-        @Test
-        @DisplayName("末道工序合格数达到计划数：任务自动完成，工单自动完工，未完成的任务一并完成")
-        void autoCompleteChain() {
+        /**
+         * 报工、自动完成任务与自动完工工单都用真实的服务串起来，序列号服务为模拟对象
+         */
+        private MesProductionReportServiceImpl chained(IMesSnService snService) {
             MesOperationTaskAssembler assembler = new MesOperationTaskAssembler(workorderMapper, taskMapper,
                 materialMapper, workshopMapper, lineMapper, stationMapper, teamMapper);
             MesWorkorderServiceImpl workorderService = new MesWorkorderServiceImpl(workorderMapper, taskMapper,
                 reportMapper, materialMapper, MesTestSupport.mapper(MesBomMapper.class),
                 MesTestSupport.mapper(MesRouteMapper.class), MesTestSupport.mapper(MesRouteOperationMapper.class),
                 MesTestSupport.mapper(MesFactoryMapper.class), workshopMapper, lineMapper, codeService,
-                statusLogService, assembler);
+                statusLogService, assembler, snService);
             MesOperationTaskServiceImpl realTaskService = new MesOperationTaskServiceImpl(taskMapper, workorderMapper,
                 stationMapper, teamMapper, MesTestSupport.mapper(MesTeamMemberMapper.class), workorderService,
                 statusLogService, assembler, Mockito.mock(RemoteUserService.class));
-            MesProductionReportServiceImpl chained = newService(realTaskService);
+            return newService(realTaskService);
+        }
 
-            MesOperationTask before = task(1L, 10, "in_progress", "8", "0");
-            MesOperationTask after = task(1L, 10, "in_progress", "10", "0");
-            MesWorkorder workorderBefore = workorder("in_progress", "10");
-            workorderBefore.setCompletedQty(new BigDecimal("8"));
-            MesWorkorder workorderAfter = workorder("in_progress", "10");
-            workorderAfter.setCompletedQty(new BigDecimal("10"));
-            when(taskMapper.selectById(1L)).thenReturn(before, after);
-            when(workorderMapper.selectById(100L)).thenReturn(workorderBefore, workorderAfter);
-            doReturn(workorderBefore).when(workorderMapper).selectByIdForUpdate(100L);
-            doReturn(List.of(before)).when(taskMapper).selectByWorkorderForUpdate(100L);
-            doReturn(before).when(taskMapper).selectByIdInScope(1L);
-            when(taskMapper.selectList(any(Wrapper.class))).thenReturn(List.of(before));
+        @Test
+        @DisplayName("有不良时按已报数量自动完成：末道已报（合格 + 不良）达到前道合格数即完成，工单随之完工，不要求完工数达到计划数")
+        void autoCompleteWithDefects() {
+            IMesSnService snService = Mockito.mock(IMesSnService.class);
+            MesProductionReportServiceImpl chained = chained(snService);
+            // 计划 10：第 1 道已完成（合格 9、不良 1），第 2 道（末道）已报合格 7、不良 1，本次再报合格 1
+            MesOperationTask first = task(1L, 10, "completed", "9", "1");
+            MesOperationTask before = task(2L, 20, "in_progress", "7", "1");
+            MesOperationTask after = task(2L, 20, "in_progress", "8", "1");
+            MesWorkorder workorder = workorder("in_progress", "10");
+            workorder.setCompletedQty(new BigDecimal("7"));
+            givenWorkorder(workorder);
+            when(taskMapper.selectById(2L)).thenReturn(before);
+            doReturn(before).when(taskMapper).selectByIdInScope(2L);
+            doReturn(new ArrayList<>(List.of(first, before)), new ArrayList<>(List.of(first, after)))
+                .when(taskMapper).selectByWorkorderForUpdate(100L);
             when(taskMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
             when(workorderMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
 
-            chained.submit(report(1L, "2", "0"));
+            chained.submit(report(2L, "1", "0"));
 
-            // 自动完成与自动完工都是带条件的更新：数量是否达到计划数由数据库按当前值判断
             ArgumentCaptor<Wrapper<MesOperationTask>> taskUpdates = ArgumentCaptor.forClass(Wrapper.class);
             verify(taskMapper, Mockito.atLeast(2)).update(isNull(), taskUpdates.capture());
-            assertThat(taskUpdates.getAllValues()).anySatisfy(w -> assertThat(w.getSqlSegment())
-                .contains("qualified_qty >= plan_qty"));
+            // 自动完成带上数量条件：已报数量不少于上一道的合格数 9，以数据库中的当前值为准
+            assertThat(taskUpdates.getAllValues()).anySatisfy(w -> {
+                assertThat(w.getSqlSegment()).contains("qualified_qty + defect_qty >=");
+                assertThat(((LambdaUpdateWrapper<MesOperationTask>) w).getParamNameValuePairs())
+                    .containsValue(new BigDecimal("9"));
+            });
             ArgumentCaptor<Wrapper<MesWorkorder>> workorderUpdates = ArgumentCaptor.forClass(Wrapper.class);
             verify(workorderMapper, Mockito.atLeast(2)).update(isNull(), workorderUpdates.capture());
-            assertThat(workorderUpdates.getAllValues()).anySatisfy(w -> assertThat(w.getSqlSegment())
+            assertThat(workorderUpdates.getAllValues()).noneSatisfy(w -> assertThat(w.getSqlSegment())
                 .contains("completed_qty >= plan_qty"));
 
-            verify(statusLogService).record(BizType.OPERATION_TASK, 1L, "OT1", "auto_complete", "in_progress",
+            verify(statusLogService).record(BizType.OPERATION_TASK, 2L, "OT2", "auto_complete", "in_progress",
                 "completed", null);
             verify(statusLogService).record(BizType.WORKORDER, 100L, "WO001", "auto_complete", "in_progress",
                 "completed", null);
+            verify(snService).completeByWorkorder(100L);
+        }
+
+        @Test
+        @DisplayName("首道达到计划数自动完成后带动后续工序：后续工序已报数量达到首道合格数时一并完成")
+        void autoCompleteChainsToNextOperation() {
+            IMesSnService snService = Mockito.mock(IMesSnService.class);
+            MesProductionReportServiceImpl chained = chained(snService);
+            // 计划 10：第 1 道已报合格 8、不良 1，第 2 道已按第 1 道的合格数报完（合格 8），第 3 道已报合格 6、不良 1
+            MesOperationTask firstBefore = task(1L, 10, "in_progress", "8", "1");
+            MesOperationTask firstAfter = task(1L, 10, "in_progress", "8", "2");
+            MesOperationTask second = task(2L, 20, "in_progress", "8", "0");
+            MesOperationTask third = task(3L, 30, "in_progress", "6", "1");
+            givenWorkorder(workorder("in_progress", "10"));
+            when(taskMapper.selectById(1L)).thenReturn(firstBefore);
+            doReturn(firstBefore).when(taskMapper).selectByIdInScope(1L);
+            doReturn(new ArrayList<>(List.of(firstBefore, second, third)),
+                new ArrayList<>(List.of(firstAfter, second, third)))
+                .when(taskMapper).selectByWorkorderForUpdate(100L);
+            when(taskMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
+            when(workorderMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
+
+            chained.submit(report(1L, "0", "1"));
+
+            verify(statusLogService).record(BizType.OPERATION_TASK, 1L, "OT1", "auto_complete", "in_progress",
+                "completed", null);
+            verify(statusLogService).record(BizType.OPERATION_TASK, 2L, "OT2", "auto_complete", "in_progress",
+                "completed", null);
+            // 第 3 道已报 7，少于第 2 道的合格数 8：保持生产中，工单不完工
+            verify(statusLogService, never()).record(eq(BizType.OPERATION_TASK), eq(3L), anyString(),
+                eq("auto_complete"), any(), any(), any());
+            verify(statusLogService, never()).record(eq(BizType.WORKORDER), anyLong(), anyString(),
+                eq("auto_complete"), any(), any(), any());
+            verify(snService, never()).completeByWorkorder(anyLong());
         }
 
     }
@@ -737,6 +781,63 @@ class MesProductionReportServiceImplTest {
             service.cancel(500L, "数量录错");
 
             assertThat(taskUpdate().getSqlSet()).doesNotContain("task_status");
+        }
+
+        @Test
+        @DisplayName("自动完成的任务按已报数量判断是否回到生产中：只撤销不良数时同样回到生产中")
+        void cancelDefectOnlyReopensAutoCompletedTask() {
+            saved("reported", 2L, "0", "1");
+            MesWorkorder workorder = workorder("in_progress", "10");
+            workorder.setDefectQty(new BigDecimal("2"));
+            // 第 1 道合格 9，第 2 道已报合格 8、不良 1，达到上限 9 后自动完成
+            twoOperations(workorder, task(1L, 10, "completed", "9", "1"), task(2L, 20, "completed", "8", "1"));
+            when(statusLogService.list(BizType.OPERATION_TASK, 2L)).thenReturn(List.of(log("auto_complete", "completed")));
+            when(defectMapper.delete(any(Wrapper.class))).thenReturn(1);
+
+            service.cancel(500L, "不良录错");
+
+            assertThat(taskUpdate().getSqlSet()).contains("task_status", "actual_end_time");
+            verify(statusLogService).record(eq(BizType.OPERATION_TASK), eq(2L), eq("OT2"), eq("reopen"),
+                eq("completed"), eq("in_progress"), anyString());
+        }
+
+        @Test
+        @DisplayName("撤销会使自动完成的任务回到生产中、而后续工序已完成时拒绝，数量不扣回")
+        void cancelRejectsReopenWhenNextCompleted() {
+            saved("reported", 1L, "0", "1");
+            // 第 1 道合格 8、不良 2，撤销 1 个不良后已报 9 少于计划数 10；第 2 道已按合格数 8 报完并完成
+            twoOperations(workorder("in_progress", "10"), task(1L, 10, "completed", "8", "2"),
+                task(2L, 20, "completed", "8", "0"));
+            when(statusLogService.list(BizType.OPERATION_TASK, 1L)).thenReturn(List.of(log("auto_complete", "completed")));
+
+            assertThatThrownBy(() -> service.cancel(500L, "录错")).hasMessage("后续工序已完成，不能撤销");
+            verify(reportMapper, never()).update(any(), any(Wrapper.class));
+            verify(taskMapper, never()).update(any(), any(Wrapper.class));
+        }
+
+        @Test
+        @DisplayName("本工序保持已完成时，下一道的上限减少，撤销后检查下一道能否自动完成")
+        void cancelChecksNextOperationWhenKept() {
+            saved("reported", 1L, "2", "0");
+            twoOperations(workorder("in_progress", "10"), task(1L, 10, "completed", "10", "0"),
+                task(2L, 20, "in_progress", "8", "0"));
+            when(statusLogService.list(BizType.OPERATION_TASK, 1L)).thenReturn(List.of(log("complete", "completed")));
+
+            service.cancel(500L, "录错");
+
+            verify(taskService).completeIfReached(2L);
+        }
+
+        @Test
+        @DisplayName("本工序未完成或回到生产中时，撤销后不检查下一道")
+        void cancelSkipsNextOperationCheck() {
+            saved("reported", 1L, "1", "0");
+            twoOperations(workorder("in_progress", "10"), task(1L, 10, "in_progress", "8", "0"),
+                task(2L, 20, "pending", "0", "0"));
+
+            service.cancel(500L, "录错");
+
+            verify(taskService, never()).completeIfReached(anyLong());
         }
 
         @Test

@@ -33,7 +33,8 @@ public final class MesLookups {
     /**
      * 按编码批量查询（导入时把编码换成 ID、检查编码是否已存在），返回 {@link #codeKey(String)} → 实体
      * <p>
-     * 键统一转为小写：MySQL 默认的排序规则比较时不区分大小写，查回的编码可能与传入的大小写不同，按原样取会对不上
+     * 编码不区分大小写（与唯一索引相同，见 {@link UniqueCodes}）：按 {@code lower(编码)} 查询，键统一转为小写，
+     * 查回的编码与传入的大小写不同时也能对上
      *
      * @param mapper     Mapper
      * @param type       实体类型
@@ -45,7 +46,7 @@ public final class MesLookups {
                                              Collection<String> codes) {
         Map<String, T> result = new HashMap<>();
         for (List<String> chunk : chunks(codes)) {
-            for (T item : mapper.selectList(QueryBuilder.lambda(type).in(codeColumn, chunk).build())) {
+            for (T item : mapper.selectList(QueryBuilder.lambda(type).func(UniqueCodes.codeIn(codeColumn, chunk)).build())) {
                 result.putIfAbsent(codeKey(codeColumn.apply(item)), item);
             }
         }

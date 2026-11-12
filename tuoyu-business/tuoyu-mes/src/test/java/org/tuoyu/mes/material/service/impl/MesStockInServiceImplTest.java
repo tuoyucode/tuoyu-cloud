@@ -201,6 +201,26 @@ class MesStockInServiceImplTest {
     }
 
     @Test
+    @DisplayName("确认入库时按加锁读到的工单状态重新检查：工单暂停、关闭后拒绝并提示可以取消单据，已完工的工单可以入库")
+    void completeRechecksWorkorderStatus() {
+        when(stockInMapper.selectById(300L)).thenReturn(stockIn("submitted", "30"));
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("paused", "50"));
+        assertThatThrownBy(() -> service.complete(300L))
+            .hasMessage("工单“WO001”当前为“已暂停”，不能确认入库单“RK001”，可以取消该单据");
+
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("closed", "50"));
+        assertThatThrownBy(() -> service.complete(300L)).hasMessageContaining("已关闭");
+        verify(stockInMapper, never()).update(any(), any());
+        verify(workorderMapper, never()).update(any(), any());
+
+        when(workorderMapper.selectOne(any(Wrapper.class))).thenReturn(workorder("completed", "50"));
+        when(stockInMapper.update(any(), any())).thenReturn(1);
+        when(workorderMapper.update(isNull(), any())).thenReturn(1);
+        service.complete(300L);
+        verify(statusLogService).record(BizType.STOCK_IN, 300L, "RK001", "complete", "submitted", "completed", null);
+    }
+
+    @Test
     @DisplayName("已入库的单据不能再次入库或取消")
     void rejectsCompleted() {
         when(stockInMapper.selectById(300L)).thenReturn(stockIn("completed", "30"));

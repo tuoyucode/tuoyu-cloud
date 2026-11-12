@@ -122,12 +122,37 @@ class MesMaintenanceDueJobTest {
 
         properties.getGenerate().setEnabled(true);
         properties.getGenerate().setInitialDelay(Duration.ofHours(1));
-        properties.getGenerate().setInterval(Duration.ofSeconds(1));
+        properties.getGenerate().setInterval(Duration.ofMinutes(1));
         MesMaintenanceDueJob enabled = job(false);
         enabled.start();
         assertThat(enabled.isRunning()).isTrue();
         enabled.stop();
         assertThat(enabled.isRunning()).isFalse();
+    }
+
+    @Test
+    @DisplayName("配置无效（间隔不足 1 分钟、为空，首次等待为负数）时拒绝启动并说明原因，不悄悄改用别的值")
+    void rejectsInvalidConfiguration() {
+        properties.getGenerate().setInterval(Duration.ofSeconds(30));
+        MesMaintenanceDueJob tooFrequent = job(false);
+        assertThatThrownBy(tooFrequent::start).hasMessageContaining("interval");
+        assertThat(tooFrequent.isRunning()).isFalse();
+
+        properties.getGenerate().setInterval(null);
+        assertThatThrownBy(properties::validate).hasMessageContaining("interval");
+
+        properties.getGenerate().setInterval(Duration.ofHours(1));
+        properties.getGenerate().setInitialDelay(Duration.ofSeconds(-1));
+        assertThatThrownBy(job(false)::start).hasMessageContaining("initial-delay");
+
+        properties.getGenerate().setInitialDelay(null);
+        assertThatThrownBy(properties::validate).hasMessageContaining("initial-delay");
+
+        // 关闭时不检查其余配置
+        properties.getGenerate().setEnabled(false);
+        MesMaintenanceDueJob disabled = job(false);
+        disabled.start();
+        assertThat(disabled.isRunning()).isFalse();
     }
 
 }

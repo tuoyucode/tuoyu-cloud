@@ -42,6 +42,7 @@ import org.tuoyu.mes.plan.mapper.MesOperationTaskMapper;
 import org.tuoyu.mes.plan.mapper.MesWorkorderMapper;
 import org.tuoyu.mes.production.mapper.MesProductionReportMapper;
 import org.tuoyu.mes.support.MesTestSupport;
+import org.tuoyu.mes.trace.service.IMesSnService;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -86,13 +87,14 @@ class MesWorkorderServiceImplTest {
     private final MesTeamMapper teamMapper = MesTestSupport.mapper(MesTeamMapper.class);
     private final IMesCodeService codeService = Mockito.mock(IMesCodeService.class);
     private final IMesStatusLogService statusLogService = Mockito.mock(IMesStatusLogService.class);
+    private final IMesSnService snService = Mockito.mock(IMesSnService.class);
 
     private final MesOperationTaskAssembler assembler = new MesOperationTaskAssembler(workorderMapper, taskMapper,
         materialMapper, workshopMapper, lineMapper, stationMapper, teamMapper);
 
     private final MesWorkorderServiceImpl service = new MesWorkorderServiceImpl(workorderMapper, taskMapper,
         reportMapper, materialMapper, bomMapper, routeMapper, routeOperationMapper, factoryMapper, workshopMapper,
-        lineMapper, codeService, statusLogService, assembler);
+        lineMapper, codeService, statusLogService, assembler, snService);
 
     // ---------------------------------------------------------------- 测试数据
 
@@ -267,6 +269,35 @@ class MesWorkorderServiceImplTest {
             bo.setBomId(7L);
 
             assertThatThrownBy(() -> service.insertByBo(bo)).hasMessageContaining("物料清单");
+        }
+
+        @Test
+        @DisplayName("新增、修改时显式选择的物料清单必须是正常状态")
+        void rejectsDisabledBom() {
+            masterdataReady();
+            MesBom bom = new MesBom();
+            bom.setBomId(7L);
+            bom.setMaterialId(1L);
+            bom.setBomCode("BOM-P001");
+            bom.setBomVersion("V1");
+            bom.setStatus("1");
+            when(bomMapper.selectById(7L)).thenReturn(bom);
+            MesWorkorderBo bo = bo();
+            bo.setBomId(7L);
+
+            assertThatThrownBy(() -> service.insertByBo(bo)).hasMessage("物料清单“BOM-P001 V1”已停用");
+            verify(workorderMapper, never()).insert(any(MesWorkorder.class));
+
+            givenWorkorder(workorder("draft"));
+            bo.setWorkorderId(100L);
+            assertThatThrownBy(() -> service.updateByBo(bo)).hasMessage("物料清单“BOM-P001 V1”已停用");
+            verify(workorderMapper, never()).update(any(MesWorkorder.class), any(Wrapper.class));
+
+            bom.setStatus("0");
+            when(workorderMapper.insert(any(MesWorkorder.class))).thenReturn(1);
+            bo.setWorkorderId(null);
+            service.insertByBo(bo);
+            verify(workorderMapper).insert(any(MesWorkorder.class));
         }
 
         @Test
@@ -525,35 +556,68 @@ class MesWorkorderServiceImplTest {
                 "工单完工");
             verify(statusLogService).record(BizType.OPERATION_TASK, 2L, "OT2", "complete", "dispatched", "completed",
                 "工单完工");
+            verify(snService).completeByWorkorder(100L);
         }
 
         @Test
-        @DisplayName("末道工序完成后自动完工：判断与修改在同一条条件更新中（生产中且完工数量达到计划数量）")
+        @DisplayName("全部工序完成后自动完工：不要求完工数量达到计划数量（有不良时少于计划数），已生成的序列号改为已完工")
         void completeIfFinished() {
-            givenWorkorder(workorder("in_progress"));
+            MesWorkorder workorder = workorder("in_progress");
+            workorder.setCompletedQty(new BigDecimal("8"));
+            givenWorkorder(workorder);
             when(workorderMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
+            when(taskMapper.selectList(any(Wrapper.class)))
+                .thenReturn(List.of(task(1L, 10, "completed"), task(2L, 20, "completed")));
 
             assertThat(service.completeIfFinished(100L)).isTrue();
 
             LambdaUpdateWrapper<MesWorkorder> update = capturedWorkorderUpdate();
             assertThat(update.getSqlSet()).contains("workorder_status", "actual_end_time");
-            assertThat(update.getSqlSegment()).contains("workorder_status =", "completed_qty >= plan_qty");
+            assertThat(update.getSqlSegment()).contains("workorder_status =").doesNotContain("completed_qty");
             verify(statusLogService).record(BizType.WORKORDER, 100L, "WO001", "auto_complete", "in_progress",
                 "completed", null);
-            verify(taskMapper).selectByWorkorderForUpdate(100L);
+            verify(taskMapper, never()).update(any(), any(Wrapper.class));
+            verify(snService).completeByWorkorder(100L);
         }
 
         @Test
-        @DisplayName("完工数量未达到计划数或状态已被并发改变时条件更新落空，工单保持原状、不记履历")
+        @DisplayName("还有未完成的工序、工单不在生产中或状态已被并发改变时不完工，工单保持原状、不记履历")
         void completeIfFinishedNotReached() {
             givenWorkorder(workorder("in_progress"));
-            when(workorderMapper.update(isNull(), any(Wrapper.class))).thenReturn(0);
+            when(taskMapper.selectList(any(Wrapper.class)))
+                .thenReturn(List.of(task(1L, 10, "completed"), task(2L, 20, "in_progress")));
+            assertThat(service.completeIfFinished(100L)).as("第 2 道还在生产中").isFalse();
+            verify(workorderMapper, never()).update(any(), any(Wrapper.class));
 
-            assertThat(service.completeIfFinished(100L)).isFalse();
+            givenWorkorder(workorder("paused"));
+            when(taskMapper.selectList(any(Wrapper.class))).thenReturn(List.of(task(1L, 10, "completed")));
+            assertThat(service.completeIfFinished(100L)).as("工单已暂停").isFalse();
+            verify(workorderMapper, never()).update(any(), any(Wrapper.class));
+
+            givenWorkorder(workorder("in_progress"));
+            when(workorderMapper.update(isNull(), any(Wrapper.class))).thenReturn(0);
+            assertThat(service.completeIfFinished(100L)).as("状态已被并发改变").isFalse();
 
             verify(statusLogService, never()).record(any(), anyLong(), anyString(), anyString(), any(), any(), any());
             verify(taskMapper, never()).update(any(), any(Wrapper.class));
+            verify(snService, never()).completeByWorkorder(anyLong());
             assertThat(service.completeIfFinished(999L)).as("工单不存在").isFalse();
+        }
+
+        @Test
+        @DisplayName("自动完工的加锁顺序：工单 → 工序任务")
+        void completeIfFinishedLockOrder() {
+            givenWorkorder(workorder("in_progress"));
+            when(taskMapper.selectList(any(Wrapper.class))).thenReturn(List.of(task(1L, 10, "completed")));
+            when(workorderMapper.update(isNull(), any(Wrapper.class))).thenReturn(1);
+
+            service.completeIfFinished(100L);
+
+            InOrder order = inOrder(workorderMapper, taskMapper, snService);
+            order.verify(workorderMapper).selectByIdForUpdate(100L);
+            order.verify(taskMapper).selectByWorkorderForUpdate(100L);
+            order.verify(workorderMapper).update(isNull(), any(Wrapper.class));
+            order.verify(snService).completeByWorkorder(100L);
         }
 
         @Test

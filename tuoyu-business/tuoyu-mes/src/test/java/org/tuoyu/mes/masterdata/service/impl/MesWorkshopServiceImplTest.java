@@ -21,6 +21,8 @@ import org.tuoyu.mes.masterdata.mapper.MesWorkshopMapper;
 import org.tuoyu.mes.plan.mapper.MesWorkorderMapper;
 import org.tuoyu.mes.support.MesTestSupport;
 
+import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -206,6 +208,15 @@ class MesWorkshopServiceImplTest {
 
         assertThat(service.queryList(new MesWorkshopBo())).hasSize(1);
         assertThat(service.countList(new MesWorkshopBo())).isZero();
+    }
+
+    @Test
+    @DisplayName("车间不读写“对应的组织”（表中的 dept_id 列不使用）：接口的入参、返回与实体都没有这个字段")
+    void workshopHasNoDept() {
+        for (Class<?> type : List.of(MesWorkshop.class, MesWorkshopBo.class, MesWorkshopVo.class)) {
+            assertThat(Arrays.stream(type.getDeclaredFields()).map(Field::getName)).as(type.getSimpleName())
+                .doesNotContain("deptId");
+        }
     }
 
 }

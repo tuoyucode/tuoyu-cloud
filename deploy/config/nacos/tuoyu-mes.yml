@@ -19,7 +19,7 @@ spring:
           username: ${datasource.mes.username}
           password: ${datasource.mes.password}
 
-# MES 的业务开关。单体（tuoyu-boot-all）不读取本文件，在 tuoyu-boot-all.yml 中写同样的配置
+# MES 的业务开关。单体（tuoyu-boot-all）不读取本文件：默认值写在 MES 的单体接入声明（META-INF/tuoyu/monolith-module.yml）中，需要调整时在 tuoyu-boot-all.yml 中写同名的配置项
 tuoyu:
   mes:
     # 单据审批（工作流）：默认关闭，关闭时单据照常直接流转

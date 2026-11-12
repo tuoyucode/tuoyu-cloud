@@ -41,8 +41,6 @@ public class MesWorkshopVo implements Serializable {
     @ExcelProperty(value = "车间名称")
     private String workshopName;
 
-    private Long deptId;
-
     @ExcelProperty(value = "负责人")
     private String manager;
 

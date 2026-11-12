@@ -1,9 +1,13 @@
 package org.tuoyu.mes.masterdata.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.mes.andon.mapper.MesAndonEventMapper;
 import org.tuoyu.mes.equipment.mapper.MesCheckRecordMapper;
@@ -176,6 +180,7 @@ class MesDeviceServiceImplTest {
         when(deviceMapper.selectList(any(Wrapper.class))).thenReturn(List.of(device));
         when(deviceMapper.selectList(any(IPage.class), any(Wrapper.class))).thenReturn(List.of(device));
         when(stationMapper.selectByIds(anyCollection())).thenReturn(List.of(station()));
+        when(workshopMapper.selectById(5L)).thenReturn(MesWorkshopServiceImplTest.workshop(5L, 1L));
 
         assertThat(service.queryById(40L).getStationName()).isEqualTo("一号工位");
         assertThat(service.queryPageList(new MesDeviceBo(), new PageParam()).getItems())
@@ -183,6 +188,65 @@ class MesDeviceServiceImplTest {
         assertThat(service.queryList(new MesDeviceBo())).hasSize(1);
         assertThat(service.countList(new MesDeviceBo())).isZero();
         assertThat(service.options(5L)).singleElement().extracting("parentId").isEqualTo(5L);
+    }
+
+
+    @Test
+    @DisplayName("按车间取下拉：同时返回没有车间、挂在该车间所属工厂下的设备；车间不存在时为空")
+    @SuppressWarnings("unchecked")
+    void optionsIncludeFactoryLevelDevices() {
+        when(workshopMapper.selectById(5L)).thenReturn(MesWorkshopServiceImplTest.workshop(5L, 1L));
+        MesDevice shared = device();
+        shared.setFactoryId(1L);
+        when(deviceMapper.selectList(any(Wrapper.class))).thenReturn(List.of(shared));
+
+        assertThat(service.options(5L)).singleElement().satisfies(option -> {
+            assertThat(option.getId()).isEqualTo(40L);
+            assertThat(option.getParentId()).isNull();
+        });
+
+        ArgumentCaptor<Wrapper<MesDevice>> query = ArgumentCaptor.forClass(Wrapper.class);
+        verify(deviceMapper).selectList(query.capture());
+        String sql = query.getValue().getSqlSegment();
+        assertThat(sql).contains("workshop_id =").contains("workshop_id IS NULL").contains("factory_id =");
+        assertThat(((AbstractWrapper<MesDevice, ?, ?>) query.getValue()).getParamNameValuePairs()).containsValues(5L, 1L);
+
+        assertThat(service.options(99L)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("不按车间取下拉时不加位置条件")
+    @SuppressWarnings("unchecked")
+    void optionsWithoutWorkshop() {
+        when(deviceMapper.selectList(any(Wrapper.class))).thenReturn(List.of(device()));
+
+        assertThat(service.options(null)).hasSize(1);
+
+        ArgumentCaptor<Wrapper<MesDevice>> query = ArgumentCaptor.forClass(Wrapper.class);
+        verify(deviceMapper).selectList(query.capture());
+        assertThat(query.getValue().getSqlSegment()).doesNotContain("workshop_id").doesNotContain("factory_id");
+        verify(workshopMapper, never()).selectById(any());
+    }
+
+    @Test
+    @DisplayName("设备编码按不区分大小写校验唯一；并发写入撞上唯一索引时给出相同的提示")
+    @SuppressWarnings("unchecked")
+    void codeUniqueIgnoringCase() {
+        when(deviceMapper.exists(any(Wrapper.class))).thenReturn(true);
+        MesDeviceBo bo = new MesDeviceBo();
+        bo.setDeviceCode("d01");
+        bo.setFactoryId(1L);
+
+        assertThatThrownBy(() -> service.insertByBo(bo)).hasMessage("设备编码“d01”已存在");
+        ArgumentCaptor<Wrapper<MesDevice>> query = ArgumentCaptor.forClass(Wrapper.class);
+        verify(deviceMapper).exists(query.capture());
+        assertThat(query.getValue().getSqlSegment()).contains("lower(device_code) = lower(");
+
+        when(deviceMapper.exists(any(Wrapper.class))).thenReturn(false);
+        factoryExists();
+        when(deviceMapper.insert(any(MesDevice.class))).thenThrow(new DuplicateKeyException("uk_device_code"));
+        assertThatThrownBy(() -> service.insertByBo(bo)).isInstanceOf(ServiceException.class)
+            .hasMessage("设备编码“d01”已存在");
     }
 
 }

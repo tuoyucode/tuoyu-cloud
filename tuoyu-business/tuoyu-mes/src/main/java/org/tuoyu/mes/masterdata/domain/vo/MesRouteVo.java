@@ -63,4 +63,9 @@ public class MesRouteVo implements Serializable {
      */
     private List<MesRouteOperationVo> operations;
 
+    /**
+     * 是否已被工单使用（只在详情中返回）：已使用的工艺路线只能修改表头，不能修改产品与工序，需要调整时新建版本
+     */
+    private Boolean used;
+
 }

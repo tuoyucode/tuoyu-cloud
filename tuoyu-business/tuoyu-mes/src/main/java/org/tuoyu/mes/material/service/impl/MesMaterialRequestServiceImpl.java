@@ -37,6 +37,7 @@ import org.tuoyu.mes.masterdata.domain.MesBomItem;
 import org.tuoyu.mes.masterdata.domain.MesLocation;
 import org.tuoyu.mes.masterdata.domain.MesMaterial;
 import org.tuoyu.mes.masterdata.domain.MesWarehouse;
+import org.tuoyu.mes.masterdata.enums.TraceMode;
 import org.tuoyu.mes.masterdata.mapper.MesBomItemMapper;
 import org.tuoyu.mes.masterdata.mapper.MesBomMapper;
 import org.tuoyu.mes.masterdata.mapper.MesLocationMapper;
@@ -266,6 +267,7 @@ public class MesMaterialRequestServiceImpl implements IMesMaterialRequestService
                 item.setMaterialName(material.getMaterialName());
                 item.setSpecification(material.getSpecification());
                 item.setUnit(material.getUnit());
+                item.setTraceMode(material.getTraceMode());
             }
             MesLocation location = SafeLookup.get(locations, item.getLocationId());
             item.setLocationName(location == null ? null : location.getLocationName());
@@ -432,6 +434,7 @@ public class MesMaterialRequestServiceImpl implements IMesMaterialRequestService
     public String submit(Long requestId) {
         MesMaterialRequest request = requireRequest(requestId);
         StateGuard.require(OBJECT, MaterialRequestStatus.class, request.getRequestStatus(), "提交", MaterialRequestStatus.DRAFT);
+        requireWorkorderStillAllows(request, WorkorderFilters.require(workorderMapper, request.getWorkorderId()), "提交");
         if (!needsApproval(request)) {
             transaction.executeWithoutResult(status -> {
                 MesMaterialRequest change = new MesMaterialRequest();
@@ -629,10 +632,10 @@ public class MesMaterialRequestServiceImpl implements IMesMaterialRequestService
         MesMaterialRequest request = requireRequest(requestId);
         StateGuard.require(OBJECT, MaterialRequestStatus.class, request.getRequestStatus(), "完成", MaterialRequestStatus.SUBMITTED);
         boolean returning = MaterialRequestType.RETURN.code().equals(request.getRequestType());
-        if (returning) {
-            // 锁住工单行：同一工单的退料依次完成，下面计算的可退数量不会被并发完成的退料越过
-            WorkorderFilters.lock(workorderMapper, request.getWorkorderId());
-        }
+        // 锁住工单行：与工单的关闭、取消、暂停等状态动作依次执行，按最新的工单状态判断能否完成；
+        // 同一工单的退料也因此依次完成，下面计算的可退数量不会被并发完成的退料越过
+        MesWorkorder workorder = WorkorderFilters.lock(workorderMapper, request.getWorkorderId());
+        requireWorkorderStillAllows(request, workorder, "完成");
         List<MesMaterialRequestItem> items = selectItems(requestId);
         Map<Long, MesMaterialRequestCompleteBo.Item> inputs = new HashMap<>();
         for (MesMaterialRequestCompleteBo.Item input : bo.getItems()) {
@@ -665,6 +668,7 @@ public class MesMaterialRequestServiceImpl implements IMesMaterialRequestService
             change.setLocationId(input.getLocationId() != null ? input.getLocationId() : item.getLocationId());
             changes.add(change);
         }
+        requireBatchCodes(changes);
         if (returning) {
             checkReturnLimit(request, changes);
         }
@@ -678,6 +682,30 @@ public class MesMaterialRequestServiceImpl implements IMesMaterialRequestService
         // 实体中的物料 ID 只用于上面的退料校验，不随明细更新
         changes.forEach(item -> item.setMaterialId(null));
         itemMapper.updateById(changes);
+    }
+
+    /**
+     * 按批次追溯的物料（{@link TraceMode#BATCH}）实发（实退）数量大于 0 时必须有物料批次号，缺少时整单拒绝并列出这些物料。
+     * 按物料当前的追溯方式判断
+     */
+    private void requireBatchCodes(List<MesMaterialRequestItem> changes) {
+        List<MesMaterialRequestItem> blank = changes.stream()
+            .filter(item -> Quantities.orZero(item.getActualQty()).signum() > 0 && StringUtils.isBlank(item.getBatchCode()))
+            .toList();
+        if (blank.isEmpty()) {
+            return;
+        }
+        Map<Long, MesMaterial> materials = MesLookups.byIds(materialMapper,
+            MesLookups.ids(blank, MesMaterialRequestItem::getMaterialId), MesMaterial::getMaterialId);
+        List<String> missing = blank.stream()
+            .map(item -> SafeLookup.get(materials, item.getMaterialId()))
+            .filter(material -> material != null && TraceMode.BATCH.code().equals(material.getTraceMode()))
+            .map(material -> material.getMaterialCode() + " " + material.getMaterialName())
+            .distinct()
+            .toList();
+        if (!missing.isEmpty()) {
+            throw new ServiceException("物料“" + String.join("”、“", missing) + "”按批次追溯，请填写物料批次号");
+        }
     }
 
     /**
@@ -790,14 +818,29 @@ public class MesMaterialRequestServiceImpl implements IMesMaterialRequestService
      */
     private MesWorkorder requireWorkorderFor(Long workorderId, MaterialRequestType type) {
         MesWorkorder workorder = WorkorderFilters.require(workorderMapper, workorderId);
-        if (type == MaterialRequestType.RETURN) {
-            StateGuard.require("工单", WorkorderStatus.class, workorder.getWorkorderStatus(), type.label(),
-                WorkorderStatus.RELEASED, WorkorderStatus.IN_PROGRESS, WorkorderStatus.PAUSED, WorkorderStatus.COMPLETED);
-        } else {
-            StateGuard.require("工单", WorkorderStatus.class, workorder.getWorkorderStatus(), type.label(),
-                WorkorderStatus.RELEASED, WorkorderStatus.IN_PROGRESS, WorkorderStatus.PAUSED);
-        }
+        StateGuard.require("工单", WorkorderStatus.class, workorder.getWorkorderStatus(), type.label(),
+            allowedWorkorderStatuses(type));
         return workorder;
+    }
+
+    /**
+     * 单据建好之后工单可能已关闭、取消或完工：提交与完成时按新增时相同的要求重新检查，不允许时拒绝并提示可以取消单据
+     */
+    private static void requireWorkorderStillAllows(MesMaterialRequest request, MesWorkorder workorder, String action) {
+        MaterialRequestType type = CodeEnum.of(MaterialRequestType.class, request.getRequestType(), "单据类型");
+        if (!CodeEnum.in(workorder.getWorkorderStatus(), allowedWorkorderStatuses(type))) {
+            String current = CodeEnum.find(WorkorderStatus.class, workorder.getWorkorderStatus())
+                .map(WorkorderStatus::label).orElse(workorder.getWorkorderStatus());
+            throw new ServiceException("工单“" + workorder.getWorkorderCode() + "”当前为“" + current + "”，不能" + action
+                + type.label() + "单“" + request.getRequestCode() + "”，可以取消该单据");
+        }
+    }
+
+    private static WorkorderStatus[] allowedWorkorderStatuses(MaterialRequestType type) {
+        return type == MaterialRequestType.RETURN
+            ? new WorkorderStatus[]{WorkorderStatus.RELEASED, WorkorderStatus.IN_PROGRESS, WorkorderStatus.PAUSED,
+                WorkorderStatus.COMPLETED}
+            : new WorkorderStatus[]{WorkorderStatus.RELEASED, WorkorderStatus.IN_PROGRESS, WorkorderStatus.PAUSED};
     }
 
     /**

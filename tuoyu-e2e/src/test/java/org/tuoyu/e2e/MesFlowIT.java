@@ -155,15 +155,15 @@ class MesFlowIT {
         admin.post("/mes/production-report", Map.of("taskId", first, "qualifiedQty", 10, "defectQty", 0)).assertOk("首道工序报工");
         admin.post("/mes/production-report", Map.of("taskId", second, "qualifiedQty", 9, "defectQty", 1)).assertOk("末道工序报工");
 
+        // 末道已报合格 9、不良 1，达到上一道的合格数 10：末道自动完成，工单随之自动完工（有不良时完工数少于计划数）
         JsonNode detail = workorder();
-        assertThat(detail.path("workorderStatus").asString()).isEqualTo("in_progress");
+        assertThat(detail.path("workorderStatus").asString()).isEqualTo("completed");
         assertThat(new BigDecimal(detail.path("completedQty").asString())).isEqualByComparingTo("9");
         assertThat(new BigDecimal(detail.path("defectQty").asString())).isEqualByComparingTo("1");
         assertThat(admin.get("/mes/defect/list", Map.of("workorderCode", detail.path("workorderCode").asString(),
             "page", 1, "pageSize", 10)).assertOk("不良记录").total()).isEqualTo(1);
 
-        admin.post("/mes/workorder/" + workorderId + "/complete", Map.of()).assertOk("工单完工");
-        assertThat(workorder().path("workorderStatus").asString()).isEqualTo("completed");
+        admin.post("/mes/workorder/" + workorderId + "/complete", Map.of()).assertError(400, "已完工的工单不能再完工");
     }
 
     @Test
@@ -236,7 +236,7 @@ class MesFlowIT {
 
         List<String> actions = admin.get("/mes/workorder/" + workorderId + "/logs").assertOk("工单履历").list().stream()
             .map(node -> node.path("action").asString()).toList();
-        assertThat(actions).contains("create", "release", "complete");
+        assertThat(actions).contains("create", "release", "auto_complete");
     }
 
     private JsonNode workorder() {

@@ -281,7 +281,8 @@ public class MesAndonEventServiceImpl implements IMesAndonEventService {
      */
     private void checkLocation(MesAndonEventBo bo) {
         Long workshopId = bo.getWorkshopId();
-        if (workshopId == null || workshopMapper.selectById(workshopId) == null) {
+        MesWorkshop workshop = workshopId == null ? null : workshopMapper.selectById(workshopId);
+        if (workshop == null) {
             throw new ServiceException("车间不存在");
         }
         if (bo.getLineId() != null) {
@@ -310,7 +311,11 @@ public class MesAndonEventServiceImpl implements IMesAndonEventService {
             if (device == null) {
                 throw new ServiceException("设备不存在");
             }
-            if (!Objects.equals(device.getWorkshopId(), workshopId)) {
+            // 没有指定车间、直接挂在工厂下的设备（公用设备），可以在该工厂的任一车间报安灯
+            boolean inWorkshop = device.getWorkshopId() == null
+                ? Objects.equals(device.getFactoryId(), workshop.getFactoryId())
+                : Objects.equals(device.getWorkshopId(), workshopId);
+            if (!inWorkshop) {
                 throw new ServiceException("设备“" + device.getDeviceName() + "”不属于所选车间");
             }
             if (bo.getLineId() != null && device.getLineId() != null && !Objects.equals(device.getLineId(), bo.getLineId())) {

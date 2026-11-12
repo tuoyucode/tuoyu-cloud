@@ -11,6 +11,8 @@ import java.io.Serial;
 
 /**
  * 车间 mes_workshop
+ * <p>
+ * 表中的 dept_id 列（对应的组织）目前不使用，实体不映射，读写都不涉及它
  *
  * @author tuoyu
  */
@@ -42,11 +44,6 @@ public class MesWorkshop extends TenantEntity {
      * 车间名称
      */
     private String workshopName;
-
-    /**
-     * 对应的组织（部门）
-     */
-    private Long deptId;
 
     /**
      * 负责人

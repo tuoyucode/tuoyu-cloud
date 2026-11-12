@@ -14,6 +14,7 @@ import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.mes.common.CodeEnum;
 import org.tuoyu.mes.common.MesLookups;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.common.excel.ImportErrors;
 import org.tuoyu.mes.common.excel.ImportFields;
@@ -53,6 +54,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Service
 public class MesMaterialServiceImpl implements IMesMaterialService {
+
+    /**
+     * 导入写入时撞上编码的唯一索引：校验之后、写入之前有人新增了相同的编码
+     */
+    static final String IMPORT_DUPLICATE = "部分物料编码刚被其他人新增，请重新导入";
 
     private final MesMaterialMapper materialMapper;
     private final MesBomMapper bomMapper;
@@ -122,7 +128,7 @@ public class MesMaterialServiceImpl implements IMesMaterialService {
         MesMaterial material = BeanMapper.map(bo, MesMaterial.class);
         material.setMaterialId(null);
         normalize(material);
-        materialMapper.insert(material);
+        UniqueCodes.write(() -> materialMapper.insert(material), duplicateCode(material.getMaterialCode()));
         bo.setMaterialId(material.getMaterialId());
     }
 
@@ -136,7 +142,7 @@ public class MesMaterialServiceImpl implements IMesMaterialService {
         if (notProductType && usedAsProduct(bo.getMaterialId())) {
             throw new ServiceException("物料已作为产品用于物料清单或工艺路线，类型只能是成品或半成品");
         }
-        if (materialMapper.updateById(material) == 0) {
+        if (UniqueCodes.write(() -> materialMapper.updateById(material), duplicateCode(bo.getMaterialCode())) == 0) {
             throw new ServiceException("修改物料失败，物料不存在");
         }
     }
@@ -162,12 +168,16 @@ public class MesMaterialServiceImpl implements IMesMaterialService {
 
     private void checkCodeUnique(String code, Long excludeId) {
         boolean exists = materialMapper.exists(QueryBuilder.lambda(MesMaterial.class)
-            .eq(MesMaterial::getMaterialCode, code)
+            .func(UniqueCodes.sameCode(MesMaterial::getMaterialCode, code))
             .neIfPresent(MesMaterial::getMaterialId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("物料编码“" + code + "”已存在");
+            throw new ServiceException(duplicateCode(code));
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "物料编码“" + code + "”已存在";
     }
 
     @Override
@@ -217,7 +227,7 @@ public class MesMaterialServiceImpl implements IMesMaterialService {
         }
         errors.throwIfAny();
         List<MesMaterial> materials = parsed.stream().map(ImportRow::data).toList();
-        materialMapper.insert(materials);
+        UniqueCodes.write(() -> materialMapper.insert(materials), IMPORT_DUPLICATE);
         return materials.size();
     }
 

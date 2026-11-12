@@ -42,6 +42,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,6 +83,11 @@ class MesTraceServiceImplTest {
     private final MesTraceServiceImpl service = new MesTraceServiceImpl(snMapper, workorderMapper, taskMapper,
         reportMapper, requestMapper, itemMapper, inspectionMapper, defectMapper, stockInMapper, statusLogMapper,
         materialMapper, workshopMapper, lineMapper, stationMapper, teamMapper, warehouseMapper, locationMapper);
+
+    {
+        // 默认有各模块的查询权限；按段校验权限的用例单独设置
+        service.setPermissionChecker(permission -> true);
+    }
 
     private static MesWorkorder workorder(long id) {
         MesWorkorder workorder = new MesWorkorder();
@@ -232,8 +238,71 @@ class MesTraceServiceImplTest {
 
     @Test
     @DisplayName("组装工序与报工、检验、不良、入库，时间线按时间先后排列")
-    @SuppressWarnings("unchecked")
     void assemblesRecords() {
+        stubOneWorkorderWithRecords();
+
+        MesTraceVo result = service.trace("B1");
+
+        MesTraceWorkorderVo workorder = result.getWorkorders().get(0);
+        assertThat(workorder.getTasks()).singleElement().satisfies(t -> {
+            assertThat(t.getOperationName()).isEqualTo("装配");
+            assertThat(t.getReports()).singleElement().satisfies(r -> assertThat(r.getStationName()).isEqualTo("工位一"));
+        });
+        assertThat(workorder.getInspections()).singleElement()
+            .satisfies(i -> assertThat(i.getOperationName()).isEqualTo("装配"));
+        assertThat(workorder.getDefects()).hasSize(1);
+        assertThat(workorder.getStockIns()).hasSize(2);
+        assertThat(result.getTimeline()).extracting(MesTraceEventVo::getAction)
+            .containsExactly("release", "inspect", "report", "create", "handle", "complete");
+        assertThat(result.getTimeline()).allSatisfy(e -> assertThat(e.getWorkorderCode()).isEqualTo("WO1"));
+        assertThat(result.getTimeline().get(2).getQty()).isEqualByComparingTo("9");
+        assertThat(result.getDeniedSections()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("按段校验权限：没有对应模块查询权限的段不读取、为空、时间线中没有它的事件，并列在无权限的段中")
+    void sectionsRequireModulePermissions() {
+        stubOneWorkorderWithRecords();
+        // 只有报工详情与入库列表的权限
+        Set<String> granted = Set.of("mes:productionReport:query", "mes:stockIn:list");
+        service.setPermissionChecker(granted::contains);
+
+        MesTraceVo result = service.trace("B1");
+
+        assertThat(result.getDeniedSections()).containsExactly(MesTraceServiceImpl.SECTION_MATERIALS,
+            MesTraceServiceImpl.SECTION_INSPECTIONS, MesTraceServiceImpl.SECTION_DEFECTS);
+        MesTraceWorkorderVo workorder = result.getWorkorders().get(0);
+        assertThat(workorder.getTasks()).singleElement().satisfies(t -> assertThat(t.getReports()).hasSize(1));
+        assertThat(workorder.getInspections()).isEmpty();
+        assertThat(workorder.getDefects()).isEmpty();
+        assertThat(workorder.getMaterials()).isEmpty();
+        assertThat(workorder.getStockIns()).hasSize(2);
+        assertThat(result.getTimeline()).extracting(MesTraceEventVo::getAction)
+            .containsExactly("release", "report", "complete");
+        verify(inspectionMapper, never()).selectList(any(Wrapper.class));
+        verify(defectMapper, never()).selectList(any(Wrapper.class));
+        verify(requestMapper, never()).selectList(any(Wrapper.class));
+    }
+
+    @Test
+    @DisplayName("按段校验权限：没有任何模块的查询权限时只返回工单、工序与工单的状态履历")
+    void sectionsAllDenied() {
+        stubOneWorkorderWithRecords();
+        service.setPermissionChecker(permission -> false);
+
+        MesTraceVo result = service.trace("B1");
+
+        assertThat(result.getDeniedSections()).containsExactlyElementsOf(MesTraceServiceImpl.SECTION_PERMISSIONS.keySet());
+        MesTraceWorkorderVo workorder = result.getWorkorders().get(0);
+        assertThat(workorder.getTasks()).singleElement().satisfies(t -> assertThat(t.getReports()).isEmpty());
+        assertThat(workorder.getStockIns()).isEmpty();
+        assertThat(result.getTimeline()).extracting(MesTraceEventVo::getAction).containsExactly("release");
+        verify(reportMapper, never()).selectList(any(Wrapper.class));
+        verify(stockInMapper, never()).selectList(any(Wrapper.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void stubOneWorkorderWithRecords() {
         when(workorderMapper.selectList(any(Wrapper.class))).thenReturn(List.of(idOnly(1L)));
         when(workorderMapper.selectByIdsInScope(anyCollection())).thenReturn(List.of(workorder(1L)));
 
@@ -299,22 +368,6 @@ class MesTraceServiceImplTest {
         release.setToStatus("released");
         release.setOperateTime(T0);
         when(statusLogMapper.selectList(any(Wrapper.class))).thenReturn(List.of(release));
-
-        MesTraceVo result = service.trace("B1");
-
-        MesTraceWorkorderVo workorder = result.getWorkorders().get(0);
-        assertThat(workorder.getTasks()).singleElement().satisfies(t -> {
-            assertThat(t.getOperationName()).isEqualTo("装配");
-            assertThat(t.getReports()).singleElement().satisfies(r -> assertThat(r.getStationName()).isEqualTo("工位一"));
-        });
-        assertThat(workorder.getInspections()).singleElement()
-            .satisfies(i -> assertThat(i.getOperationName()).isEqualTo("装配"));
-        assertThat(workorder.getDefects()).hasSize(1);
-        assertThat(workorder.getStockIns()).hasSize(2);
-        assertThat(result.getTimeline()).extracting(MesTraceEventVo::getAction)
-            .containsExactly("release", "inspect", "report", "create", "handle", "complete");
-        assertThat(result.getTimeline()).allSatisfy(e -> assertThat(e.getWorkorderCode()).isEqualTo("WO1"));
-        assertThat(result.getTimeline().get(2).getQty()).isEqualByComparingTo("9");
     }
 
     @Test

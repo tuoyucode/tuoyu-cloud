@@ -12,6 +12,7 @@ import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.mes.andon.domain.MesAndonEvent;
 import org.tuoyu.mes.andon.mapper.MesAndonEventMapper;
+import org.tuoyu.mes.common.UniqueCodes;
 import org.tuoyu.mes.common.domain.vo.MesOptionVo;
 import org.tuoyu.mes.masterdata.domain.MesDevice;
 import org.tuoyu.mes.masterdata.domain.MesFactory;
@@ -130,7 +131,7 @@ public class MesStationServiceImpl implements IMesStationService {
         station.setFactoryId(line.getFactoryId());
         station.setStatus(MasterdataSupport.statusOrNormal(station.getStatus()));
         station.setSortNo(MasterdataSupport.sortOrZero(station.getSortNo()));
-        stationMapper.insert(station);
+        UniqueCodes.write(() -> stationMapper.insert(station), duplicateCode(station.getStationCode()));
         bo.setStationId(station.getStationId());
     }
 
@@ -149,7 +150,7 @@ public class MesStationServiceImpl implements IMesStationService {
         MesStation station = BeanMapper.map(bo, MesStation.class);
         station.setWorkshopId(line.getWorkshopId());
         station.setFactoryId(line.getFactoryId());
-        if (stationMapper.updateById(station) == 0) {
+        if (UniqueCodes.write(() -> stationMapper.updateById(station), duplicateCode(bo.getStationCode())) == 0) {
             throw new ServiceException("修改工位失败，工位不存在");
         }
     }
@@ -160,12 +161,16 @@ public class MesStationServiceImpl implements IMesStationService {
 
     private void checkCodeUnique(String code, Long excludeId) {
         boolean exists = stationMapper.exists(QueryBuilder.lambda(MesStation.class)
-            .eq(MesStation::getStationCode, code)
+            .func(UniqueCodes.sameCode(MesStation::getStationCode, code))
             .neIfPresent(MesStation::getStationId, excludeId)
             .build());
         if (exists) {
-            throw new ServiceException("工位编码“" + code + "”已存在");
+            throw new ServiceException(duplicateCode(code));
         }
+    }
+
+    private static String duplicateCode(String code) {
+        return "工位编码“" + code + "”已存在";
     }
 
     @Override

@@ -2,10 +2,13 @@ package org.tuoyu.mes.andon.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
+import org.tuoyu.common.tenant.core.TenantDirectory;
 import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.mes.andon.domain.MesAndonEvent;
 import org.tuoyu.mes.andon.domain.MesAndonRule;
@@ -23,8 +26,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -57,14 +62,25 @@ class MesAndonEscalationServiceImplTest {
     private final IMesStatusLogService statusLogService = mock(IMesStatusLogService.class);
     private final RemoteMessageService messageService = mock(RemoteMessageService.class);
     private final AndonEscalationProperties properties = new AndonEscalationProperties();
+    private final TenantDirectory directory = mock(TenantDirectory.class);
 
-    private final MesAndonEscalationServiceImpl service = new MesAndonEscalationServiceImpl(eventMapper, ruleMapper,
-        statusLogService, messageService, properties, MesTestSupport.noopTransactionManager());
+    private final MesAndonEscalationServiceImpl service = service(true);
 
     {
-        service.setClock(Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE));
-        doReturn(List.of()).when(eventMapper).selectDeadlinePending(anyInt());
-        doReturn(List.of()).when(eventMapper).selectOverdue(any(), anyInt());
+        doReturn(List.of()).when(eventMapper).selectDeadlinePending(any(), anyInt());
+        doReturn(List.of()).when(eventMapper).selectOverdue(any(), any(), anyInt());
+    }
+
+    private MesAndonEscalationServiceImpl service(boolean withDirectory) {
+        StaticListableBeanFactory beans = new StaticListableBeanFactory();
+        if (withDirectory) {
+            beans.addBean("tenantDirectory", directory);
+        }
+        MesAndonEscalationServiceImpl created = new MesAndonEscalationServiceImpl(eventMapper, ruleMapper,
+            statusLogService, messageService, properties, MesTestSupport.noopTransactionManager(),
+            beans.getBeanProvider(TenantDirectory.class));
+        created.setClock(Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE));
+        return created;
     }
 
     @AfterEach
@@ -285,8 +301,9 @@ class MesAndonEscalationServiceImplTest {
     @DisplayName("一次检查：跨租户只查主键与租户，再逐个事件在它自己的租户中处理；一个事件失败不影响其他事件")
     void processesEachEventInItsOwnTenant() {
         MesTestSupport.tenant(true);
-        doReturn(List.of(ref(1L, "t1"))).when(eventMapper).selectDeadlinePending(anyInt());
-        doReturn(List.of(ref(2L, "t2"), ref(3L, "t3"), ref(4L, "t1"))).when(eventMapper).selectOverdue(any(), anyInt());
+        when(directory.activeTenantIds()).thenReturn(List.of("t1", "t2", "t3"));
+        doReturn(List.of(ref(1L, "t1"))).when(eventMapper).selectDeadlinePending(any(), anyInt());
+        doReturn(List.of(ref(2L, "t2"), ref(3L, "t3"), ref(4L, "t1"))).when(eventMapper).selectOverdue(any(), any(), anyInt());
         List<String> seenTenants = new ArrayList<>();
         MesAndonEvent pending = overdueEvent("reported", "normal");
         pending.setDeadlineChecked(AndonEscalationRules.UNCHECKED);
@@ -312,8 +329,69 @@ class MesAndonEscalationServiceImplTest {
         assertThat(seenTenants).containsExactly("t1", "t2", "t3", "t1");
         assertThat(escalated).isEqualTo(2);
         verify(statusLogService, times(2)).record(any(), anyLong(), anyString(), eq("escalate"), anyString(), anyString(), anyString());
-        verify(eventMapper).selectDeadlinePending(properties.getBatchSize());
-        verify(eventMapper).selectOverdue(NOW, properties.getBatchSize());
+        verify(eventMapper).selectDeadlinePending(List.of("t1", "t2", "t3"), properties.getBatchSize());
+        verify(eventMapper).selectOverdue(List.of("t1", "t2", "t3"), NOW, properties.getBatchSize());
+    }
+
+    @Test
+    @DisplayName("开启多租户：只查启用且未过期的租户的事件（条件写在查询中，停用租户的事件不占每批的数量）")
+    void onlyActiveTenantsAreQueried() {
+        MesTestSupport.tenant(true);
+        List<Boolean> ignoredWhenListing = new ArrayList<>();
+        when(directory.activeTenantIds()).thenAnswer(invocation -> {
+            ignoredWhenListing.add(TenantHelper.isIgnoring());
+            return List.of("t1", "t2", "t1");
+        });
+
+        service.checkOverdue();
+
+        assertThat(ignoredWhenListing).containsExactly(true);
+        verify(eventMapper).selectDeadlinePending(List.of("t1", "t2"), properties.getBatchSize());
+        verify(eventMapper).selectOverdue(List.of("t1", "t2"), NOW, properties.getBatchSize());
+    }
+
+    @Test
+    @DisplayName("开启多租户但没有启用的租户时不查询；没有租户清单时拒绝执行（不会处理未知租户的事件）")
+    void noActiveTenantsOrNoDirectory() {
+        MesTestSupport.tenant(true);
+        when(directory.activeTenantIds()).thenReturn(List.of());
+
+        assertThat(service.checkOverdue()).isZero();
+        verify(eventMapper, never()).selectDeadlinePending(any(), anyInt());
+        verify(eventMapper, never()).selectOverdue(any(), any(), anyInt());
+
+        assertThatThrownBy(() -> service(false).checkOverdue())
+            .hasMessageContaining("租户清单");
+    }
+
+    @Test
+    @DisplayName("未开启多租户：不按租户过滤，也不读取租户清单")
+    void withoutTenancyNoTenantFilter() {
+        service.checkOverdue();
+
+        verify(eventMapper).selectDeadlinePending(isNull(), eq(properties.getBatchSize()));
+        verify(eventMapper).selectOverdue(isNull(), eq(NOW), eq(properties.getBatchSize()));
+        verify(directory, never()).activeTenantIds();
+    }
+
+    @Test
+    @DisplayName("查询条件：传入租户时按租户 IN 过滤，为 null 时没有租户条件")
+    @SuppressWarnings("unchecked")
+    void tenantConditionInQuery() {
+        ArgumentCaptor<Wrapper<MesAndonEvent>> captor = ArgumentCaptor.forClass(Wrapper.class);
+        MesAndonEventMapper realDefaults = MesTestSupport.mapper(MesAndonEventMapper.class);
+
+        realDefaults.selectDeadlinePending(List.of("t1", "t2"), 10);
+        realDefaults.selectOverdue(List.of("t1"), NOW, 10);
+        realDefaults.selectDeadlinePending(null, 10);
+        realDefaults.selectOverdue(null, NOW, 10);
+
+        verify(realDefaults, times(4)).selectList(any(IPage.class), captor.capture());
+        List<String> sql = captor.getAllValues().stream().map(w -> w.getSqlSegment().toLowerCase(Locale.ROOT)).toList();
+        assertThat(sql.get(0)).contains("tenant_id in");
+        assertThat(sql.get(1)).contains("tenant_id in");
+        assertThat(sql.get(2)).doesNotContain("tenant_id");
+        assertThat(sql.get(3)).doesNotContain("tenant_id");
     }
 
     @Test

@@ -278,6 +278,7 @@ public class MesProductionReportServiceImpl implements IMesProductionReportServi
         if (defect.signum() > 0) {
             createDefect(report, task);
         }
+        // 达到完成条件时任务自动完成，并依次带动后续工序与工单完工
         taskService.completeIfReached(task.getTaskId());
     }
 
@@ -417,13 +418,20 @@ public class MesProductionReportServiceImpl implements IMesProductionReportServi
                 + TaskSequence.plain(submittedStockIn) + "，撤销后完工数量将少于入库数量，不能撤销");
         }
 
+        // 自动完成的任务撤销后不再满足完成条件（已报数量少于上限）时回到生产中；手动完成的任务保持已完成
+        boolean completed = TaskStatus.COMPLETED.code().equals(task.getTaskStatus());
+        BigDecimal capacity = TaskSequence.capacity(workorder.getPlanQty(), TaskSequence.previous(tasks, task));
+        BigDecimal reportedAfter = TaskSequence.reported(task).subtract(qualified).subtract(defect);
+        boolean reopen = completed && reportedAfter.compareTo(capacity) < 0 && autoCompleted(task.getTaskId());
+        if (reopen && next != null && TaskStatus.COMPLETED.code().equals(next.getTaskStatus())) {
+            // 后续工序只在本工序完成后才会自动完成；本工序回到生产中而后续工序保持已完成，前后状态对不上
+            throw new ServiceException("后续工序已完成，不能撤销");
+        }
+
         changeStatus(report, ReportStatus.CANCELLED);
         statusLogService.record(BizType.PRODUCTION_REPORT, reportId, report.getReportCode(), "cancel",
             ReportStatus.REPORTED.code(), ReportStatus.CANCELLED.code(), reason);
 
-        boolean reopen = TaskStatus.COMPLETED.code().equals(task.getTaskStatus())
-            && qualifiedAfter.compareTo(TaskSequence.orZero(task.getPlanQty())) < 0
-            && autoCompleted(task.getTaskId());
         LambdaUpdateWrapper<MesOperationTask> taskWrapper = Wrappers.lambdaUpdate(MesOperationTask.class)
             .setSql("qualified_qty = qualified_qty - {0}", qualified)
             .setSql("defect_qty = defect_qty - {0}", defect)
@@ -461,6 +469,10 @@ public class MesProductionReportServiceImpl implements IMesProductionReportServi
         // 报工的不良数登记为一条不良记录；它已被质量部门处置或正在处置审批时不能再撤销，否则处置结果与数量对不上
         if (defect.signum() > 0 && deleted == 0) {
             throw new ServiceException("该报工登记的不良品已处置或正在审批，不能撤销");
+        }
+        // 本工序保持已完成时，下一道的上限（本工序合格数）减少，可能因此达到完成条件
+        if (completed && !reopen && next != null) {
+            taskService.completeIfReached(next.getTaskId());
         }
     }
 

@@ -193,6 +193,22 @@ class MesAnalysisMapperSqlTest {
     }
 
     @Test
+    @DisplayName("停机分析：未解决按状态判断（误报关闭的事件没有解决时间也不算未解决），时长只取已解决的事件")
+    void downtimeOpenCountByStatus() {
+        for (Call call : calls()) {
+            if (!"selectDowntimeGroups".equals(call.name())) {
+                continue;
+            }
+            String sql = render(call).toLowerCase(Locale.ROOT);
+            assertThat(sql).as(call.toString())
+                .contains("sum(case when e.event_status in ( ? , ? , ? ) then 1 else 0 end) as open_count")
+                .contains("sum(case when e.resolve_time is not null then 1 else 0 end) as resolved_count")
+                .contains("sum(case when e.resolve_time is not null then coalesce(e.downtime_minutes, 0) else 0 end) as downtime_minutes")
+                .doesNotContain("resolve_time is null");
+        }
+    }
+
+    @Test
     @DisplayName("关联的表：报工关联工序任务与车间，不良关联工单与工序任务，安灯关联车间与工单，在制关联工单")
     void expectedJoins() {
         Map<String, Set<String>> tables = new LinkedHashMap<>();
@@ -264,7 +280,7 @@ class MesAnalysisMapperSqlTest {
                 calls.add(call("selectDefectGroups", q, groupBy));
             }
             for (String groupBy : List.of("reason", "line", "date")) {
-                calls.add(call("selectDowntimeGroups", q, "critical", groupBy));
+                calls.add(call("selectDowntimeGroups", q, "critical", List.of("reported", "assigned", "processing"), groupBy));
             }
         }
         return calls;

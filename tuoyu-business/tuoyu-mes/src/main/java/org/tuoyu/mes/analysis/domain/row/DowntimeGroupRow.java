@@ -27,9 +27,14 @@ public class DowntimeGroupRow {
     private Long eventCount;
 
     /**
-     * 其中未解决的事件数（没有解决时间）
+     * 其中未解决的事件数（已上报、已派单、处理中）
      */
     private Long openCount;
+
+    /**
+     * 其中已解决的事件数（有解决时间），平均停机时长的分母
+     */
+    private Long resolvedCount;
 
     /**
      * 已解决事件的停机时长合计（分钟）

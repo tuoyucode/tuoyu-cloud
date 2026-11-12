@@ -67,4 +67,9 @@ public class MesBomVo implements Serializable {
      */
     private List<MesBomItemVo> items;
 
+    /**
+     * 是否已被工单使用（只在详情中返回）：已使用的物料清单只能修改表头，不能修改产品、基准数量与明细，需要调整时新建版本
+     */
+    private Boolean used;
+
 }

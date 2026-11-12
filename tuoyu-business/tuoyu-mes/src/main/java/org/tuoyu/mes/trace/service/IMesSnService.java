@@ -17,7 +17,7 @@ import java.util.List;
 public interface IMesSnService {
 
     /**
-     * 查询序列号，不存在时抛出业务异常
+     * 查询序列号，不存在或不在当前用户的数据权限内时抛出业务异常
      */
     MesSnVo queryById(Long snId);
 
@@ -38,7 +38,15 @@ public interface IMesSnService {
     void scrap(Long snId, String reason);
 
     /**
-     * 状态履历（报废记录）
+     * 工单完工后调用：工单下已生成的序列号改为已完工，并逐个记录履历。调用方已锁定工单行
+     *
+     * @param workorderId 工单
+     * @return 改为已完工的序列号个数
+     */
+    int completeByWorkorder(Long workorderId);
+
+    /**
+     * 状态履历（生成、完工、报废）
      */
     List<MesStatusLogVo> logs(Long snId);
 

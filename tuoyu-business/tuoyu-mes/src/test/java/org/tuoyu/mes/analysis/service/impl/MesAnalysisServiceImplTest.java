@@ -615,9 +615,8 @@ class MesAnalysisServiceImplTest {
         @Test
         @DisplayName("按原因：平均时长只按已解决的事件计算，没有原因的为“未填写原因”，按时长降序")
         void byReason() {
-            when(analysisMapper.selectDowntimeGroups(any(), eq("critical"), eq("reason"))).thenReturn(List.of(
-                downtime(null, 2, 2, 0),
-                downtime(5L, 3, 1, 120)));
+            when(analysisMapper.selectDowntimeGroups(any(), eq("critical"), eq(MesAnalysisServiceImpl.OPEN_ANDONS), eq("reason")))
+                .thenReturn(List.of(downtime(null, 2, 2, 0), downtime(5L, 3, 1, 120)));
             MesDowntimeReason reason = new MesDowntimeReason();
             reason.setReasonId(5L);
             reason.setReasonName("设备故障");
@@ -645,14 +644,30 @@ class MesAnalysisServiceImplTest {
         void byDateAndLine() {
             DowntimeGroupRow day = downtime(null, 1, 0, 30);
             day.setEventDate(LocalDate.of(2026, 11, 2));
-            when(analysisMapper.selectDowntimeGroups(any(), anyString(), eq("date"))).thenReturn(List.of(day));
+            when(analysisMapper.selectDowntimeGroups(any(), anyString(), anyCollection(), eq("date"))).thenReturn(List.of(day));
             MesDowntimeAnalysisVo byDate = service.downtime(query("2026-11-01", "2026-11-03", "date"));
             assertThat(byDate.getRows()).extracting(MesDowntimeRowVo::getDowntimeMinutes).containsExactly(0L, 30L, 0L);
             assertThat(byDate.getRows().get(0).getAvgDowntimeMinutes()).isNull();
 
-            when(analysisMapper.selectDowntimeGroups(any(), anyString(), eq("line"))).thenReturn(List.of(downtime(null, 1, 0, 10)));
+            when(analysisMapper.selectDowntimeGroups(any(), anyString(), anyCollection(), eq("line")))
+                .thenReturn(List.of(downtime(null, 1, 0, 10)));
             assertThat(service.downtime(query("2026-11-01", "2026-11-03", "line")).getRows().get(0).getLabel())
                 .isEqualTo(MesAnalysisServiceImpl.NO_LINE);
+        }
+
+        @Test
+        @DisplayName("误报关闭的事件计入停机次数，不算未解决，也不计入平均时长的分母")
+        void falseAlarmClosed() {
+            // 4 次：1 次未解决、2 次已解决（共 90 分钟）、1 次未经解决直接关闭
+            when(analysisMapper.selectDowntimeGroups(any(), anyString(), anyCollection(), eq("reason")))
+                .thenReturn(List.of(downtime(5L, 4, 1, 2, 90)));
+
+            MesDowntimeAnalysisVo vo = service.downtime(query("2026-11-01", "2026-11-10"));
+
+            assertThat(vo.getEventCount()).isEqualTo(4);
+            assertThat(vo.getOpenCount()).isEqualTo(1);
+            assertThat(vo.getAvgDowntimeMinutes()).isEqualByComparingTo("45.00");
+            assertThat(vo.getRows().get(0).getAvgDowntimeMinutes()).isEqualByComparingTo("45.00");
         }
 
         @Test
@@ -664,11 +679,19 @@ class MesAnalysisServiceImplTest {
             assertThat(vo.getAvgDowntimeMinutes()).isNull();
         }
 
+        /**
+         * 没有误报关闭的事件：已解决数 = 次数 - 未解决数
+         */
         private DowntimeGroupRow downtime(Long reasonId, long events, long open, long minutes) {
+            return downtime(reasonId, events, open, events - open, minutes);
+        }
+
+        private DowntimeGroupRow downtime(Long reasonId, long events, long open, long resolved, long minutes) {
             DowntimeGroupRow row = new DowntimeGroupRow();
             row.setReasonId(reasonId);
             row.setEventCount(events);
             row.setOpenCount(open);
+            row.setResolvedCount(resolved);
             row.setDowntimeMinutes(minutes);
             return row;
         }
@@ -755,6 +778,8 @@ class MesAnalysisServiceImplTest {
             none.setReportQty(qty("10"));
             none.setUserCount(0L);
             when(analysisMapper.selectReportTotals(any(), anyCollection(), eq("team"))).thenReturn(List.of(none, first));
+            when(analysisMapper.selectReportTotals(any(), anyCollection(), eq("user")))
+                .thenReturn(List.of(hours(1L, null, 3, "60", "0", 0), hours(2L, null, 1, "40", "0", 0)));
             when(analysisMapper.selectReportTimes(any(), anyCollection()))
                 .thenReturn(List.of(time(1L, null, start, start.plusMinutes(30))));
             when(teamMapper.selectByIds(anyCollection())).thenReturn(List.of(team(3L)));
@@ -776,6 +801,26 @@ class MesAnalysisServiceImplTest {
             assertThat(vo.getMemberCount()).isEqualTo(2);
             assertThat(vo.getPerCapitaQty()).isEqualByComparingTo("55.00");
             assertThat(vo.getYieldRate()).isEqualByComparingTo("91.67");
+        }
+
+        @Test
+        @DisplayName("班组绩效合计：报工人数对整个范围去重（在两个班组报过工的人只算一次），人均合格数按去重后的人数")
+        void teamTotalMembersAreDistinct() {
+            ReportTotalRow day = hours(null, 1L, 2, "60", "0", 0);
+            day.setUserCount(2L);
+            ReportTotalRow night = hours(null, 2L, 2, "60", "0", 0);
+            night.setUserCount(2L);
+            when(analysisMapper.selectReportTotals(any(), anyCollection(), eq("team"))).thenReturn(List.of(day, night));
+            // 范围内只有 3 人报过工（其中 1 人两个班组都有报工）；没有报工人的报工不计人数
+            when(analysisMapper.selectReportTotals(any(), anyCollection(), eq("user"))).thenReturn(List.of(
+                hours(1L, null, 1, "30", "0", 0), hours(2L, null, 2, "60", "0", 0), hours(3L, null, 1, "30", "0", 0),
+                hours(null, null, 1, "0", "0", 0)));
+
+            MesTeamAnalysisVo vo = service.team(query("2026-11-01", "2026-11-10"));
+
+            assertThat(vo.getRows()).extracting(MesTeamRowVo::getMemberCount).containsExactly(2L, 2L);
+            assertThat(vo.getMemberCount()).isEqualTo(3);
+            assertThat(vo.getPerCapitaQty()).isEqualByComparingTo("40.00");
         }
 
         @Test

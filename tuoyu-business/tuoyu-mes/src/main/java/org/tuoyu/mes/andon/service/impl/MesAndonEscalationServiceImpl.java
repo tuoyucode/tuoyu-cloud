@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -12,6 +13,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.rpc.fallback.RemoteFallback;
+import org.tuoyu.common.tenant.core.TenantDirectory;
 import org.tuoyu.common.tenant.core.TenantHelper;
 import org.tuoyu.mes.andon.domain.MesAndonEvent;
 import org.tuoyu.mes.andon.domain.MesAndonRule;
@@ -42,7 +44,8 @@ import java.util.function.Supplier;
  * 安灯超时升级。
  * <p>
  * 每次检查分两步，都先在忽略租户的条件下只查出事件的主键与租户，再对每个事件在它自己的租户中、单独的事务里处理
- * （一个事件失败不影响其他事件）：
+ * （一个事件失败不影响其他事件）。开启多租户时只处理启用且未过期的租户（{@link TenantDirectory}），
+ * 这个条件写在查询中，停用租户的事件不会占用每批的数量：
  * <ol>
  *     <li>计算截止时间：为截止时间待计算的未解决事件匹配升级规则（按异常类型与紧急程度），
  *     截止时间 = 上报时间 + 规则中的时限；没有适用的规则时不检查。</li>
@@ -72,18 +75,21 @@ public class MesAndonEscalationServiceImpl implements IMesAndonEscalationService
     private final RemoteMessageService remoteMessageService;
     private final AndonEscalationProperties properties;
     private final TransactionTemplate transactionTemplate;
+    private final ObjectProvider<TenantDirectory> tenantDirectory;
 
     private Clock clock = Clock.systemDefaultZone();
 
     public MesAndonEscalationServiceImpl(MesAndonEventMapper eventMapper, MesAndonRuleMapper ruleMapper,
                                          IMesStatusLogService statusLogService, RemoteMessageService remoteMessageService,
-                                         AndonEscalationProperties properties, PlatformTransactionManager transactionManager) {
+                                         AndonEscalationProperties properties, PlatformTransactionManager transactionManager,
+                                         ObjectProvider<TenantDirectory> tenantDirectory) {
         this.eventMapper = eventMapper;
         this.ruleMapper = ruleMapper;
         this.statusLogService = statusLogService;
         this.remoteMessageService = remoteMessageService;
         this.properties = properties;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.tenantDirectory = tenantDirectory;
     }
 
     /**
@@ -97,14 +103,19 @@ public class MesAndonEscalationServiceImpl implements IMesAndonEscalationService
     public int checkOverdue() {
         LocalDateTime now = LocalDateTime.now(clock);
         int batch = properties.getBatchSize();
+        List<String> tenants = activeTenants();
+        if (tenants != null && tenants.isEmpty()) {
+            log.debug("没有启用的租户，跳过安灯超时检查");
+            return 0;
+        }
         // 跨租户只查主键与租户，处理时再在各自的租户中读取完整数据
-        List<MesAndonEvent> pending = TenantHelper.ignore(() -> eventMapper.selectDeadlinePending(batch));
+        List<MesAndonEvent> pending = TenantHelper.ignore(() -> eventMapper.selectDeadlinePending(tenants, batch));
         Map<String, List<MesAndonRule>> rulesByTenant = new HashMap<>();
         for (MesAndonEvent ref : pending) {
             inTenant(ref, "计算截止时间", () -> computeDeadlines(ref.getEventId(),
                 rulesByTenant.computeIfAbsent(String.valueOf(ref.getTenantId()), key -> enabledRules())));
         }
-        List<MesAndonEvent> overdue = TenantHelper.ignore(() -> eventMapper.selectOverdue(now, batch));
+        List<MesAndonEvent> overdue = TenantHelper.ignore(() -> eventMapper.selectOverdue(tenants, now, batch));
         int escalated = 0;
         for (MesAndonEvent ref : overdue) {
             if (inTenant(ref, "超时升级", () -> escalate(ref.getEventId(), now))) {
@@ -112,6 +123,21 @@ public class MesAndonEscalationServiceImpl implements IMesAndonEscalationService
             }
         }
         return escalated;
+    }
+
+    /**
+     * 开启多租户时为启用且未过期的租户（可能为空）；未开启时为 null（不过滤）
+     */
+    private List<String> activeTenants() {
+        if (!TenantHelper.isEnabled()) {
+            return null;
+        }
+        TenantDirectory directory = tenantDirectory.getIfAvailable();
+        if (directory == null) {
+            throw new IllegalStateException("开启多租户时安灯超时检查需要租户清单（TenantDirectory）");
+        }
+        List<String> tenants = TenantHelper.ignore(directory::activeTenantIds);
+        return tenants == null ? List.of() : List.copyOf(new LinkedHashSet<>(tenants));
     }
 
     /**
