@@ -9,8 +9,8 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("PlusSpringCacheManager 单元测试")
-class PlusSpringCacheManagerTest {
+@DisplayName("RedissonTtlCacheManager 单元测试")
+class RedissonTtlCacheManagerTest {
 
     /**
      * 验证扩展缓存名称能够解析 TTL、最大空闲时间、容量和本地缓存开关。
@@ -18,7 +18,7 @@ class PlusSpringCacheManagerTest {
     @Test
     @DisplayName("解析扩展缓存名称")
     void shouldResolveExtendedCacheNameOptions() {
-        PlusSpringCacheManager manager = new PlusSpringCacheManager();
+        RedissonTtlCacheManager manager = new RedissonTtlCacheManager();
         CacheConfig template = new CacheConfig();
         manager.setConfig(Map.of("users", template));
         String cacheName = "users#5m#30s#200#0";
@@ -43,7 +43,7 @@ class PlusSpringCacheManagerTest {
     @Test
     @DisplayName("创建默认缓存配置")
     void shouldCreateDefaultCacheConfiguration() {
-        PlusSpringCacheManager manager = new PlusSpringCacheManager();
+        RedissonTtlCacheManager manager = new RedissonTtlCacheManager();
         manager.setConfig(null);
 
         CacheConfig config = ReflectionTestUtils.invokeMethod(manager, "createDefaultConfig");

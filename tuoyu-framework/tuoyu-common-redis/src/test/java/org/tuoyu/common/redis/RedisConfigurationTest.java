@@ -12,7 +12,7 @@ import org.tuoyu.common.redis.config.IdempotentAutoConfiguration;
 import org.tuoyu.common.redis.config.Lock4jConfiguration;
 import org.tuoyu.common.redis.config.RateLimiterConfig;
 import org.tuoyu.common.redis.handler.RedisExceptionHandler;
-import org.tuoyu.common.redis.manager.PlusSpringCacheManager;
+import org.tuoyu.common.redis.manager.RedissonTtlCacheManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.cache.CacheManager;
@@ -36,7 +36,7 @@ class RedisConfigurationTest {
 
         caffeine.put("key", "value");
         assertEquals("value", caffeine.getIfPresent("key"));
-        assertInstanceOf(PlusSpringCacheManager.class, manager);
+        assertInstanceOf(RedissonTtlCacheManager.class, manager);
     }
 
     /**

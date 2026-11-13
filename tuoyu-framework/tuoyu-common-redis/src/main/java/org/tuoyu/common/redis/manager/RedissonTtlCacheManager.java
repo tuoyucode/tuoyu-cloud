@@ -37,14 +37,14 @@ import java.util.concurrent.ConcurrentMap;
  * A {@link org.springframework.cache.CacheManager} implementation
  * backed by Redisson instance.
  * <p>
- * 修改 RedissonSpringCacheManager 源码
- * 重写 cacheName 处理方法 支持多参数
+ * 本文件在 Redisson 的 {@code org.redisson.spring.cache.RedissonSpringCacheManager} 基础上修改（Apache-2.0）：
+ * 缓存名可以带参数（{@code 名称#ttl#maxIdleTime#maxSize#local}），并支持 Caffeine 本地一级缓存。
  *
  * @author Nikita Koksharov
  *
  */
 @SuppressWarnings("unchecked")
-public class PlusSpringCacheManager implements CacheManager {
+public class RedissonTtlCacheManager implements CacheManager {
 
     private boolean dynamic = true;
 
@@ -60,7 +60,7 @@ public class PlusSpringCacheManager implements CacheManager {
     /**
      * Creates CacheManager supplied by Redisson instance
      */
-    public PlusSpringCacheManager() {
+    public RedissonTtlCacheManager() {
         this(null);
     }
 
@@ -69,7 +69,7 @@ public class PlusSpringCacheManager implements CacheManager {
      *
      * @param caffeine 本地一级缓存实例
      */
-    public PlusSpringCacheManager(com.github.benmanes.caffeine.cache.Cache<Object, Object> caffeine) {
+    public RedissonTtlCacheManager(com.github.benmanes.caffeine.cache.Cache<Object, Object> caffeine) {
         this.caffeine = caffeine;
     }
 

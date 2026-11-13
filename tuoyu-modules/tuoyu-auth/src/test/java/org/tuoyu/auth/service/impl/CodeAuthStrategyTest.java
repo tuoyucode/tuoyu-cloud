@@ -124,7 +124,7 @@ class CodeAuthStrategyTest {
         assertThat(vo.getClientId()).isEqualTo("e5cd7e4891bf95d1d19206ce24a7b32e");
         assertThat(vo.getExpireIn()).isPositive();
         assertThat(LoginHelper.getUserId()).isEqualTo(5L);
-        assertThat(LoginHelper.getUsername()).isEqualTo("zhangsan");
+        assertThat(LoginHelper.getLoginUser().getUsername()).isEqualTo("zhangsan");
         assertThat(StpUtil.getExtra(LoginHelper.CLIENT_ACCESS_PATH_KEY)).isEqualTo("/system/**");
         LoginUser loginUser = LoginHelper.getLoginUser();
         assertThat(loginUser.getClientKey()).isEqualTo("pc");

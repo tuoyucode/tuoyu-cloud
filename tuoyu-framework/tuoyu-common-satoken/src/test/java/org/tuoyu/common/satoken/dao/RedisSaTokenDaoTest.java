@@ -1,4 +1,4 @@
-package org.tuoyu.common.satoken.core.dao;
+package org.tuoyu.common.satoken.dao;
 
 import cn.dev33.satoken.dao.SaTokenDao;
 import cn.dev33.satoken.stp.StpUtil;
@@ -10,6 +10,7 @@ import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.satoken.listener.OnlineTokenCleanupListener;
 import org.tuoyu.common.satoken.support.SaTokenTestEnv;
 import org.tuoyu.common.satoken.utils.LoginHelper;
+import org.tuoyu.common.satoken.utils.LoginSessions;
 import org.tuoyu.system.api.model.LoginUser;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,11 +20,12 @@ class RedisSaTokenDaoTest {
 
     private SaTokenTestEnv.FakeRedis redis;
 
-    private final RedisSaTokenDao dao = new RedisSaTokenDao();
+    private RedisSaTokenDao dao;
 
     @BeforeEach
     void setUp() {
         redis = SaTokenTestEnv.enter();
+        dao = new RedisSaTokenDao();
     }
 
     @AfterEach
@@ -32,7 +34,7 @@ class RedisSaTokenDaoTest {
     }
 
     @Test
-    @DisplayName("按有效期写入：永不过期不设有效期；0 或“无值”时不写入")
+    @DisplayName("按有效期写入：永不过期不设有效期；0 或“无值”时不写入；剩余时间按秒向上补 1 秒，负值原样返回")
     void writeWithTimeout() {
         dao.set("k1", "v1", 60);
         assertThat(redis.values()).containsEntry("k1", "v1");
@@ -45,7 +47,9 @@ class RedisSaTokenDaoTest {
 
         dao.set("k3", "v3", 0);
         dao.setObject("k4", "v4", SaTokenDao.NOT_VALUE_EXPIRE);
-        assertThat(redis.values()).doesNotContainKeys("k3", "k4");
+        dao.set("k5", "v5", -3);
+        assertThat(redis.values()).doesNotContainKeys("k3", "k4", "k5");
+        assertThat(dao.getTimeout("missing")).isEqualTo(SaTokenDao.NOT_VALUE_EXPIRE);
         assertThat(dao.getObjectTimeout("missing")).isEqualTo(SaTokenDao.NOT_VALUE_EXPIRE);
     }
 
@@ -60,8 +64,10 @@ class RedisSaTokenDaoTest {
 
         dao.update("k", "v3");
         assertThat(dao.get("k")).isEqualTo("v3");
+        assertThat(redis.ttlMillis("k")).isEqualTo(60_000L);
         // 不存在的键不会被 update 创建
         dao.update("absent", "x");
+        dao.updateObject("absent", "x");
         assertThat(redis.values()).doesNotContainKey("absent");
 
         dao.delete("k");
@@ -69,7 +75,18 @@ class RedisSaTokenDaoTest {
     }
 
     @Test
-    @DisplayName("对象读写与有效期修改")
+    @DisplayName("本地缓存属于实例：一个实例缓存的值不影响另一个实例")
+    void cachePerInstance() {
+        dao.set("k", "v1", 60);
+        assertThat(dao.get("k")).isEqualTo("v1");
+
+        RedisSaTokenDao other = new RedisSaTokenDao();
+        redis.values().put("k", "changed-elsewhere");
+        assertThat(other.get("k")).isEqualTo("changed-elsewhere");
+    }
+
+    @Test
+    @DisplayName("对象读写与有效期修改；有效期改为永不过期时去掉有效期并保留值")
     void objects() {
         dao.setObject("o", 42, 30);
         assertThat(dao.getObject("o")).isEqualTo(42);
@@ -77,10 +94,23 @@ class RedisSaTokenDaoTest {
 
         dao.updateObject("o", 43);
         assertThat(dao.getObject("o")).isEqualTo(43);
+        assertThat(redis.ttlMillis("o")).isEqualTo(30_000L);
         dao.updateObjectTimeout("o", 120);
         assertThat(dao.getObjectTimeout("o")).isEqualTo(121L);
         dao.updateTimeout("o", 10);
         assertThat(redis.ttlMillis("o")).isEqualTo(10_000L);
+
+        dao.updateObjectTimeout("o", SaTokenDao.NEVER_EXPIRE);
+        assertThat(redis.ttlMillis("o")).isEqualTo(-1L);
+        assertThat(dao.getObject("o")).isEqualTo(43);
+
+        dao.set("s", "v", 10);
+        dao.updateTimeout("s", SaTokenDao.NEVER_EXPIRE);
+        assertThat(redis.ttlMillis("s")).isEqualTo(-1L);
+        assertThat(dao.get("s")).isEqualTo("v");
+        // 不存在的键不会因修改有效期而被创建
+        dao.updateTimeout("missing", SaTokenDao.NEVER_EXPIRE);
+        assertThat(redis.values()).doesNotContainKey("missing");
 
         dao.deleteObject("o");
         assertThat(dao.getObject("o")).isNull();
@@ -107,7 +137,7 @@ class RedisSaTokenDaoTest {
         user.setUserType("sys_user");
         LoginHelper.login(user, null);
         String token = StpUtil.getTokenValue();
-        assertThat(LoginHelper.<LoginUser>getLoginUser(token).getUserId()).isEqualTo(5L);
+        assertThat(LoginSessions.findLoginUser(token)).get().extracting(LoginUser::getUserId).isEqualTo(5L);
 
         redis.values().put(CacheNames.ONLINE_TOKEN_KEY + token, "online");
         OnlineTokenCleanupListener listener = new OnlineTokenCleanupListener();

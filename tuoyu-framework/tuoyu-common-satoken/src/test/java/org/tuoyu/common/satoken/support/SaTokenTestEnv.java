@@ -5,14 +5,12 @@ import cn.dev33.satoken.context.mock.SaTokenContextMockUtil;
 import cn.dev33.satoken.jwt.StpLogicJwtForSimple;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.extra.spring.SpringUtil;
-import com.github.benmanes.caffeine.cache.Cache;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.redisson.api.RedissonClient;
 import org.springframework.context.support.GenericApplicationContext;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.tuoyu.common.redis.utils.RedisUtils;
-import org.tuoyu.common.satoken.core.dao.RedisSaTokenDao;
+import org.tuoyu.common.satoken.dao.RedisSaTokenDao;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -51,9 +49,8 @@ public final class SaTokenTestEnv {
 
     public static FakeRedis enter() {
         init();
-        // RedisSaTokenDao 的本地缓存是静态的，每个测试开始时清空，避免读到上一个测试的值
-        ((Cache<?, ?>) ReflectionTestUtils.getField(RedisSaTokenDao.class, "CAFFEINE")).invalidateAll();
         FakeRedis redis = new FakeRedis();
+        // 本地缓存属于每个实例，新建实例即可避免读到上一个测试的值
         SaManager.setSaTokenDao(new RedisSaTokenDao());
         StpUtil.setStpLogic(new StpLogicJwtForSimple());
         SaTokenContextMockUtil.setMockContext();

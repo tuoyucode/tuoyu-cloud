@@ -4,91 +4,80 @@ import cn.dev33.satoken.dao.SaTokenDao;
 import cn.dev33.satoken.jwt.StpLogicJwtForSimple;
 import cn.dev33.satoken.stp.StpInterface;
 import cn.dev33.satoken.stp.StpLogic;
-import org.tuoyu.common.core.context.PermissionContext;
-import org.tuoyu.common.core.context.UserContextProvider;
-import org.tuoyu.common.core.factory.YmlPropertySourceFactory;
-import org.tuoyu.common.satoken.auth.AuthWhitelistProperties;
-import org.tuoyu.common.satoken.auth.RequestAuthenticator;
-import org.tuoyu.common.satoken.context.SaTokenPermissionContext;
-import org.tuoyu.common.satoken.context.SaTokenUserContext;
-import org.tuoyu.common.satoken.core.dao.RedisSaTokenDao;
-import org.tuoyu.common.satoken.core.service.SaPermissionImpl;
-import org.tuoyu.common.satoken.handler.SaTokenExceptionHandler;
-import org.tuoyu.common.satoken.listener.OnlineTokenCleanupListener;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.PropertySource;
+import org.tuoyu.common.core.context.PermissionContext;
+import org.tuoyu.common.core.context.UserContextProvider;
+import org.tuoyu.common.core.factory.YmlPropertySourceFactory;
+import org.tuoyu.common.core.service.PermissionService;
+import org.tuoyu.common.satoken.auth.AuthWhitelistProperties;
+import org.tuoyu.common.satoken.auth.RequestAuthenticator;
+import org.tuoyu.common.satoken.context.SaTokenPermissionContext;
+import org.tuoyu.common.satoken.context.SaTokenUserContext;
+import org.tuoyu.common.satoken.dao.RedisSaTokenDao;
+import org.tuoyu.common.satoken.handler.SaTokenExceptionHandler;
+import org.tuoyu.common.satoken.listener.OnlineTokenCleanupListener;
+import org.tuoyu.common.satoken.permission.SessionPermissionSource;
 
 /**
- * Sa-Token 配置
+ * Sa-Token 的框架配置，网关与各服务共用：
+ * <ul>
+ *     <li>令牌为 jwt-simple 模式，数据存放在 Redis 中（{@link RedisSaTokenDao}）；</li>
+ *     <li>权限来自登录会话中的快照（{@link SessionPermissionSource}）；</li>
+ *     <li>core 的当前用户与权限要求由 Sa-Token 提供（应用自己提供时不覆盖）；</li>
+ *     <li>登录校验（{@link RequestAuthenticator}）与免登录白名单 {@code security.ignore.whites}；</li>
+ *     <li>登录、权限异常的处理与令牌失效时的在线记录清理。</li>
+ * </ul>
+ * Sa-Token 的基础配置在模块自带的 {@code common-satoken.yml} 中，可以在公共配置中覆盖。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @AutoConfiguration
 @EnableConfigurationProperties(AuthWhitelistProperties.class)
 @PropertySource(value = "classpath:common-satoken.yml", factory = YmlPropertySourceFactory.class)
-public class SaTokenConfiguration {
+public class SaTokenAutoConfiguration {
 
     @Bean
-    public StpLogic getStpLogicJwt() {
+    public StpLogic stpLogic() {
         return new StpLogicJwtForSimple();
     }
 
-    /**
-     * 权限接口实现(使用bean注入方便用户替换)
-     */
     @Bean
-    public StpInterface stpInterface() {
-        return new SaPermissionImpl();
+    public StpInterface stpInterface(ObjectProvider<PermissionService> permissionService) {
+        return new SessionPermissionSource(permissionService);
     }
 
-    /**
-     * 自定义dao层存储
-     */
     @Bean
     public SaTokenDao saTokenDao() {
         return new RedisSaTokenDao();
     }
 
-    /**
-     * 异常处理器
-     */
     @Bean
     public SaTokenExceptionHandler saTokenExceptionHandler() {
         return new SaTokenExceptionHandler();
     }
 
-    /**
-     * 当前用户的来源：业务代码通过 UserContext 获取，框架模块注入本 Bean
-     */
     @Bean
     @ConditionalOnMissingBean(UserContextProvider.class)
     public UserContextProvider saTokenUserContext() {
         return new SaTokenUserContext();
     }
 
-    /**
-     * 权限上下文：当前接口声明的权限码与角色
-     */
     @Bean
     @ConditionalOnMissingBean(PermissionContext.class)
     public PermissionContext saTokenPermissionContext() {
         return new SaTokenPermissionContext();
     }
 
-    /**
-     * 请求的登录校验，网关与各服务共用（白名单为 security.ignore.whites）
-     */
     @Bean
     public RequestAuthenticator requestAuthenticator(AuthWhitelistProperties whitelist) {
         return new RequestAuthenticator(whitelist);
     }
 
-    /**
-     * 令牌失效（注销、踢下线、被顶下线）时清理在线用户记录，所有服务都注册
-     */
     @Bean
     public OnlineTokenCleanupListener onlineTokenCleanupListener() {
         return new OnlineTokenCleanupListener();

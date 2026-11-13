@@ -2,7 +2,7 @@ package org.tuoyu.common.redis.config;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import org.tuoyu.common.redis.manager.PlusSpringCacheManager;
+import org.tuoyu.common.redis.manager.RedissonTtlCacheManager;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
@@ -39,7 +39,7 @@ public class CacheConfiguration {
      */
     @Bean
     public CacheManager cacheManager(Cache<Object, Object> caffeine) {
-        return new PlusSpringCacheManager(caffeine);
+        return new RedissonTtlCacheManager(caffeine);
     }
 
 }
