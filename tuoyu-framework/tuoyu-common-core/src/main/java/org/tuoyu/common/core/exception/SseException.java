@@ -1,62 +1,22 @@
 package org.tuoyu.common.core.exception;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
-
 import java.io.Serial;
 
 /**
- * sse 特制异常
+ * 消息推送（SSE）连接的认证失败，全局异常处理按 401 写出。
  *
- * @author LionLi
+ * @author tuoyu
  */
-@Data
-@EqualsAndHashCode(callSuper = true)
-@NoArgsConstructor
-@AllArgsConstructor
 public final class SseException extends RuntimeException {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
     /**
-     * 错误码
+     * @param message 消息
      */
-    private Integer code;
-
-    /**
-     * 错误提示
-     */
-    private String message;
-
-    /**
-     * 错误明细，内部调试错误
-     */
-    private String detailMessage;
-
     public SseException(String message) {
-        this.message = message;
+        super(message);
     }
 
-    public SseException(String message, Integer code) {
-        this.message = message;
-        this.code = code;
-    }
-
-    @Override
-    public String getMessage() {
-        return message;
-    }
-
-    public SseException setMessage(String message) {
-        this.message = message;
-        return this;
-    }
-
-    public SseException setDetailMessage(String detailMessage) {
-        this.detailMessage = detailMessage;
-        return this;
-    }
 }

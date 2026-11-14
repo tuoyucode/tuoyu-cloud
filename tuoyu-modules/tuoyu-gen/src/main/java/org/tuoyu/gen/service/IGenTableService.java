@@ -9,121 +9,104 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 业务 服务层
+ * 代码生成：业务表的维护、导入与同步表结构、生成代码
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface IGenTableService {
 
     /**
-     * 查询业务字段列表
-     *
-     * @param tableId 业务字段编号
-     * @return 业务字段集合
+     * @param tableId 业务表编号
+     * @return 业务表的字段，按排序号升序
      */
     List<GenTableColumn> selectGenTableColumnListByTableId(Long tableId);
 
     /**
-     * 查询业务列表
-     *
-     * @param genTable  业务信息
-     * @param pageParam 分页参数
-     * @return 业务分页集合
+     * @param genTable  查询条件：数据源、表名与表描述（模糊，忽略大小写）、创建时间区间（params 中的 beginTime、endTime）
+     * @param pageParam 分页与排序
+     * @return 业务表分页
      */
     PageResult<GenTable> selectPageGenTableList(GenTable genTable, PageParam pageParam);
 
     /**
-     * 查询据库列表
-     *
-     * @param genTable  业务信息
-     * @param pageParam 分页参数（结果来自数据库元数据，不支持排序）
-     * @return 数据库表分页集合
+     * @param genTable  查询条件：数据源、表名与表注释（包含，忽略大小写）
+     * @param pageParam 分页（不支持排序）
+     * @return 数据源中尚未导入的表
      */
     PageResult<GenTable> selectPageDbTableList(GenTable genTable, PageParam pageParam);
 
     /**
-     * 查询据库列表
-     *
-     * @param tableNames 表名称组
+     * @param tableNames 表名
      * @param dataName   数据源名称
-     * @return 数据库表集合
+     * @return 数据源中这些名称的表
      */
     List<GenTable> selectDbTableListByNames(String[] tableNames, String dataName);
 
     /**
-     * 查询业务信息
-     *
-     * @param id 业务ID
-     * @return 业务信息
+     * @param id 业务表编号
+     * @return 业务表（带字段，生成选项拆到同名属性中）
      */
     GenTable selectGenTableById(Long id);
 
     /**
-     * 修改业务
+     * 修改业务表与字段的生成配置
      *
-     * @param genTable 业务信息
+     * @param genTable 业务表（生成选项在 params 中）
      */
     void updateGenTable(GenTable genTable);
 
     /**
-     * 删除业务信息
+     * 删除业务表与它们的字段
      *
-     * @param tableIds 需要删除的表数据ID
+     * @param tableIds 业务表编号
      */
     void deleteGenTableByIds(Long[] tableIds);
 
     /**
      * 导入表结构
      *
-     * @param tableList 导入表列表
+     * @param tableList 数据库中的表
      * @param dataName  数据源名称
+     * @return 同一数据源中已导入、因此跳过的表名
      */
-    void importGenTable(List<GenTable> tableList, String dataName);
+    List<String> importGenTable(List<GenTable> tableList, String dataName);
 
     /**
-     * 根据表名称查询列信息
-     *
-     * @param tableName 表名称
+     * @param tableName 表名
      * @param dataName  数据源名称
-     * @return 列信息
+     * @return 数据库中这张表的列（按列的顺序）；表不存在时为空列表
      */
     List<GenTableColumn> selectDbTableColumnsByName(String tableName, String dataName);
 
     /**
-     * 预览代码
-     *
-     * @param tableId 表编号
-     * @return 预览数据列表
+     * @param tableId 业务表编号
+     * @return 模板路径 → 生成的代码
      */
     Map<String, String> previewCode(Long tableId);
 
     /**
-     * 生成代码（下载方式）
-     *
-     * @param tableId 表名称
-     * @return 数据
+     * @param tableId 业务表编号
+     * @return 生成的代码（zip）
      */
     byte[] downloadCode(Long tableId);
 
     /**
-     * 同步数据库
+     * 按数据库中的表结构同步业务表的字段
      *
-     * @param tableId 表名称
+     * @param tableId 业务表编号
      */
     void synchDb(Long tableId);
 
     /**
-     * 批量生成代码（下载方式）
-     *
-     * @param tableIds 表ID数组
-     * @return 数据
+     * @param tableIds 业务表编号
+     * @return 各表生成的代码（同一个 zip）
      */
     byte[] downloadCode(String[] tableIds);
 
     /**
-     * 修改保存参数校验
+     * 保存前检查生成配置，不满足时抛出带原因的业务异常
      *
-     * @param genTable 业务信息
+     * @param genTable 业务表（生成选项在 params 中）
      */
     void validateEdit(GenTable genTable);
 }

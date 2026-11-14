@@ -13,99 +13,102 @@ import org.springframework.stereotype.Component;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * anyline 适配 动态数据源改造
+ * anyline 读取表结构时，按动态数据源的当前数据源选择数据库适配器。
+ * <p>
+ * anyline 只看到一个 {@code JdbcTemplate}，它背后的 {@link DynamicRoutingDataSource} 随线程上切换的数据源
+ * 指向不同类型的数据库。所以不保持适配器、不缓存元数据，以当前数据源的名称作为键，
+ * 以“数据库产品名_连接地址”作为特征，让 anyline 为每个数据源选择对应的适配器。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Slf4j
 @Component
 public class MyBatisDataSourceMonitor implements DataSourceMonitor {
 
-    private final Map<String, String> features = new HashMap<>();
+    /**
+     * 线程上没有指定数据源（使用主数据源）时的缓存键
+     */
+    private static final String PRIMARY_KEY = "\u0000primary";
 
     /**
-     * 初始化 anyline 与动态数据源联动所需的元数据解析策略。
+     * 数据源名称 → 特征
      */
+    private final Map<String, String> features = new ConcurrentHashMap<>();
+
     public MyBatisDataSourceMonitor() {
-        // 调整执行模式为自定义
+        // 2：由 keepAdapter 按数据源判断是否保持适配器
         ConfigTable.KEEP_ADAPTER = 2;
-        // 禁用缓存
+        // 0：不缓存元数据（同一个键在不同时刻可能指向不同的数据库）
         ConfigTable.METADATA_CACHE_SCOPE = 0;
     }
 
-    /**
-     * 数据源特征 用来定准 adapter 包含数据库或JDBC协议关键字<br/>
-     * 一般会通过 产品名_url 合成 如果返回null 上层方法会通过driver_产品名_url合成
-     *
-     * @param datasource 数据源
-     * @return String 返回null由上层自动提取
-     */
     @Override
     public String feature(DataRuntime runtime, Object datasource) {
-        String feature = null;
-        if (datasource instanceof JdbcTemplate jdbc) {
-            DataSource ds = jdbc.getDataSource();
-            if (ds instanceof DynamicRoutingDataSource) {
-                String key = DynamicDataSourceContextHolder.peek();
-                feature = features.get(key);
-                if (null == feature) {
-                    Connection con = null;
-                    try {
-                        con = DataSourceUtils.getConnection(ds);
-                        DatabaseMetaData meta = con.getMetaData();
-                        String url = meta.getURL();
-                        feature = meta.getDatabaseProductName().toLowerCase().replace(" ", "") + "_" + url;
-                        features.put(key, feature);
-                    } catch (Exception e) {
-                        log.error(e.getMessage(), e);
-                    } finally {
-                        if (null != con && !DataSourceUtils.isConnectionTransactional(con, ds)) {
-                            DataSourceUtils.releaseConnection(con, ds);
-                        }
-                    }
-                }
-            }
+        DynamicRoutingDataSource routing = dynamicDataSource(datasource);
+        if (routing == null) {
+            return null;
+        }
+        String name = DynamicDataSourceContextHolder.peek();
+        String cacheKey = name == null ? PRIMARY_KEY : name;
+        String cached = features.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        String feature = readFeature(routing, name);
+        if (feature != null) {
+            features.putIfAbsent(cacheKey, feature);
         }
         return feature;
     }
 
-    /**
-     * 数据源唯一标识 如果不实现则默认feature
-     *
-     * @param runtime    数据运行时上下文
-     * @param datasource 数据源
-     * @return String 返回null由上层自动提取
-     */
     @Override
     public String key(DataRuntime runtime, Object datasource) {
-        if (datasource instanceof JdbcTemplate jdbc) {
-            DataSource ds = jdbc.getDataSource();
-            if (ds instanceof DynamicRoutingDataSource) {
-                return DynamicDataSourceContextHolder.peek();
-            }
+        if (dynamicDataSource(datasource) != null) {
+            return DynamicDataSourceContextHolder.peek();
         }
         return runtime.getKey();
     }
 
-    /**
-     * ConfigTable.KEEP_ADAPTER=2 : 根据当前接口判断是否保持同一个数据源绑定同一个adapter<br/>
-     * DynamicRoutingDataSource类型的返回false,因为同一个DynamicRoutingDataSource可能对应多类数据库, 如果项目中只有一种数据库 应该直接返回true
-     *
-     * @param runtime    数据运行时上下文
-     * @param datasource 数据源
-     * @return boolean
-     */
     @Override
     public boolean keepAdapter(DataRuntime runtime, Object datasource) {
-        if (datasource instanceof JdbcTemplate jdbc) {
-            DataSource ds = jdbc.getDataSource();
-            return !(ds instanceof DynamicRoutingDataSource);
+        if (datasource instanceof JdbcTemplate jdbcTemplate) {
+            return !(jdbcTemplate.getDataSource() instanceof DynamicRoutingDataSource);
         }
         return true;
+    }
+
+    private static DynamicRoutingDataSource dynamicDataSource(Object datasource) {
+        if (datasource instanceof JdbcTemplate jdbcTemplate
+            && jdbcTemplate.getDataSource() instanceof DynamicRoutingDataSource routing) {
+            return routing;
+        }
+        return null;
+    }
+
+    /**
+     * 读取当前数据源的“小写去空格的产品名_连接地址”；失败时返回 null，由 anyline 自行判断
+     */
+    private static String readFeature(DataSource dataSource, String name) {
+        Connection connection = null;
+        try {
+            connection = DataSourceUtils.getConnection(dataSource);
+            DatabaseMetaData metaData = connection.getMetaData();
+            String product = metaData.getDatabaseProductName().toLowerCase(Locale.ROOT).replace(" ", "");
+            return product + "_" + metaData.getURL();
+        } catch (Exception e) {
+            log.error("读取数据源 {} 的数据库类型失败", name, e);
+            return null;
+        } finally {
+            if (connection != null) {
+                // 在事务中的连接只减少引用计数、不关闭
+                DataSourceUtils.releaseConnection(connection, dataSource);
+            }
+        }
     }
 
 }

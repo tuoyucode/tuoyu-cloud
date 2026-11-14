@@ -2,6 +2,7 @@ package org.tuoyu.common.core.factory;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.env.EnumerablePropertySource;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.support.EncodedResource;
@@ -9,59 +10,58 @@ import org.springframework.core.io.support.EncodedResource;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
-@DisplayName("YmlPropertySourceFactory 单元测试")
+@DisplayName("YmlPropertySourceFactory：@PropertySource 读取 YAML 配置")
 class YmlPropertySourceFactoryTest {
 
-    /**
-     * 验证公共配置源工厂可以将 YAML 层级结构展开为 Spring 属性键。
-     *
-     * @throws IOException 配置资源读取失败
-     */
     @Test
-    @DisplayName("解析 YAML 配置资源")
-    void shouldLoadYamlAsProperties() throws IOException {
-        ByteArrayResource resource = namedResource("common-test.yml", "feature:\n  enabled: true\n  timeout: 30\n");
+    @DisplayName(".yml：层级展开为属性键，值保持 YAML 的类型，配置源名称为文件名")
+    void yml() throws IOException {
+        PropertySource<?> source = load(null, "common-test.yml", "feature:\n  enabled: true\n  timeout: 30\n");
 
-        PropertySource<?> source = new YmlPropertySourceFactory()
-            .createPropertySource(null, new EncodedResource(resource, StandardCharsets.UTF_8));
-
-        assertEquals("common-test.yml", source.getName());
-        assertEquals(true, source.getProperty("feature.enabled"));
-        assertEquals(30, source.getProperty("feature.timeout"));
+        assertThat(source.getName()).isEqualTo("common-test.yml");
+        assertThat(source.getProperty("feature.enabled")).isEqualTo(true);
+        assertThat(source.getProperty("feature.timeout")).isEqualTo(30);
     }
 
-    /**
-     * 验证非 YAML 资源仍委托 Spring 默认逻辑解析，避免公共工厂破坏 properties 配置。
-     *
-     * @throws IOException 配置资源读取失败
-     */
     @Test
-    @DisplayName("回退解析 properties 配置资源")
-    void shouldDelegatePropertiesResourcesToSpring() throws IOException {
-        ByteArrayResource resource = namedResource("common-test.properties", "feature.mode=strict\n");
+    @DisplayName(".yaml 同样按 YAML 解析，传入的名称不使用")
+    void yaml() throws IOException {
+        PropertySource<?> source = load("ignored", "common-test.yaml", "a:\n  b: value\n  list:\n    - x\n    - y\n");
 
-        PropertySource<?> source = new YmlPropertySourceFactory()
-            .createPropertySource("fallback", new EncodedResource(resource, StandardCharsets.UTF_8));
-
-        assertEquals("fallback", source.getName());
-        assertEquals("strict", source.getProperty("feature.mode"));
+        assertThat(source.getName()).isEqualTo("common-test.yaml");
+        assertThat(source.getProperty("a.b")).isEqualTo("value");
+        assertThat(source.getProperty("a.list[0]")).isEqualTo("x");
+        assertThat(source.getProperty("a.list[1]")).isEqualTo("y");
     }
 
-    /**
-     * 创建具有稳定文件名的内存资源，以触发配置源工厂对应的扩展名分支。
-     *
-     * @param filename 资源文件名
-     * @param content  资源内容
-     * @return 命名内存资源
-     */
-    private static ByteArrayResource namedResource(String filename, String content) {
-        return new ByteArrayResource(content.getBytes(StandardCharsets.UTF_8)) {
+    @Test
+    @DisplayName("空的 YAML 文件得到没有属性的配置源")
+    void emptyYaml() throws IOException {
+        PropertySource<?> source = load(null, "empty.yml", "");
+
+        assertThat(source.getName()).isEqualTo("empty.yml");
+        assertThat(source).isInstanceOf(EnumerablePropertySource.class);
+        assertThat(((EnumerablePropertySource<?>) source).getPropertyNames()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("其他资源交给 Spring 默认的 properties 解析")
+    void properties() throws IOException {
+        PropertySource<?> source = load("fallback", "common-test.properties", "feature.mode=strict\n");
+
+        assertThat(source.getName()).isEqualTo("fallback");
+        assertThat(source.getProperty("feature.mode")).isEqualTo("strict");
+    }
+
+    private static PropertySource<?> load(String name, String filename, String content) throws IOException {
+        ByteArrayResource resource = new ByteArrayResource(content.getBytes(StandardCharsets.UTF_8)) {
             @Override
             public String getFilename() {
                 return filename;
             }
         };
+        return new YmlPropertySourceFactory().createPropertySource(name, new EncodedResource(resource, StandardCharsets.UTF_8));
     }
 }

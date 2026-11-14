@@ -22,6 +22,9 @@ import java.util.List;
  *     <li>客户端配置了可访问路径、IP 白名单时，按它们校验。</li>
  * </ol>
  * 路径一律使用完整路径（前端访问的路径）。服务收到的请求已被网关去掉前缀，由 {@link #fullPath} 还原。
+ * <p>
+ * 白名单与客户端可访问路径只按规范写法的路径匹配（见 {@link #isCanonicalPath}）：Web 容器路由时会解析 {@code ..}、
+ * 去掉路径参数，按原文匹配会让 {@code /白名单路径/../受保护路径} 之类的写法通过校验后访问到另一个接口。
  *
  * @author tuoyu
  */
@@ -47,7 +50,29 @@ public class RequestAuthenticator {
      * @return 是否在免登录白名单中
      */
     public boolean isWhitelisted(String path) {
-        return whitelist.getWhites().stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
+        return isCanonicalPath(path) && whitelist.getWhites().stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
+    }
+
+    /**
+     * 是否为规范写法的路径：以 {@code /} 开头，不含路径参数（{@code ;}）、编码字符（{@code %}）、反斜杠、连续的斜杠，
+     * 也没有 {@code .} 或 {@code ..} 段。浏览器与前端发出的请求都是这种写法；其他写法不参与白名单与可访问路径的匹配
+     *
+     * @param path 请求路径
+     * @return 是否为规范写法
+     */
+    public static boolean isCanonicalPath(String path) {
+        if (path == null || !path.startsWith("/") || path.contains("//")) {
+            return false;
+        }
+        if (path.indexOf(';') >= 0 || path.indexOf('%') >= 0 || path.indexOf('\\') >= 0) {
+            return false;
+        }
+        for (String segment : path.split("/")) {
+            if (".".equals(segment) || "..".equals(segment)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -75,7 +100,7 @@ public class RequestAuthenticator {
         String accessPath = tokenExtra(LoginHelper.CLIENT_ACCESS_PATH_KEY);
         if (StringUtils.isNotBlank(accessPath)) {
             List<String> rules = StringUtils.str2List(accessPath, CLIENT_RULE_SEPARATOR_REGEX, true, true);
-            if (!StringUtils.matches(path, rules)) {
+            if (!isCanonicalPath(path) || !StringUtils.matches(path, rules)) {
                 throw new NotPermissionException("当前客户端未授权访问该接口路径");
             }
         }

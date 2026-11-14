@@ -1,15 +1,15 @@
-package ${packageName}.mapper;
+package ${gen.packageName}.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import ${packageName}.domain.${ClassName};
+import ${gen.packageName}.domain.${ClassName};
 
 /**
  * ${functionName}Mapper接口
  * <p>
- * Mapper 只处理实体，转换成 Vo 在服务层完成。
+ * Mapper 只处理实体，转换为视图对象在服务层完成。
  *
- * @author ${author}
- * @date ${datetime}
+ * @author ${gen.author}
+ * @date ${gen.datetime}
  */
 public interface ${ClassName}Mapper extends BaseMapper<${ClassName}> {
 

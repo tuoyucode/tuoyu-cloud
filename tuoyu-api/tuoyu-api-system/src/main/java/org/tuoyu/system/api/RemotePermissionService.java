@@ -1,29 +1,26 @@
 package org.tuoyu.system.api;
 
 import org.tuoyu.common.rpc.annotation.RemoteApi;
+
 import java.util.Set;
 
 /**
- * 用户权限处理
+ * 权限服务：用户的角色标识与权限码
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @RemoteApi
 public interface RemotePermissionService {
 
     /**
-     * 获取角色数据权限
-     *
-     * @param userId 用户id
-     * @return 角色权限信息
+     * @param userId 用户 ID
+     * @return 角色标识
      */
     Set<String> getRolePermission(Long userId);
 
     /**
-     * 获取菜单数据权限
-     *
-     * @param userId 用户id
-     * @return 菜单权限信息
+     * @param userId 用户 ID
+     * @return 权限码
      */
     Set<String> getMenuPermission(Long userId);
 

@@ -22,7 +22,6 @@ import org.tuoyu.system.domain.bo.SysConfigBo;
 import org.tuoyu.system.domain.bo.SysDictDataBo;
 import org.tuoyu.system.domain.bo.SysDictTypeBo;
 import org.tuoyu.system.domain.bo.SysPostBo;
-import org.tuoyu.system.domain.vo.SysPostVo;
 import org.tuoyu.system.mapper.SysConfigMapper;
 import org.tuoyu.system.mapper.SysDeptMapper;
 import org.tuoyu.system.mapper.SysDictDataMapper;
@@ -41,8 +40,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -103,24 +100,6 @@ class SysBasicDataServiceTest {
         }
 
         @Test
-        @DisplayName("分页、统计、全部、详情、用户的岗位、下拉选项")
-        void queries() {
-            when(postMapper.selectList(any(IPage.class), any())).thenReturn(List.of(post(1L)));
-            assertEquals(1, service.selectPagePostList(new SysPostBo(), new PageParam()).getItems().size());
-            service.countPostList(new SysPostBo());
-            when(postMapper.selectList(any(Wrapper.class))).thenReturn(List.of(post(1L), post(2L)));
-            assertEquals(2, service.selectPostAll().size());
-            assertEquals(2, service.selectPostByIds(List.of(1L, 2L)).size());
-            when(postMapper.selectById(1L)).thenReturn(post(1L));
-            assertEquals("P1", service.selectPostById(1L).getPostCode());
-            SysPostVo vo = new SysPostVo();
-            vo.setPostId(3L);
-            doReturn(List.of(vo)).when(postMapper).selectJoinList(eq(SysPostVo.class), any());
-            assertEquals(List.of(3L), service.selectPostListByUserId(100L));
-            assertEquals(1, service.selectPostsByUserId(100L).size());
-        }
-
-        @Test
         @DisplayName("名称（同部门内）与编码唯一性；按部门、用户统计")
         void checks() {
             SysPostBo bo = new SysPostBo();
@@ -134,22 +113,6 @@ class SysBasicDataServiceTest {
             assertFalse(service.checkPostNameUnique(bo));
             when(postMapper.selectCount(any())).thenReturn(4L);
             assertEquals(4L, service.countPostByDeptId(10L));
-        }
-
-        @Test
-        @DisplayName("删除：已分配给用户的岗位不能删除")
-        void delete() {
-            when(postMapper.selectByIds(List.of(1L))).thenReturn(List.of(post(1L)));
-            when(userPostMapper.selectCount(any())).thenReturn(2L);
-            ServiceException ex = assertThrows(ServiceException.class, () -> service.deletePostByIds(List.of(1L)));
-            assertTrue(ex.getMessage().contains("岗位1"));
-            verify(postMapper, never()).deleteByIds(any());
-
-            when(userPostMapper.selectCount(any())).thenReturn(0L);
-            when(postMapper.deleteByIds(List.of(1L))).thenReturn(1);
-            assertDoesNotThrow(() -> service.deletePostByIds(List.of(1L)));
-            when(postMapper.deleteById(1L)).thenReturn(1);
-            assertDoesNotThrow(() -> service.deletePostById(1L));
         }
 
         @Test

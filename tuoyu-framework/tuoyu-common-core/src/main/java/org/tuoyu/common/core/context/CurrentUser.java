@@ -9,10 +9,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 当前用户：业务代码与框架各模块（数据权限、审计字段填充、多租户、操作日志等）需要的用户信息。
+ * 当前用户的数据：由 {@link UserContextProvider} 的实现填充，框架各模块经 {@link UserContext} 读取。
  * <p>
- * 由 {@link UserContextProvider} 的实现（例如基于 Sa-Token 的实现）从登录会话中得到，通过 {@link UserContext} 获取。
- * 框架模块只依赖本类，不依赖具体的认证框架与 tuoyu-api-system 中的 LoginUser。
+ * 集合字段默认为空集合而不是 null。
  *
  * @author tuoyu
  */
@@ -22,6 +21,9 @@ public class CurrentUser implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 用户 ID
+     */
     private Long userId;
 
     /**
@@ -35,26 +37,32 @@ public class CurrentUser implements Serializable {
     private String nickname;
 
     /**
-     * 用户类型（{@code UserType} 的标识，例如 sys_user）
+     * 用户类型（{@code UserType} 的标识）
      */
     private String userType;
 
+    /**
+     * 部门 ID
+     */
     private Long deptId;
 
+    /**
+     * 部门名称
+     */
     private String deptName;
 
     /**
-     * 部门类别编码
+     * 部门类别
      */
     private String deptCategory;
 
     /**
-     * 所属租户；未开启多租户时为默认租户
+     * 所属租户
      */
     private String tenantId;
 
     /**
-     * 是否超级管理员（不受数据权限限制）
+     * 是否为超级管理员
      */
     private boolean superAdmin;
 
@@ -64,34 +72,37 @@ public class CurrentUser implements Serializable {
     private String clientKey;
 
     /**
-     * 登录的设备类型
+     * 设备类型
      */
     private String deviceType;
 
     /**
-     * 登录时的浏览器
+     * 浏览器
      */
     private String browser;
 
     /**
-     * 登录时的操作系统
+     * 操作系统
      */
     private String os;
 
+    /**
+     * 角色
+     */
     private List<CurrentRole> roles = List.of();
 
     /**
-     * 角色权限字符串（角色的 roleKey）
+     * 角色权限字符串
      */
     private Set<String> roleKeys = Set.of();
 
     /**
-     * 菜单权限码
+     * 权限码
      */
     private Set<String> permissions = Set.of();
 
     /**
-     * 权限码 → 拥有该权限的角色 ID（数据权限按接口所需权限缩小角色范围时使用）
+     * 权限码 → 拥有该权限的角色 ID
      */
     private Map<String, List<Long>> dataScopeRoleMap = Map.of();
 

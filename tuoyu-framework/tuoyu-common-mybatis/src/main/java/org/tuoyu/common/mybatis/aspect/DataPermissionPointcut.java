@@ -1,44 +1,44 @@
 package org.tuoyu.common.mybatis.aspect;
 
-import org.tuoyu.common.mybatis.annotation.DataPermission;
 import org.springframework.aop.support.StaticMethodMatcherPointcut;
+import org.tuoyu.common.mybatis.annotation.DataPermission;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
 /**
- * 数据权限匹配切点
+ * 数据权限切点：方法上直接标注了 {@link DataPermission}，或目标类上标注了它时匹配。
+ * <p>
+ * 目标类是 JDK 动态代理（MyBatis 的 Mapper 就是）时，看它直接实现的接口（Mapper 接口）上是否标注；
+ * 否则看目标类本身。都不向父类、父接口查找，与注解不可继承一致。类过滤器接受所有类。
  *
- * @author 秋辞未寒
+ * @author tuoyu
  */
-public class DataPermissionPointcut extends StaticMethodMatcherPointcut {
+class DataPermissionPointcut extends StaticMethodMatcherPointcut {
 
     @Override
     public boolean matches(Method method, Class<?> targetClass) {
-        // 优先匹配方法
-        // 数据权限注解不对继承生效，所以检查当前方法是否有注解即可，不再往上匹配父类或接口
-        if (method.isAnnotationPresent(DataPermission.class)) {
-            return true;
-        }
-
-        // MyBatis 的 Mapper 就是通过 JDK 动态代理实现的，所以这里需要检查是否匹配 JDK 的动态代理
-        Class<?> targetClassRef = resolveTargetClass(targetClass);
-        return targetClassRef.isAnnotationPresent(DataPermission.class);
+        return method.isAnnotationPresent(DataPermission.class) || findTypeAnnotation(targetClass) != null;
     }
 
-    private Class<?> resolveTargetClass(Class<?> targetClass) {
-        if (!Proxy.isProxyClass(targetClass)) {
-            return targetClass;
+    /**
+     * @param type 目标类，可以为 null
+     * @return 目标类（JDK 动态代理时为它实现的第一个标注了的接口）上的注解；没有时为 null
+     */
+    static DataPermission findTypeAnnotation(Class<?> type) {
+        if (type == null) {
+            return null;
         }
-        for (Class<?> interfaceClass : targetClass.getInterfaces()) {
-            // 数据权限注解不对继承生效，但由于 SpringIOC 容器拿到的实际上是 MyBatis 代理过后的 Mapper，而 targetClass.isAnnotationPresent 实际匹配的是 Proxy 类的注解，不会查找代理类。
-            // 所以这里不能用 targetClass.isAnnotationPresent，只能用 AnnotatedElementUtils.hasAnnotation 或 targetClass.getInterfaces()[0].isAnnotationPresent 去做匹配，以检查被代理的 MapperClass 是否具有注解
-            // 原理：JDK 动态代理本质上就是对接口进行实现然后对具体的接口实现做代理，所以直接通过接口可以拿到实际的 MapperClass
-            if (interfaceClass.isAnnotationPresent(DataPermission.class)) {
-                return interfaceClass;
+        if (Proxy.isProxyClass(type)) {
+            for (Class<?> face : type.getInterfaces()) {
+                DataPermission permission = face.getAnnotation(DataPermission.class);
+                if (permission != null) {
+                    return permission;
+                }
             }
+            return null;
         }
-        return targetClass;
+        return type.getAnnotation(DataPermission.class);
     }
 
 }

@@ -4,34 +4,35 @@ import jakarta.validation.Constraint;
 import jakarta.validation.Payload;
 
 import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
 import java.lang.annotation.Repeatable;
 import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import static java.lang.annotation.ElementType.*;
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-
 /**
- * 自定义枚举校验
+ * 校验值是某个枚举的某个属性的取值之一，例如 {@code @EnumPattern(type = UserStatus.class, fieldName = "code")}。
+ * <p>
+ * 值先转换为该属性的类型再比较；null 通过。同一元素上可以标注多个，每个都要满足；
+ * 也可以标在容器元素上，例如 {@code List<@EnumPattern(...) Integer>}。
  *
- * @author 秋辞未寒
- * @date 2024-12-09
+ * @author tuoyu
  */
 @Documented
-@Target({METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER, TYPE_USE})
-@Retention(RUNTIME)
-@Repeatable(EnumPattern.List.class) // 允许在同一元素上多次使用该注解
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.METHOD, ElementType.FIELD, ElementType.ANNOTATION_TYPE, ElementType.CONSTRUCTOR,
+    ElementType.PARAMETER, ElementType.TYPE_USE})
 @Constraint(validatedBy = {EnumPatternValidator.class})
+@Repeatable(EnumPattern.List.class)
 public @interface EnumPattern {
 
     /**
-     * 需要校验的枚举类型
+     * 枚举类型
      */
     Class<? extends Enum<?>> type();
 
     /**
-     * 枚举类型校验值字段名称
-     * 需确保该字段实现了 getter 方法
+     * 枚举中用来比较的属性名，读取它的 getter（{@code get} + 首字母大写的属性名）
      */
     String fieldName();
 
@@ -41,11 +42,17 @@ public @interface EnumPattern {
 
     Class<? extends Payload>[] payload() default {};
 
+    /**
+     * 在同一元素上标注多个 {@link EnumPattern}
+     */
     @Documented
-    @Target({METHOD, FIELD, ANNOTATION_TYPE, CONSTRUCTOR, PARAMETER, TYPE_USE})
-    @Retention(RUNTIME)
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.METHOD, ElementType.FIELD, ElementType.ANNOTATION_TYPE, ElementType.CONSTRUCTOR,
+        ElementType.PARAMETER, ElementType.TYPE_USE})
     @interface List {
+
         EnumPattern[] value();
+
     }
 
 }

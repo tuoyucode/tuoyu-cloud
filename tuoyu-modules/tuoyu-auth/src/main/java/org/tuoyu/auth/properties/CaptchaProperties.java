@@ -2,38 +2,36 @@ package org.tuoyu.auth.properties;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.cloud.context.config.annotation.RefreshScope;
-import org.springframework.context.annotation.Configuration;
 
 /**
- * 验证码配置
+ * 登录、注册使用的图形验证码配置。
+ * <p>
+ * 由 {@code CaptchaConfiguration} 启用；配置中心刷新时 Spring Cloud 重新绑定这个对象，读取方每次使用时取最新的值。
  *
  * @author tuoyu
  */
 @Data
-@Configuration
-@RefreshScope
 @ConfigurationProperties(prefix = "security.captcha")
 public class CaptchaProperties {
 
     /**
-     * 验证码类型
+     * 是否开启验证码。生产环境关闭时启动自检拒绝启动
      */
-    private String type;
+    private boolean enabled = true;
 
     /**
-     * 数字验证码位数
+     * 验证码类型：{@code math} 为算术题，其他值为字符
      */
-    private Integer numberLength;
+    private String type = "math";
 
     /**
-     * 字符验证码长度
+     * 算术题中每个运算数的最大位数
      */
-    private Integer charLength;
+    private int numberLength = 1;
 
     /**
-     * 验证码开关
+     * 字符验证码的字符个数
      */
-    private Boolean enabled;
+    private int charLength = 4;
 
 }

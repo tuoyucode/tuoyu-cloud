@@ -9,13 +9,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 自定义xss校验注解
+ * 校验文本中不含 HTML 标记。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(value = {ElementType.METHOD, ElementType.FIELD, ElementType.CONSTRUCTOR, ElementType.PARAMETER})
-@Constraint(validatedBy = {XssValidator.class})
+@Target({ElementType.METHOD, ElementType.FIELD, ElementType.CONSTRUCTOR, ElementType.PARAMETER})
+@Constraint(validatedBy = XssValidator.class)
 public @interface Xss {
 
     String message() default "不允许任何脚本运行";

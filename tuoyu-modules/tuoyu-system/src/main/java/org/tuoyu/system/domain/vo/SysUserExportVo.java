@@ -12,11 +12,10 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 用户对象导出VO
+ * 用户导出的行：按字段顺序成列，部门列写部门的完整路径
  *
- * @author Lion Li
+ * @author tuoyu
  */
-
 @Data
 @NoArgsConstructor
 public class SysUserExportVo implements Serializable {
@@ -25,57 +24,57 @@ public class SysUserExportVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户ID
+     * 用户 ID
      */
     @ExcelProperty(value = "用户序号")
     private Long userId;
 
     /**
-     * 用户账号
+     * 账号
      */
     @ExcelProperty(value = "用户账号")
     private String userName;
 
     /**
-     * 部门ID
+     * 部门 ID（导出为部门路径）
      */
     @ExcelProperty(value = "部门名称", converter = DeptExcelConverter.class)
     private Long deptId;
 
     /**
-     * 用户昵称
+     * 昵称
      */
     @ExcelProperty(value = "用户昵称")
     private String nickName;
 
     /**
-     * 用户邮箱
+     * 邮箱
      */
     @ExcelProperty(value = "用户邮箱")
     private String email;
 
     /**
-     * 手机号码
+     * 手机号
      */
     @ExcelProperty(value = "手机号码")
     private String phoneNumber;
 
     /**
-     * 用户性别（0男 1女 2未知）
+     * 性别
      */
     @ExcelProperty(value = "用户性别", converter = ExcelDictConvert.class)
     @ExcelDictFormat(dictType = "sys_user_gender")
     private String gender;
 
     /**
-     * 账号状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     @ExcelProperty(value = "账号状态", converter = ExcelDictConvert.class)
     @ExcelDictFormat(dictType = "sys_normal_disable")
     private String status;
 
     /**
-     * 最后登录IP
+     * 最后登录 IP
      */
     @ExcelProperty(value = "最后登录IP")
     private String loginIp;
@@ -87,7 +86,7 @@ public class SysUserExportVo implements Serializable {
     private LocalDateTime loginDate;
 
     /**
-     * 负责人
+     * 部门负责人的账号
      */
     @ExcelProperty(value = "部门负责人")
     private String leaderName;

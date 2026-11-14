@@ -1,19 +1,14 @@
 package org.tuoyu.system.dubbo;
 
-import cn.hutool.core.bean.BeanUtil;
-import org.tuoyu.common.mybatis.core.query.QueryBuilder;
-import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.lang.Opt;
-import cn.hutool.core.util.ObjectUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.validation.annotation.Validated;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.enums.UserStatus;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.exception.user.UserException;
-import org.tuoyu.common.core.utils.BeanMapper;
-import org.tuoyu.common.core.utils.StreamUtils;
-import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.core.utils.ThreadUtils;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.mybatis.helper.DataPermissionHelper;
 import org.tuoyu.system.api.RemoteUserService;
 import org.tuoyu.system.api.domain.bo.RemoteUserBo;
@@ -29,26 +24,39 @@ import org.tuoyu.system.domain.bo.SysUserBo;
 import org.tuoyu.system.domain.vo.SysDeptVo;
 import org.tuoyu.system.domain.vo.SysPostVo;
 import org.tuoyu.system.domain.vo.SysRoleVo;
-import org.tuoyu.system.domain.vo.SysUserVo;
 import org.tuoyu.system.mapper.SysUserMapper;
 import org.tuoyu.system.mapper.SysUserPostMapper;
 import org.tuoyu.system.mapper.SysUserRoleMapper;
-import org.tuoyu.system.service.*;
-import org.springframework.stereotype.Service;
-import org.springframework.validation.annotation.Validated;
+import org.tuoyu.system.service.ISysConfigService;
+import org.tuoyu.system.service.ISysDeptService;
+import org.tuoyu.system.service.ISysPermissionService;
+import org.tuoyu.system.service.ISysPostService;
+import org.tuoyu.system.service.ISysRoleService;
+import org.tuoyu.system.service.ISysUserService;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * 用户服务
+ * 用户服务的跨模块实现。
+ * <p>
+ * 查询都不带数据权限（例如工作流按角色找办理人、登录时取用户），租户隔离照常。
+ * 登录用户只带正常状态的角色；口令哈希只在按账号取用户（口令登录）时带出，不进入其他方式的会话。
  *
- * @author Lion Li
+ * @author tuoyu
  */
+@Service
 @Validated
 @RequiredArgsConstructor
-@Service
 public class RemoteUserServiceImpl implements RemoteUserService {
+
+    private static final String REGISTER_SWITCH = "sys.account.registerUser";
 
     private final ISysUserService userService;
     private final ISysPermissionService permissionService;
@@ -60,355 +68,304 @@ public class RemoteUserServiceImpl implements RemoteUserService {
     private final SysUserRoleMapper userRoleMapper;
     private final SysUserPostMapper userPostMapper;
 
-    /**
-     * 通过用户名查询用户信息
-     *
-     * @param username 用户名
-     * @return 结果
-     */
     @Override
     public LoginUser getUserInfo(String username) throws UserException {
-        SysUserVo sysUser = BeanMapper.map(userMapper.selectOne(QueryBuilder.lambda(SysUser.class).eq(SysUser::getUserName, username).build()), SysUserVo.class);
-        if (ObjectUtil.isNull(sysUser)) {
-            throw new UserException("user.not.exists", username);
-        }
-        if (UserStatus.DISABLE.getCode().equals(sysUser.getStatus())) {
-            throw new UserException("user.blocked", username);
-        }
-        return buildLoginUser(sysUser);
+        SysUser user = userMapper.selectOne(QueryBuilder.lambda(SysUser.class)
+            .eq(SysUser::getUserName, username)
+            .build());
+        checkUsable(user, username, username);
+        return buildLoginUser(user, true);
     }
 
-    /**
-     * 通过用户id查询用户信息
-     *
-     * @param userId 用户id
-     * @return 结果
-     */
     @Override
     public LoginUser getUserInfo(Long userId) throws UserException {
-        SysUserVo sysUser = BeanMapper.map(userMapper.selectById(userId), SysUserVo.class);
-        if (ObjectUtil.isNull(sysUser)) {
-            throw new UserException("user.not.exists", "");
-        }
-        if (UserStatus.DISABLE.getCode().equals(sysUser.getStatus())) {
-            throw new UserException("user.blocked", sysUser.getUserName());
-        }
-        // 框架登录不限制从什么表查询 只要最终构建出 LoginUser 即可
-        // 此处可根据登录用户的数据不同 自行创建 loginUser 属性不够用继承扩展就行了
-        return buildLoginUser(sysUser);
+        SysUser user = userMapper.selectById(userId);
+        checkUsable(user, "", user == null ? "" : user.getUserName());
+        return buildLoginUser(user, false);
     }
 
-    /**
-     * 通过手机号查询用户信息
-     *
-     * @param phoneNumber 手机号
-     * @return 结果
-     */
     @Override
     public LoginUser getUserInfoByPhoneNumber(String phoneNumber) throws UserException {
-        SysUserVo sysUser = BeanMapper.map(userMapper.selectOne(QueryBuilder.lambda(SysUser.class).eq(SysUser::getPhoneNumber, phoneNumber).build()), SysUserVo.class);
-        if (ObjectUtil.isNull(sysUser)) {
-            throw new UserException("user.not.exists", phoneNumber);
-        }
-        if (UserStatus.DISABLE.getCode().equals(sysUser.getStatus())) {
-            throw new UserException("user.blocked", phoneNumber);
-        }
-        // 框架登录不限制从什么表查询 只要最终构建出 LoginUser 即可
-        // 此处可根据登录用户的数据不同 自行创建 loginUser 属性不够用继承扩展就行了
-        return buildLoginUser(sysUser);
+        SysUser user = userMapper.selectOne(QueryBuilder.lambda(SysUser.class)
+            .eq(SysUser::getPhoneNumber, phoneNumber)
+            .build());
+        checkUsable(user, phoneNumber, phoneNumber);
+        return buildLoginUser(user, false);
     }
 
-    /**
-     * 通过邮箱查询用户信息
-     *
-     * @param email 邮箱
-     * @return 结果
-     */
     @Override
     public LoginUser getUserInfoByEmail(String email) throws UserException {
-        SysUserVo user = BeanMapper.map(userMapper.selectOne(QueryBuilder.lambda(SysUser.class).eq(SysUser::getEmail, email).build()), SysUserVo.class);
-        if (ObjectUtil.isNull(user)) {
-            throw new UserException("user.not.exists", email);
-        }
-        if (UserStatus.DISABLE.getCode().equals(user.getStatus())) {
-            throw new UserException("user.blocked", email);
-        }
-        // 框架登录不限制从什么表查询 只要最终构建出 LoginUser 即可
-        // 此处可根据登录用户的数据不同 自行创建 loginUser 属性不够用继承扩展就行了
-        return buildLoginUser(user);
+        SysUser user = userMapper.selectOne(QueryBuilder.lambda(SysUser.class)
+            .eq(SysUser::getEmail, email)
+            .build());
+        checkUsable(user, email, email);
+        return buildLoginUser(user, false);
     }
 
-    /**
-     * 通过openid查询用户信息
-     *
-     * @param openid openid
-     * @return 结果
-     */
     @Override
     public XcxLoginUser getUserInfoByOpenid(String openid) throws UserException {
-        // todo 自行实现 userService.selectUserByOpenid(openid);
-        SysUser sysUser = new SysUser();
-        if (ObjectUtil.isNull(sysUser)) {
-            // todo 用户不存在 业务逻辑自行实现
-        }
-        if (UserStatus.DISABLE.getCode().equals(sysUser.getStatus())) {
-            // todo 用户已被停用 业务逻辑自行实现
-        }
-        // 框架登录不限制从什么表查询 只要最终构建出 LoginUser 即可
-        // 此处可根据登录用户的数据不同 自行创建 loginUser 属性不够用继承扩展就行了
-        XcxLoginUser loginUser = new XcxLoginUser();
-        loginUser.setUserId(sysUser.getUserId());
-        loginUser.setUsername(sysUser.getUserName());
-        loginUser.setNickname(sysUser.getNickName());
-        loginUser.setUserType(sysUser.getUserType());
-        loginUser.setOpenid(openid);
-        return loginUser;
+        // 系统用户没有 openid 绑定
+        throw new UserException("user.not.exists", openid);
     }
 
-    /**
-     * 注册用户信息
-     *
-     * @param remoteUserBo 用户信息
-     */
     @Override
     public void registerUserInfo(RemoteUserBo remoteUserBo) throws UserException, ServiceException {
-        SysUserBo sysUserBo = BeanMapper.map(remoteUserBo, SysUserBo.class);
-        String username = sysUserBo.getUserName();
-        if (!("true".equals(configService.selectConfigByKey("sys.account.registerUser")))) {
+        if (!"true".equals(configService.selectConfigByKey(REGISTER_SWITCH))) {
             throw new ServiceException("当前系统没有开启注册功能");
         }
-        boolean exist = userMapper.exists(QueryBuilder.lambda(SysUser.class)
-            .eq(SysUser::getUserName, sysUserBo.getUserName())
+        boolean exists = userMapper.exists(QueryBuilder.lambda(SysUser.class)
+            .eq(SysUser::getUserName, remoteUserBo.getUserName())
             .build());
-        if (exist) {
-            throw new UserException("user.register.save.error", username);
+        if (exists) {
+            throw new UserException("user.register.save.error", remoteUserBo.getUserName());
         }
-        userService.registerUser(sysUserBo);
+        SysUserBo user = new SysUserBo();
+        user.setUserId(remoteUserBo.getUserId());
+        user.setDeptId(remoteUserBo.getDeptId());
+        user.setUserName(remoteUserBo.getUserName());
+        user.setNickName(remoteUserBo.getNickName());
+        user.setUserType(remoteUserBo.getUserType());
+        user.setEmail(remoteUserBo.getEmail());
+        user.setPhoneNumber(remoteUserBo.getPhoneNumber());
+        user.setGender(remoteUserBo.getGender());
+        user.setPassword(remoteUserBo.getPassword());
+        user.setStatus(remoteUserBo.getStatus());
+        user.setRemark(remoteUserBo.getRemark());
+        user.setRoleId(remoteUserBo.getRoleId());
+        userService.registerUser(user);
     }
 
-    /**
-     * 通过用户ID查询用户账户
-     *
-     * @param userId 用户ID
-     * @return 用户账户
-     */
     @Override
     public String selectUserNameById(Long userId) {
         return userService.selectUserNameById(userId);
     }
 
-    /**
-     * 通过用户ID查询用户昵称
-     *
-     * @param userId 用户ID
-     * @return 用户昵称
-     */
     @Override
     public String selectNicknameById(Long userId) {
         return userService.selectNicknameById(userId);
     }
 
-    /**
-     * 通过用户ID查询用户账户
-     *
-     * @param userIds 用户ID 多个用逗号隔开
-     * @return 用户账户
-     */
     @Override
     public String selectNicknameByIds(String userIds) {
         return userService.selectNicknameByIds(userIds);
     }
 
-    /**
-     * 通过用户ID查询用户手机号
-     *
-     * @param userId 用户id
-     * @return 用户手机号
-     */
     @Override
     public String selectPhonenumberById(Long userId) {
         return userService.selectPhonenumberById(userId);
     }
 
-    /**
-     * 通过用户ID查询用户邮箱
-     *
-     * @param userId 用户id
-     * @return 用户邮箱
-     */
     @Override
     public String selectEmailById(Long userId) {
         return userService.selectEmailById(userId);
     }
 
-    /**
-     * 构建登录用户
-     */
-    private LoginUser buildLoginUser(SysUserVo userVo) {
-        LoginUser loginUser = new LoginUser();
-        Long userId = userVo.getUserId();
-        loginUser.setUserId(userId);
-        loginUser.setTenantId(userVo.getTenantId());
-        loginUser.setDeptId(userVo.getDeptId());
-        loginUser.setUsername(userVo.getUserName());
-        loginUser.setNickname(userVo.getNickName());
-        loginUser.setPassword(userVo.getPassword());
-        loginUser.setUserType(userVo.getUserType());
-        if (ObjectUtil.isNotNull(userVo.getDeptId())) {
-            Opt<SysDeptVo> deptOpt = Opt.of(userVo.getDeptId()).map(deptService::selectDeptById);
-            loginUser.setDeptName(deptOpt.map(SysDeptVo::getDeptName).orElse(StringUtils.EMPTY));
-            loginUser.setDeptCategory(deptOpt.map(SysDeptVo::getDeptCategory).orElse(StringUtils.EMPTY));
-        }
-        ThreadUtils.virtualInvokeAll(() -> {
-            loginUser.setMenuPermission(permissionService.getMenuPermission(userId));
-        }, () -> {
-            loginUser.setRolePermission(permissionService.getRolePermission(userId));
-        }, () -> {
-            List<SysRoleVo> roles = roleService.selectRolesByUserId(userId);
-            List<RoleDTO> roleDtos = BeanUtil.copyToList(roles, RoleDTO.class);
-            loginUser.setRoles(roleDtos);
-            loginUser.setDataScopeRoleMap(permissionService.getDataScopeRoleMap(roleDtos));
-        }, () -> {
-            List<SysPostVo> posts = postService.selectPostsByUserId(userId);
-            loginUser.setPosts(BeanUtil.copyToList(posts, PostDTO.class));
-        });
-        return loginUser;
-    }
-
-    /**
-     * 更新用户信息
-     *
-     * @param userId 用户ID
-     * @param ip     IP地址
-     */
     @Override
     public void recordLoginInfo(Long userId, String ip) {
-        SysUser sysUser = new SysUser();
-        sysUser.setUserId(userId);
-        sysUser.setLoginIp(ip);
-        sysUser.setLoginDate(LocalDateTime.now());
-        sysUser.setUpdateBy(userId);
-        DataPermissionHelper.ignore(() -> userMapper.updateById(sysUser));
+        SysUser user = new SysUser(userId);
+        user.setLoginIp(ip);
+        user.setLoginDate(LocalDateTime.now());
+        user.setUpdateBy(userId);
+        DataPermissionHelper.ignore(() -> userMapper.updateById(user));
     }
 
-    /**
-     * 通过用户ID查询用户列表
-     *
-     * @param userIds 用户ids
-     * @return 用户列表
-     * @see org.tuoyu.system.domain.convert.SysUserVoConvert
-     */
     @Override
     public List<RemoteUserVo> selectListByIds(Collection<Long> userIds) {
-        if (CollUtil.isEmpty(userIds)) {
-            return List.of();
+        if (userIds == null || userIds.isEmpty()) {
+            return new ArrayList<>();
         }
-        List<SysUserVo> list = BeanMapper.mapList(userMapper.selectList(QueryBuilder.lambda(SysUser.class)
-            .select(SysUser::getUserId, SysUser::getDeptId, SysUser::getUserName,
-                SysUser::getNickName, SysUser::getUserType, SysUser::getEmail,
-                SysUser::getPhoneNumber, SysUser::getGender, SysUser::getStatus,
-                SysUser::getCreateTime)
+        return toRemoteUsers(userMapper.selectList(QueryBuilder.lambda(SysUser.class)
+            .select(SysUser::getUserId, SysUser::getDeptId, SysUser::getUserName, SysUser::getNickName,
+                SysUser::getUserType, SysUser::getEmail, SysUser::getPhoneNumber, SysUser::getGender,
+                SysUser::getStatus, SysUser::getCreateTime)
             .eq(SysUser::getStatus, SystemConstants.NORMAL)
             .in(SysUser::getUserId, userIds)
-            .build()), SysUserVo.class);
-        return BeanMapper.mapList(list, RemoteUserVo.class);
+            .build()));
     }
 
-    /**
-     * 通过角色ID查询用户ID
-     *
-     * @param roleIds 角色ids
-     * @return 用户ids
-     */
     @Override
     public List<Long> selectUserIdsByRoleIds(Collection<Long> roleIds) {
-        if (CollUtil.isEmpty(roleIds)) {
-            return List.of();
+        if (roleIds == null || roleIds.isEmpty()) {
+            return new ArrayList<>();
         }
         return userService.selectUserIdsByRoleIds(roleIds);
     }
 
-    /**
-     * 通过角色ID查询用户
-     *
-     * @param roleIds 角色ids
-     * @return 用户
-     */
     @Override
     public List<RemoteUserVo> selectUsersByRoleIds(Collection<Long> roleIds) {
-        if (CollUtil.isEmpty(roleIds)) {
-            return List.of();
+        if (roleIds == null || roleIds.isEmpty()) {
+            return new ArrayList<>();
         }
-
-        // 通过角色ID获取用户角色信息
-        List<SysUserRole> userRoles = userRoleMapper.selectList(QueryBuilder.lambda(SysUserRole.class)
+        Set<Long> userIds = new LinkedHashSet<>();
+        for (SysUserRole row : userRoleMapper.selectList(QueryBuilder.lambda(SysUserRole.class)
+            .select(SysUserRole::getUserId)
             .in(SysUserRole::getRoleId, roleIds)
-            .build());
-
-        // 获取用户ID列表
-        Set<Long> userIds = StreamUtils.toSet(userRoles, SysUserRole::getUserId);
-
-        return selectListByIds(new ArrayList<>(userIds));
+            .build())) {
+            if (row != null && row.getUserId() != null) {
+                userIds.add(row.getUserId());
+            }
+        }
+        return selectListByIds(userIds);
     }
 
-    /**
-     * 通过部门ID查询用户
-     *
-     * @param deptIds 部门ids
-     * @return 用户
-     */
     @Override
     public List<RemoteUserVo> selectUsersByDeptIds(Collection<Long> deptIds) {
-        if (CollUtil.isEmpty(deptIds)) {
-            return List.of();
+        if (deptIds == null || deptIds.isEmpty()) {
+            return new ArrayList<>();
         }
-        List<SysUserVo> list = BeanMapper.mapList(userMapper.selectList(QueryBuilder.lambda(SysUser.class)
-            .select(SysUser::getUserId, SysUser::getUserName, SysUser::getNickName, SysUser::getEmail, SysUser::getPhoneNumber)
+        return toRemoteUsers(userMapper.selectList(QueryBuilder.lambda(SysUser.class)
+            .select(SysUser::getUserId, SysUser::getDeptId, SysUser::getUserName, SysUser::getNickName,
+                SysUser::getUserType, SysUser::getEmail, SysUser::getPhoneNumber, SysUser::getGender,
+                SysUser::getStatus, SysUser::getCreateTime)
             .eq(SysUser::getStatus, SystemConstants.NORMAL)
             .in(SysUser::getDeptId, deptIds)
-            .build()), SysUserVo.class);
-        return BeanUtil.copyToList(list, RemoteUserVo.class);
+            .build()));
     }
 
-    /**
-     * 通过岗位ID查询用户
-     *
-     * @param postIds 岗位ids
-     * @return 用户
-     */
     @Override
     public List<RemoteUserVo> selectUsersByPostIds(Collection<Long> postIds) {
-        if (CollUtil.isEmpty(postIds)) {
-            return List.of();
+        if (postIds == null || postIds.isEmpty()) {
+            return new ArrayList<>();
         }
-
-        // 通过岗位ID获取用户岗位信息
-        List<SysUserPost> userPosts = userPostMapper.selectList(QueryBuilder.lambda(SysUserPost.class)
+        Set<Long> userIds = new LinkedHashSet<>();
+        for (SysUserPost row : userPostMapper.selectList(QueryBuilder.lambda(SysUserPost.class)
+            .select(SysUserPost::getUserId)
             .in(SysUserPost::getPostId, postIds)
-            .build());
+            .build())) {
+            if (row != null && row.getUserId() != null) {
+                userIds.add(row.getUserId());
+            }
+        }
+        return selectListByIds(userIds);
+    }
 
-        // 获取用户ID列表
-        Set<Long> userIds = StreamUtils.toSet(userPosts, SysUserPost::getUserId);
-
-        return selectListByIds(new ArrayList<>(userIds));
+    @Override
+    public Map<Long, String> selectUserNicksByIds(Collection<Long> userIds) {
+        Map<Long, String> nicknames = new HashMap<>();
+        if (userIds == null || userIds.isEmpty()) {
+            return nicknames;
+        }
+        for (SysUser user : userMapper.selectList(QueryBuilder.lambda(SysUser.class)
+            .select(SysUser::getUserId, SysUser::getNickName)
+            .in(SysUser::getUserId, userIds)
+            .build())) {
+            if (user != null) {
+                nicknames.put(user.getUserId(), user.getNickName());
+            }
+        }
+        return nicknames;
     }
 
     /**
-     * 根据用户 ID 列表查询用户昵称映射关系
+     * 用户不存在或已停用时拒绝
      *
-     * @param userIds 用户 ID 列表
-     * @return Map，其中 key 为用户 ID，value 为对应的用户昵称
+     * @param user          读到的用户
+     * @param notFoundArg   不存在时提示中的参数
+     * @param blockedArg    停用时提示中的参数
      */
-    @Override
-    public Map<Long, String> selectUserNicksByIds(Collection<Long> userIds) {
-        if (CollUtil.isEmpty(userIds)) {
-            return Map.of();
+    private static void checkUsable(SysUser user, String notFoundArg, String blockedArg) {
+        if (user == null) {
+            throw new UserException("user.not.exists", notFoundArg);
         }
-        List<SysUser> list = userMapper.selectList(QueryBuilder.lambda(SysUser.class)
-            .select(SysUser::getUserId, SysUser::getNickName)
-            .in(SysUser::getUserId, userIds)
-            .build());
-        return StreamUtils.toMap(list, SysUser::getUserId, SysUser::getNickName);
+        if (UserStatus.DISABLE.getCode().equals(user.getStatus())) {
+            throw new UserException("user.blocked", blockedArg);
+        }
+    }
+
+    /**
+     * 组装登录用户：基本信息、部门，以及并行计算的权限码、角色标识、正常角色与数据权限映射、岗位
+     */
+    private LoginUser buildLoginUser(SysUser user, boolean withPassword) {
+        Long userId = user.getUserId();
+        LoginUser loginUser = new LoginUser();
+        loginUser.setUserId(userId);
+        loginUser.setTenantId(user.getTenantId());
+        loginUser.setDeptId(user.getDeptId());
+        loginUser.setUsername(user.getUserName());
+        loginUser.setNickname(user.getNickName());
+        loginUser.setUserType(user.getUserType());
+        if (withPassword) {
+            loginUser.setPassword(user.getPassword());
+        }
+        if (user.getDeptId() != null) {
+            SysDeptVo dept = deptService.selectDeptById(user.getDeptId());
+            loginUser.setDeptName(dept == null ? "" : dept.getDeptName());
+            loginUser.setDeptCategory(dept == null ? "" : dept.getDeptCategory());
+        }
+        ThreadUtils.virtualInvokeAll(
+            () -> loginUser.setMenuPermission(permissionService.getMenuPermission(userId)),
+            () -> loginUser.setRolePermission(permissionService.getRolePermission(userId)),
+            () -> {
+                List<RoleDTO> roles = normalRoles(roleService.selectRolesByUserId(userId));
+                loginUser.setRoles(roles);
+                loginUser.setDataScopeRoleMap(permissionService.getDataScopeRoleMap(roles));
+            },
+            () -> loginUser.setPosts(toPostDtos(postService.selectPostsByUserId(userId))));
+        return loginUser;
+    }
+
+    /**
+     * 只取正常状态的角色：停用的角色不进入会话，也不参与数据权限
+     */
+    private static List<RoleDTO> normalRoles(List<SysRoleVo> roles) {
+        List<RoleDTO> result = new ArrayList<>();
+        if (roles == null) {
+            return result;
+        }
+        for (SysRoleVo role : roles) {
+            if (role != null && SystemConstants.NORMAL.equals(role.getStatus())) {
+                RoleDTO dto = new RoleDTO();
+                dto.setRoleId(role.getRoleId());
+                dto.setRoleName(role.getRoleName());
+                dto.setRoleKey(role.getRoleKey());
+                dto.setDataScope(role.getDataScope());
+                result.add(dto);
+            }
+        }
+        return result;
+    }
+
+    private static List<PostDTO> toPostDtos(List<SysPostVo> posts) {
+        List<PostDTO> result = new ArrayList<>();
+        if (posts == null) {
+            return result;
+        }
+        for (SysPostVo post : posts) {
+            if (post != null) {
+                PostDTO dto = new PostDTO();
+                dto.setPostId(post.getPostId());
+                dto.setDeptId(post.getDeptId());
+                dto.setPostCode(post.getPostCode());
+                dto.setPostName(post.getPostName());
+                dto.setPostCategory(post.getPostCategory());
+                result.add(dto);
+            }
+        }
+        return result;
+    }
+
+    private static List<RemoteUserVo> toRemoteUsers(List<SysUser> users) {
+        List<RemoteUserVo> result = new ArrayList<>();
+        if (users == null) {
+            return result;
+        }
+        for (SysUser user : users) {
+            if (user != null) {
+                RemoteUserVo vo = new RemoteUserVo();
+                vo.setUserId(user.getUserId());
+                vo.setDeptId(user.getDeptId());
+                vo.setUserName(user.getUserName());
+                vo.setNickName(user.getNickName());
+                vo.setUserType(user.getUserType());
+                vo.setEmail(user.getEmail());
+                vo.setPhoneNumber(user.getPhoneNumber());
+                vo.setGender(user.getGender());
+                vo.setStatus(user.getStatus());
+                vo.setCreateTime(user.getCreateTime());
+                result.add(vo);
+            }
+        }
+        return result;
     }
 
 }

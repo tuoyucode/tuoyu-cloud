@@ -1,0 +1,16 @@
+{
+  "title": "Post demo",
+  "list": "Post demo list",
+  "create": "New post demo",
+  "edit": "Edit post demo",
+  "delete": "Delete post demo",
+  "exportFileName": "postDemo",
+  "postId": "Post id",
+  "postCode": "Post code",
+  "postName": "Post name",
+  "postCategory": "Post category",
+  "postSort": "Post sort",
+  "status": "Status",
+  "remark": "Remark",
+  "createTime": "Create time"
+}

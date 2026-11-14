@@ -1,54 +1,55 @@
 package org.tuoyu.common.core.utils;
 
 import cn.hutool.core.exceptions.UtilException;
-import org.tuoyu.common.core.utils.sql.SqlUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.tuoyu.common.core.utils.sql.SqlUtil;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DisplayName("SqlUtil 单元测试")
+@DisplayName("SqlUtil.filterKeyword：拼进 SQL 的值的黑名单检查")
 class SqlUtilTest {
 
-    /**
-     * 验证合法字段、逗号和表字段表达式可以通过排序校验。
-     */
     @Test
-    @DisplayName("接受合法的多字段排序表达式")
-    void escapeOrderBySqlShouldAcceptSafeColumns() {
-        assertEquals("user_name,create_time", SqlUtil.escapeOrderBySql("user_name,create_time"));
-        assertTrue(SqlUtil.isValidOrderBySql("table_name.column_name"));
+    @DisplayName("空值与普通文本通过")
+    void accepts() {
+        for (String value : new String[]{null, "", "normal-business-value", "100", "role_ids", "selected", "count(*)",
+            "orderly"}) {
+            assertThatCode(() -> SqlUtil.filterKeyword(value)).as(String.valueOf(value)).doesNotThrowAnyException();
+        }
     }
 
-    /**
-     * 验证包含 SQL 分隔符等非法字符的排序参数会被拒绝。
-     */
     @Test
-    @DisplayName("拒绝包含非法字符的排序表达式")
-    void escapeOrderBySqlShouldRejectUnsafeCharacters() {
-        assertThrows(IllegalArgumentException.class,
-            () -> SqlUtil.escapeOrderBySql("create_time desc;drop table sys_user"));
+    @DisplayName("单引号直接拒绝")
+    void quote() {
+        assertThatThrownBy(() -> SqlUtil.filterKeyword("name='admin'"))
+            .isInstanceOf(UtilException.class)
+            .hasMessage("请求参数包含非法字符【'】，已禁止执行");
     }
 
-    /**
-     * 验证单引号、关键字及大小写空白变体无法绕过过滤。
-     */
     @Test
-    @DisplayName("拒绝单引号和 SQL 敏感关键词")
-    void filterKeywordShouldRejectRiskyInput() {
-        assertThrows(UtilException.class, () -> SqlUtil.filterKeyword("name='admin'"));
-        assertThrows(UtilException.class, () -> SqlUtil.filterKeyword("union select password"));
-        assertThrows(UtilException.class, () -> SqlUtil.filterKeyword("UNION\tSELECT password"));
+    @DisplayName("关键字按子串匹配，大小写与各种空白（含制表符、不换行空格）规范化后比较；按关键字表的顺序报告")
+    void keywords() {
+        assertRejected("union select password", "select ");
+        assertRejected("UNION\tSELECT password", "select ");
+        assertRejected("a OR b", "or ");
+        assertRejected("1 and 1", "and ");
+        assertRejected("brand new", "and ");
+        assertRejected("sleeping", "sleep");
+        assertRejected("extractvalue(1)", "extractvalue");
+        assertRejected("information_schema.tables", "information_schema");
+        assertRejected("drop  table x", "drop ");
+        assertRejected("a+b", "+");
+        assertRejected("x/**/y", "/*");
+        assertRejected("user()", "user()");
+        assertRejected("x like y", "like ");
     }
 
-    /**
-     * 验证普通业务文本和空值不会被误判为 SQL 注入。
-     */
-    @Test
-    @DisplayName("允许普通业务查询文本")
-    void filterKeywordShouldAcceptRegularText() {
-        assertDoesNotThrow(() -> SqlUtil.filterKeyword("normal-business-value"));
-        assertDoesNotThrow(() -> SqlUtil.filterKeyword(null));
+    private static void assertRejected(String value, String keyword) {
+        assertThatThrownBy(() -> SqlUtil.filterKeyword(value))
+            .as(value)
+            .isInstanceOf(UtilException.class)
+            .hasMessage("请求参数包含敏感关键词'" + keyword + "'，可能存在安全风险");
     }
-
 }

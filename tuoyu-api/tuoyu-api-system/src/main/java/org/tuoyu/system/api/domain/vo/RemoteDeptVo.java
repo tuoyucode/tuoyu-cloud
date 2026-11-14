@@ -7,11 +7,10 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 部门
+ * 跨模块传递的部门
  *
- * @author AprilWind
+ * @author tuoyu
  */
-
 @Data
 @NoArgsConstructor
 public class RemoteDeptVo implements Serializable {
@@ -20,12 +19,12 @@ public class RemoteDeptVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 部门ID
+     * 部门 ID
      */
     private Long deptId;
 
     /**
-     * 父部门ID
+     * 上级部门 ID
      */
     private Long parentId;
 

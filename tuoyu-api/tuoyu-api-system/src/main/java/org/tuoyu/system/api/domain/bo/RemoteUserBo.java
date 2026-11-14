@@ -1,6 +1,5 @@
 package org.tuoyu.system.api.domain.bo;
 
-
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -14,9 +13,9 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 用户信息业务对象 sys_user
+ * 跨模块传递的用户（注册等），由提供方校验
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @NoArgsConstructor
@@ -26,17 +25,17 @@ public class RemoteUserBo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户ID
+     * 用户 ID
      */
     private Long userId;
 
     /**
-     * 部门ID
+     * 部门 ID
      */
     private Long deptId;
 
     /**
-     * 用户账号
+     * 账号
      */
     @Xss(message = "用户账号不能包含脚本字符")
     @NotBlank(message = "用户账号不能为空")
@@ -44,51 +43,51 @@ public class RemoteUserBo implements Serializable {
     private String userName;
 
     /**
-     * 用户昵称
+     * 昵称
      */
     @Xss(message = "用户昵称不能包含脚本字符")
     @Size(min = 0, max = 30, message = "用户昵称长度不能超过{max}个字符")
     private String nickName;
 
     /**
-     * 用户类型（sys_user系统用户）
+     * 用户类型
      */
     private String userType;
 
     /**
-     * 用户邮箱
+     * 邮箱
      */
     @Email(message = "邮箱格式不正确")
     @Size(min = 0, max = 50, message = "邮箱长度不能超过{max}个字符")
     private String email;
 
     /**
-     * 手机号码
+     * 手机号
      */
     private String phoneNumber;
 
     /**
-     * 用户性别（0男 1女 2未知）
+     * 性别
      */
     private String gender;
 
     /**
-     * 头像地址
+     * 头像（对象存储 ID）
      */
     private Long avatar;
 
     /**
-     * 密码
+     * 口令（已哈希）
      */
     private String password;
 
     /**
-     * 账号状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     private String status;
 
     /**
-     * 最后登录IP
+     * 最后登录 IP
      */
     private String loginIp;
 
@@ -103,14 +102,20 @@ public class RemoteUserBo implements Serializable {
     private String remark;
 
     /**
-     * 数据权限 当前角色ID
+     * 角色 ID
      */
     private Long roleId;
 
+    /**
+     * @param userId 用户 ID
+     */
     public RemoteUserBo(Long userId) {
         this.userId = userId;
     }
 
+    /**
+     * @return 是否超级管理员（按用户 ID 判断）
+     */
     public boolean isSuperAdmin() {
         return SystemConstants.SUPER_ADMIN_USER_ID.equals(this.userId);
     }

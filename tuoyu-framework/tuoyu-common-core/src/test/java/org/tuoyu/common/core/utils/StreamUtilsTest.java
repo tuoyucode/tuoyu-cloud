@@ -3,100 +3,111 @@ package org.tuoyu.common.core.utils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DisplayName("StreamUtils 单元测试")
+@DisplayName("StreamUtils：集合转换")
 class StreamUtilsTest {
 
-    /**
-     * 验证过滤结果保持可修改，并对空输入返回空集合。
-     */
+    private static final List<Item> ITEMS = Arrays.asList(
+        new Item(1L, "first"),
+        new Item(2L, "second"),
+        null,
+        new Item(1L, "duplicate"),
+        new Item(3L, null)
+    );
+
     @Test
-    @DisplayName("过滤结果可修改且空集合返回空列表")
-    void filterShouldReturnMutableListAndHandleEmptyInput() {
-        List<Integer> result = StreamUtils.filter(List.of(1, 2, 3), value -> value % 2 == 1);
+    @DisplayName("filter：保持顺序，结果可修改；null 元素也交给条件；空集合返回可修改的空列表")
+    void filter() {
+        List<Integer> odd = StreamUtils.filter(List.of(1, 2, 3, 4, 5), value -> value % 2 == 1);
+        assertThat(odd).containsExactly(1, 3, 5);
+        odd.add(7);
+        assertThat(odd).hasSize(4);
 
-        assertEquals(List.of(1, 3), result);
-        assertDoesNotThrow(() -> result.add(5));
-        assertTrue(StreamUtils.<Integer>filter(null, value -> true).isEmpty());
+        List<Item> nulls = StreamUtils.filter(ITEMS, item -> item == null);
+        assertThat(nulls).hasSize(1).containsNull();
+
+        List<Integer> empty = StreamUtils.filter(null, value -> true);
+        assertThat(empty).isEmpty();
+        empty.add(1);
+        assertThat(StreamUtils.filter(new ArrayList<Integer>(), value -> true)).isEmpty();
     }
 
-    /**
-     * 验证集合拼接会跳过映射函数产生的空值。
-     */
     @Test
-    @DisplayName("拼接时忽略映射结果中的空值")
-    void joinShouldIgnoreNullMappedValues() {
-        String result = StreamUtils.join(List.of("first", "skip", "last"),
-            value -> "skip".equals(value) ? null : value, "|");
-
-        assertEquals("first|last", result);
-        assertEquals(StringUtils.EMPTY, StreamUtils.join(List.<String>of(), value -> value));
+    @DisplayName("findFirst：第一个满足条件的元素")
+    void findFirst() {
+        assertThat(StreamUtils.findFirst(List.of(1, 2, 3, 4), value -> value > 1)).contains(2);
+        assertThat(StreamUtils.findFirst(List.of(1, 2), value -> value > 5)).isEmpty();
+        Optional<Integer> none = StreamUtils.findFirst(null, value -> true);
+        assertThat(none).isEmpty();
     }
 
-    /**
-     * 验证集合转 Map 时的空元素过滤和重复键处理规则。
-     */
     @Test
-    @DisplayName("转 Map 时重复键保留第一个值并忽略空元素")
-    void toMapShouldKeepFirstDuplicateValue() {
-        List<TestItem> items = Arrays.asList(
-            new TestItem(1L, "first"),
-            new TestItem(1L, "second"),
-            null,
-            new TestItem(2L, "third")
-        );
-
-        Map<Long, String> result = StreamUtils.toMap(items, TestItem::id, TestItem::value);
-
-        assertEquals(Map.of(1L, "first", 2L, "third"), result);
+    @DisplayName("join：映射结果为 null 的跳过，默认逗号分隔，空集合为空串")
+    void join() {
+        List<String> values = List.of("first", "skip", "last");
+        assertThat(StreamUtils.join(values, value -> "skip".equals(value) ? null : value)).isEqualTo("first,last");
+        assertThat(StreamUtils.join(values, value -> value, "|")).isEqualTo("first|skip|last");
+        assertThat(StreamUtils.join(List.<String>of(), value -> value)).isEmpty();
+        assertThat(StreamUtils.join(null, value -> String.valueOf(value), "|")).isEmpty();
     }
 
-    /**
-     * 验证分组结果按照键在输入中的首次出现顺序排列。
-     */
     @Test
-    @DisplayName("分组结果保持输入键的出现顺序")
-    void groupByKeyShouldPreserveKeyOrder() {
-        List<TestItem> items = List.of(
-            new TestItem(2L, "a"),
-            new TestItem(1L, "b"),
-            new TestItem(2L, "c")
-        );
-
-        Map<Long, List<TestItem>> result = StreamUtils.groupByKey(items, TestItem::id);
-
-        assertEquals(List.of(2L, 1L), result.keySet().stream().toList());
-        assertEquals(List.of("a", "c"), result.get(2L).stream().map(TestItem::value).toList());
+    @DisplayName("toIdentityMap：跳过 null 元素，键重复时保留第一个")
+    void toIdentityMap() {
+        Map<Long, Item> map = StreamUtils.toIdentityMap(ITEMS, Item::id);
+        assertThat(map).containsOnlyKeys(1L, 2L, 3L);
+        assertThat(map.get(1L).value()).isEqualTo("first");
+        map.put(9L, new Item(9L, "x"));
+        assertThat(StreamUtils.toIdentityMap(null, Item::id)).isEmpty();
     }
 
-    /**
-     * 验证两个 Map 合并时同时处理独有键和共有键。
-     */
     @Test
-    @DisplayName("合并 Map 时覆盖两侧独有键和共有键")
-    void mergeShouldCoverUnionOfKeys() {
-        Map<Long, String> left = new LinkedHashMap<>();
-        left.put(1L, "L1");
-        left.put(2L, "L2");
-        Map<Long, String> right = new LinkedHashMap<>();
-        right.put(2L, "R2");
-        right.put(3L, "R3");
-
-        Map<Long, String> result = StreamUtils.merge(left, right,
-            (leftValue, rightValue) -> String.valueOf(leftValue) + ":" + String.valueOf(rightValue));
-
-        assertEquals("L1:null", result.get(1L));
-        assertEquals("L2:R2", result.get(2L));
-        assertEquals("null:R3", result.get(3L));
+    @DisplayName("toMap：跳过 null 元素，键重复时保留第一个，值为 null 时抛出异常")
+    void toMap() {
+        List<Item> items = Arrays.asList(new Item(1L, "first"), null, new Item(1L, "second"), new Item(2L, "third"));
+        Map<Long, String> map = StreamUtils.toMap(items, Item::id, Item::value);
+        assertThat(map).containsExactlyInAnyOrderEntriesOf(Map.of(1L, "first", 2L, "third"));
+        map.put(9L, "x");
+        assertThat(StreamUtils.toMap(List.<Item>of(), Item::id, Item::value)).isEmpty();
+        assertThatThrownBy(() -> StreamUtils.toMap(ITEMS, Item::id, Item::value))
+            .isInstanceOf(NullPointerException.class);
     }
 
-    private record TestItem(Long id, String value) {
+    @Test
+    @DisplayName("groupByKey：跳过 null 元素，键按首次出现的顺序，组内保持原顺序")
+    void groupByKey() {
+        Map<Long, List<Item>> groups = StreamUtils.groupByKey(ITEMS, Item::id);
+        assertThat(groups.keySet()).containsExactly(1L, 2L, 3L);
+        assertThat(groups.get(1L)).extracting(Item::value).containsExactly("first", "duplicate");
+        assertThat(StreamUtils.groupByKey(null, Item::id)).isEmpty();
     }
 
+    @Test
+    @DisplayName("toList / toSet：映射后跳过 null，结果可修改；null 元素也交给映射函数")
+    void toListAndSet() {
+        List<Item> withoutNull = Arrays.asList(new Item(1L, "a"), new Item(2L, null), new Item(3L, "a"));
+        List<String> list = StreamUtils.toList(withoutNull, Item::value);
+        assertThat(list).containsExactly("a", "a");
+        list.add("b");
+        Set<String> set = StreamUtils.toSet(withoutNull, Item::value);
+        assertThat(set).containsExactly("a");
+        set.add("b");
+
+        List<String> mapped = StreamUtils.toList(ITEMS, item -> item == null ? "null-element" : item.value());
+        assertThat(mapped).containsExactly("first", "second", "null-element", "duplicate");
+        assertThat(StreamUtils.toList(null, Item::value)).isEmpty();
+        assertThat(StreamUtils.toSet(List.<Item>of(), Item::value)).isEmpty();
+    }
+
+    private record Item(Long id, String value) {
+    }
 }

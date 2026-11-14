@@ -9,135 +9,116 @@ import org.tuoyu.system.domain.vo.SysDeptVo;
 import java.util.List;
 
 /**
- * 部门管理 服务层
+ * 部门服务
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface ISysDeptService {
 
     /**
-     * 分页查询部门管理数据
+     * 分页查询部门（数据权限内）
      *
-     * @param dept      部门信息
-     * @param pageParam 分页对象
-     * @return 部门信息集合
+     * @param dept      条件
+     * @param pageParam 分页
+     * @return 分页结果
      */
     PageResult<SysDeptVo> selectPageDeptList(SysDeptBo dept, PageParam pageParam);
 
     /**
-     * 查询部门管理数据
+     * 查询部门列表（数据权限内）
      *
-     * @param dept 部门信息
-     * @return 部门信息集合
+     * @param dept 条件
+     * @return 部门（可修改的列表）
      */
     List<SysDeptVo> selectDeptList(SysDeptBo dept);
 
     /**
-     * 查询部门树结构信息
+     * 部门树（数据权限内，可能有多个根）
      *
-     * @param dept 部门信息
-     * @return 部门树信息集合
+     * @param dept 条件
+     * @return 树
      */
     List<Tree<Long>> selectDeptTreeList(SysDeptBo dept);
 
     /**
-     * 构建前端所需要下拉树结构
+     * 角色已选的部门（回显）
      *
-     * @param depts 部门列表
-     * @return 下拉树结构列表
-     */
-    List<Tree<Long>> buildDeptTreeSelect(List<SysDeptVo> depts);
-
-    /**
-     * 根据角色ID查询部门树信息
-     *
-     * @param roleId 角色ID
-     * @return 选中部门列表
+     * @param roleId 角色 ID
+     * @return 部门 ID
      */
     List<Long> selectDeptListByRoleId(Long roleId);
 
     /**
-     * 根据部门ID查询信息
+     * 按 ID 查询部门（带上级名称，结果缓存）
      *
-     * @param deptId 部门ID
-     * @return 部门信息
+     * @param deptId 部门 ID
+     * @return 部门；不存在时为 null
      */
     SysDeptVo selectDeptById(Long deptId);
 
     /**
-     * 通过部门ID串查询部门
+     * 正常状态的部门（下拉选项）
      *
-     * @param deptIds 部门id串
-     * @return 部门列表信息
+     * @param deptIds 只查这些部门，为空时不限
+     * @return 部门
      */
     List<SysDeptVo> selectDeptByIds(List<Long> deptIds);
 
     /**
-     * 通过部门ID查询部门名称
-     *
-     * @param deptIds 部门ID串逗号分隔
-     * @return 部门名称串逗号分隔
+     * @param deptIds 逗号分隔的部门 ID
+     * @return 逗号连接的部门名称（跳过不存在的部门）
      */
     String selectDeptNameByIds(String deptIds);
 
     /**
-     * 根据ID查询所有子部门数（正常状态）
-     *
-     * @param deptId 部门ID
-     * @return 子部门数
+     * @param deptId 部门 ID
+     * @return 正常状态的下级部门数
      */
     long selectNormalChildrenDeptById(Long deptId);
 
     /**
-     * 是否存在部门子节点
-     *
-     * @param deptId 部门ID
-     * @return 结果
+     * @param deptId 部门 ID
+     * @return 是否有直接下级部门
      */
     boolean hasChildByDeptId(Long deptId);
 
     /**
-     * 查询部门是否存在用户
-     *
-     * @param deptId 部门ID
-     * @return 结果 true 存在 false 不存在
+     * @param deptId 部门 ID
+     * @return 部门中是否有用户
      */
     boolean checkDeptExistUser(Long deptId);
 
     /**
-     * 校验部门名称是否唯一
-     *
-     * @param dept 部门信息
-     * @return 结果
+     * @param dept 部门（修改时排除自己）
+     * @return 同一上级下是否没有其他同名部门
      */
     boolean checkDeptNameUnique(SysDeptBo dept);
 
-
     /**
-     * 校验部门是否有数据权限
+     * 检查部门在当前用户的数据权限内（超级管理员与空 ID 不检查）
      *
-     * @param deptId 部门id
+     * @param deptId 部门 ID
      */
     void checkDeptDataScope(Long deptId);
 
     /**
-     * 新增保存部门信息
+     * 新增部门
      *
-     * @param bo 部门信息
+     * @param bo 部门
      */
     void insertDept(SysDeptBo bo);
 
     /**
-     * 修改保存部门信息
+     * 修改部门（更换上级时改写自己与下级的祖级；启用时一并启用上级）
      *
-     * @param bo 部门信息
+     * @param bo 部门
      */
     void updateDept(SysDeptBo bo);
 
     /**
-     * 删除部门管理信息
+     * 删除部门
      *
-     * @param deptId 部门ID
+     * @param deptId 部门 ID
      */
     void deleteDeptById(Long deptId);
 

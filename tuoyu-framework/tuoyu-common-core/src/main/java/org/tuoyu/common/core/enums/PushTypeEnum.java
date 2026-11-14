@@ -4,16 +4,16 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 推送消息类型枚举
+ * 推送消息的类型。取值写进推送的消息体，前端按它决定展示方式。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Getter
 @AllArgsConstructor
 public enum PushTypeEnum {
 
     /**
-     * 通用消息
+     * 普通消息
      */
     MESSAGE("message"),
 
@@ -23,14 +23,18 @@ public enum PushTypeEnum {
     NOTICE("notice"),
 
     /**
-     * 大模型消息
+     * 大模型的回复
      */
     LLM("llm"),
 
     /**
-     * 自定义消息
+     * 自定义
      */
     CUSTOM("custom");
 
+    /**
+     * 类型标识
+     */
     private final String type;
+
 }

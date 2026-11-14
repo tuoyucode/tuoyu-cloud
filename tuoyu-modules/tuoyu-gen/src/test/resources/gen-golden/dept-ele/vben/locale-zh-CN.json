@@ -1,0 +1,14 @@
+{
+  "title": "部门",
+  "list": "部门列表",
+  "create": "新增部门",
+  "edit": "编辑部门",
+  "delete": "删除部门",
+  "exportFileName": "部门",
+  "deptId": "部门ID",
+  "parentId": "上级部门",
+  "ancestors": "祖级列表",
+  "deptName": "部门名称",
+  "orderNum": "显示顺序",
+  "status": "状态"
+}

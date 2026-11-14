@@ -1,151 +1,131 @@
 package org.tuoyu.common.core.utils;
 
-import cn.hutool.core.lang.PatternPool;
-import cn.hutool.core.net.NetUtil;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.tuoyu.common.core.utils.regex.RegexUtils;
+import org.tuoyu.common.core.web.ip.IpLiteral;
 
-import java.math.BigInteger;
-import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 /**
- * 增强网络相关工具类
+ * 网络地址的匹配。
  *
- * @author 秋辞未寒
+ * @author tuoyu
  */
-@Slf4j
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class NetUtils extends NetUtil {
+public final class NetUtils {
 
     /**
-     * 判断是否为IPv6地址
-     *
-     * @param ip IP地址
-     * @return 是否为IPv6地址
+     * 前缀长度的最大位数（IPv6 为 128，三位数足够）
      */
-    public static boolean isIPv6(String ip) {
-        try {
-            // 判断是否为IPv6地址
-            return InetAddress.getByName(ip) instanceof Inet6Address;
-        } catch (UnknownHostException e) {
-            return false;
-        }
+    private static final int MAX_PREFIX_DIGITS = 3;
+
+    private NetUtils() {
     }
 
     /**
-     * 判断IPv6地址是否为内网地址
-     * <br><br>
-     * 以下地址将归类为本地地址，如有业务场景有需要，请根据需求自行处理：
-     * <pre>
-     * 通配符地址 0:0:0:0:0:0:0:0
-     * 链路本地地址 fe80::/10
-     * 唯一本地地址 fec0::/10
-     * 环回地址 ::1
-     * </pre>
+     * 客户端 IP 是否匹配白名单中的一条规则。
+     * <ul>
+     *     <li>与规则（去掉两端空白后）完全相同时匹配；</li>
+     *     <li>含 {@code /} 时按 CIDR 匹配，地址与客户端 IP 都必须是 IP 字面量（不做 DNS 解析），前缀长度 0 匹配同族的全部地址；</li>
+     *     <li>含 {@code *} 或 {@code ?} 时按通配符匹配整个客户端 IP：{@code *} 任意多个字符（可以跨 {@code .}），
+     *     {@code ?} 一个字符，其他字符都按字面量匹配，区分大小写。</li>
+     * </ul>
      *
-     * @param ip IP地址
-     * @return 是否为内网地址
-     */
-    public static boolean isInnerIPv6(String ip) {
-        try {
-            // 判断是否为IPv6地址
-            InetAddress inetAddress = InetAddress.getByName(ip);
-            if (inetAddress instanceof Inet6Address inet6Address) {
-                // isAnyLocalAddress 判断是否为通配符地址，通常不会将其视为内网地址，根据业务场景自行处理判断
-                // isLinkLocalAddress 判断是否为链路本地地址，通常不算内网地址，是否划分归属于内网需要根据业务场景自行处理判断
-                // isLoopbackAddress 判断是否为环回地址，与IPv4的 127.0.0.1 同理，用于表示本机
-                // isSiteLocalAddress 判断是否为本地站点地址，IPv6唯一本地地址（Unique Local Addresses，简称ULA）
-                if (inet6Address.isAnyLocalAddress()
-                    || inet6Address.isLinkLocalAddress()
-                    || inet6Address.isLoopbackAddress()
-                    || inet6Address.isSiteLocalAddress()) {
-                    return true;
-                }
-            }
-        } catch (UnknownHostException e) {
-            // 注意，isInnerIPv6方法和isIPv6方法的适用范围不同，所以此处不能忽略其异常信息。
-            throw new IllegalArgumentException("Invalid IPv6 address!", e);
-        }
-        return false;
-    }
-
-    /**
-     * 判断是否为IPv4地址
-     *
-     * @param ip IP地址
-     * @return 是否为IPv4地址
-     */
-    public static boolean isIPv4(String ip) {
-        return RegexUtils.isMatch(PatternPool.IPV4, ip);
-    }
-
-    /**
-     * 匹配IP规则，支持精确值、通配符与CIDR。
-     *
-     * @param rule     IP规则
-     * @param clientIp 客户端IP
-     * @return 是否匹配
+     * @param rule     规则
+     * @param clientIp 客户端 IP
+     * @return 是否匹配；规则或 IP 为空白时为 false
      */
     public static boolean isMatchIpRule(String rule, String clientIp) {
         if (StringUtils.isBlank(rule) || StringUtils.isBlank(clientIp)) {
             return false;
         }
-        String ipRule = StringUtils.trim(rule);
-        if (StringUtils.equals(ipRule, clientIp)) {
+        String trimmed = rule.trim();
+        if (trimmed.equals(clientIp)) {
             return true;
         }
-        if (ipRule.contains("/")) {
-            return isMatchCidr(ipRule, clientIp);
+        if (trimmed.indexOf('/') >= 0) {
+            return matchCidr(trimmed, clientIp);
         }
-        if (StringUtils.containsAny(ipRule, "*", "?")) {
-            String regex = ipRule
-                .replace(".", "\\.")
-                .replace("*", ".*")
-                .replace("?", ".");
-            return clientIp.matches(regex);
+        if (trimmed.indexOf('*') >= 0 || trimmed.indexOf('?') >= 0) {
+            return matchWildcard(trimmed, clientIp);
         }
         return false;
     }
 
-    /**
-     * 匹配CIDR网段。
-     *
-     * @param cidr     CIDR规则
-     * @param clientIp 客户端IP
-     * @return 是否命中
-     */
-    public static boolean isMatchCidr(String cidr, String clientIp) {
-        try {
-            String[] parts = cidr.split("/");
-            if (parts.length != 2) {
-                return false;
-            }
-            InetAddress networkAddress = InetAddress.getByName(parts[0]);
-            InetAddress currentAddress = InetAddress.getByName(clientIp);
-            byte[] networkBytes = networkAddress.getAddress();
-            byte[] currentBytes = currentAddress.getAddress();
-            if (networkBytes.length != currentBytes.length) {
-                return false;
-            }
-            int prefixLength = Integer.parseInt(parts[1]);
-            int maxPrefix = networkBytes.length * 8;
-            if (prefixLength < 0 || prefixLength > maxPrefix) {
-                return false;
-            }
-            BigInteger mask = prefixLength == 0
-                ? BigInteger.ZERO
-                : BigInteger.ONE.shiftLeft(prefixLength).subtract(BigInteger.ONE).shiftLeft(maxPrefix - prefixLength);
-            BigInteger network = new BigInteger(1, networkBytes);
-            BigInteger current = new BigInteger(1, currentBytes);
-            return network.and(mask).equals(current.and(mask));
-        } catch (UnknownHostException | NumberFormatException e) {
-            log.debug("IP白名单CIDR规则解析失败: {}", cidr, e);
+    private static boolean matchCidr(String rule, String clientIp) {
+        String[] parts = rule.split("/", -1);
+        if (parts.length != 2) {
             return false;
         }
+        InetAddress network = IpLiteral.parseStrict(parts[0]);
+        InetAddress client = IpLiteral.parseStrict(clientIp);
+        if (network == null || client == null) {
+            return false;
+        }
+        byte[] networkBytes = network.getAddress();
+        byte[] clientBytes = client.getAddress();
+        if (networkBytes.length != clientBytes.length) {
+            return false;
+        }
+        int prefix = parsePrefix(parts[1], networkBytes.length * 8);
+        if (prefix < 0) {
+            return false;
+        }
+        int fullBytes = prefix / 8;
+        for (int i = 0; i < fullBytes; i++) {
+            if (networkBytes[i] != clientBytes[i]) {
+                return false;
+            }
+        }
+        int remainingBits = prefix % 8;
+        if (remainingBits == 0) {
+            return true;
+        }
+        int mask = (0xff << (8 - remainingBits)) & 0xff;
+        return (networkBytes[fullBytes] & mask) == (clientBytes[fullBytes] & mask);
+    }
+
+    /**
+     * @return 前缀长度；不是十进制非负整数或超过地址位数时为 -1
+     */
+    private static int parsePrefix(String text, int maxBits) {
+        if (text.isEmpty() || text.length() > MAX_PREFIX_DIGITS) {
+            return -1;
+        }
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c < '0' || c > '9') {
+                return -1;
+            }
+        }
+        int prefix = Integer.parseInt(text);
+        return prefix <= maxBits ? prefix : -1;
+    }
+
+    /**
+     * 通配符匹配：{@code *} 匹配任意多个字符，{@code ?} 匹配一个字符，其他字符按字面量比较。
+     * 遇到不匹配时回到最近一个 {@code *}，让它多匹配一个字符后重试。
+     */
+    private static boolean matchWildcard(String pattern, String text) {
+        int p = 0;
+        int t = 0;
+        int starIndex = -1;
+        int starMatch = 0;
+        while (t < text.length()) {
+            if (p < pattern.length() && (pattern.charAt(p) == '?' || pattern.charAt(p) == text.charAt(t))) {
+                p++;
+                t++;
+            } else if (p < pattern.length() && pattern.charAt(p) == '*') {
+                starIndex = p++;
+                starMatch = t;
+            } else if (starIndex >= 0) {
+                p = starIndex + 1;
+                t = ++starMatch;
+            } else {
+                return false;
+            }
+        }
+        while (p < pattern.length() && pattern.charAt(p) == '*') {
+            p++;
+        }
+        return p == pattern.length();
     }
 
 }

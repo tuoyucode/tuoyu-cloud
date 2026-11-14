@@ -8,7 +8,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 当前用户的一个角色（只包含框架需要的字段：数据权限按它计算）
+ * 当前用户拥有的一个角色。
  *
  * @author tuoyu
  */
@@ -20,15 +20,18 @@ public class CurrentRole implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 角色 ID
+     */
     private Long roleId;
 
     /**
-     * 角色权限字符串，多个用逗号分隔
+     * 角色权限字符串，可能用逗号分隔多个
      */
     private String roleKey;
 
     /**
-     * 数据范围编码（见 tuoyu-common-mybatis 的 DataScopeType）
+     * 数据范围编码
      */
     private String dataScope;
 

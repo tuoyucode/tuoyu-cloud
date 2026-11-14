@@ -1,0 +1,21 @@
+{
+  "title": "Verify demo",
+  "list": "Verify demo list",
+  "create": "New verify demo",
+  "edit": "Edit verify demo",
+  "delete": "Delete verify demo",
+  "exportFileName": "verifyDemo",
+  "demoId": "Demo id",
+  "tenantId": "Tenant id",
+  "demoCode": "Demo code",
+  "demoName": "Demo name",
+  "amount": "Amount",
+  "demoSort": "Demo sort",
+  "status": "Status",
+  "remark": "Remark",
+  "createDept": "Create dept",
+  "createBy": "Create by",
+  "createTime": "Create time",
+  "updateBy": "Update by",
+  "updateTime": "Update time"
+}

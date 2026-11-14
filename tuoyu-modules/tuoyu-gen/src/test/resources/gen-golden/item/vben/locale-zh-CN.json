@@ -1,0 +1,19 @@
+{
+  "title": "【请填写功能名称】",
+  "list": "【请填写功能名称】列表",
+  "create": "新增【请填写功能名称】",
+  "edit": "编辑【请填写功能名称】",
+  "delete": "删除【请填写功能名称】",
+  "exportFileName": "【请填写功能名称】",
+  "itemId": "物品ID",
+  "itemName": "item_name",
+  "coverImage": "封面",
+  "price": "单价",
+  "weight": "重量",
+  "itemType": "类型",
+  "enabled": "启用",
+  "startDate": "开始日期",
+  "delFlag": "删除标志",
+  "version": "版本",
+  "itemCodeX": "编码"
+}

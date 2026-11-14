@@ -1,226 +1,173 @@
 package org.tuoyu.common.core.utils;
 
-import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.convert.Convert;
 import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.StrUtil;
 import org.apache.commons.lang3.Strings;
 import org.springframework.util.AntPathMatcher;
 
-import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
- * 字符串工具类
+ * 字符串工具。
+ * <p>
+ * 继承 commons-lang3 的 {@link org.apache.commons.lang3.StringUtils}，继承的方法按 commons 的语义工作
+ * （例如 {@code isBlank} 只把 {@link Character#isWhitespace(char)} 当作空白）。本类声明的方法中，
+ * {@link #blankToDefault}、{@link #trim} 按 hutool 的空白字符判断（还包括不换行空格、全角空格等）；
+ * 比较、查找与替换方法委托 commons 的 {@link Strings#CS}（区分大小写）与 {@link Strings#CI}（忽略大小写）。
+ * <p>
+ * 全部方法无状态，线程安全。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public class StringUtils extends org.apache.commons.lang3.StringUtils {
 
+    /**
+     * 逗号
+     */
     public static final String SEPARATOR = ",";
 
+    /**
+     * 斜杠
+     */
     public static final String SLASH = "/";
 
+    /**
+     * 冒号
+     */
     public static final String COLON = ":";
 
-    private static final AntPathMatcher ANT_PATH_MATCHER = new AntPathMatcher();
+    /**
+     * 默认设置：分隔符 {@code /}、区分大小写、不修剪；只读使用，可以共享
+     */
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
-    @Deprecated
     private StringUtils() {
     }
 
     /**
-     * 获取参数不为空值
-     *
-     * @param str defaultValue 要判断的value
-     * @return value 返回值
+     * @param str          字符串
+     * @param defaultValue 默认值
+     * @return str 为空白（null、空串或只有 hutool 意义上的空白字符）时返回默认值，否则返回 str
      */
     public static String blankToDefault(String str, String defaultValue) {
         return StrUtil.blankToDefault(str, defaultValue);
     }
 
     /**
-     * * 判断一个字符串是否为空串
+     * 去掉两端的空白字符（hutool 意义上的空白，含不换行空格、全角空格）。
      *
-     * @param str String
-     * @return true：为空 false：非空
-     */
-    public static boolean isEmpty(String str) {
-        return StrUtil.isEmpty(str);
-    }
-
-    /**
-     * * 判断一个字符串是否为非空串
-     *
-     * @param str String
-     * @return true：非空串 false：空串
-     */
-    public static boolean isNotEmpty(String str) {
-        return !isEmpty(str);
-    }
-
-    /**
-     * 去空格
+     * @param str 字符串
+     * @return 去掉空白后的字符串；null 返回 null
      */
     public static String trim(String str) {
         return StrUtil.trim(str);
     }
 
     /**
-     * 截取字符串
+     * 截取字符串：负数下标从末尾倒数，超出范围的取边界，起止颠倒时交换。
      *
      * @param str   字符串
-     * @param start 开始
-     * @return 结果
+     * @param start 开始位置（包含）
+     * @param end   结束位置（不包含）
+     * @return 截取的部分；str 为 null 时返回 null
      */
-    public static String substring(final String str, int start) {
-        return substring(str, start, str.length());
-    }
-
-    /**
-     * 截取字符串
-     *
-     * @param str   字符串
-     * @param start 开始
-     * @param end   结束
-     * @return 结果
-     */
-    public static String substring(final String str, int start, int end) {
+    public static String substring(String str, int start, int end) {
         return StrUtil.sub(str, start, end);
     }
 
     /**
-     * 格式化文本, {} 表示占位符<br>
-     * 此方法只是简单将占位符 {} 按照顺序替换为参数<br>
-     * 如果想输出 {} 使用 \\转义 { 即可，如果想输出 {} 之前的 \ 使用双转义符 \\\\ 即可<br>
-     * 例：<br>
-     * 通常使用：format("this is {} for {}", "a", "b") -> this is a for b<br>
-     * 转义{}： format("this is \\{} for {}", "a", "b") -> this is {} for a<br>
-     * 转义\： format("this is \\\\{} for {}", "a", "b") -> this is \a for b<br>
+     * 格式化文本：{@code {}} 按顺序替换为参数，{@code \{}} 转义；参数不足时保留剩余的占位符。
      *
-     * @param template 文本模板，被替换的部分用 {} 表示
-     * @param params   参数值
-     * @return 格式化后的文本
+     * @param template 模板
+     * @param params   参数
+     * @return 格式化后的文本；模板为 null 时返回 {@code "null"}
      */
     public static String format(String template, Object... params) {
         return StrUtil.format(template, params);
     }
 
     /**
-     * 是否为http(s)://开头
-     *
      * @param link 链接
-     * @return 结果
+     * @return 是否为能构造 {@link java.net.URL} 的地址（JDK 认识的协议，例如 http、https、ftp、file）
      */
     public static boolean ishttp(String link) {
         return Validator.isUrl(link);
     }
 
     /**
-     * 字符串转set
+     * 拆分字符串。
      *
+     * @param str         字符串
+     * @param sep         分隔符（正则表达式，末尾的空段按 {@link String#split(String)} 的规则丢弃）
+     * @param filterBlank 是否跳过空白段
+     * @param trim        是否去掉每段两端的空白
+     * @return 可修改的列表；str 为 null 或空串时为空列表
+     */
+    public static List<String> str2List(String str, String sep, boolean filterBlank, boolean trim) {
+        List<String> list = new ArrayList<>();
+        if (isEmpty(str) || (filterBlank && isBlank(str))) {
+            return list;
+        }
+        for (String part : str.split(sep)) {
+            if (filterBlank && isBlank(part)) {
+                continue;
+            }
+            list.add(trim ? trim(part) : part);
+        }
+        return list;
+    }
+
+    /**
      * @param str 字符串
-     * @param sep 分隔符
-     * @return set集合
+     * @param sep 分隔符（正则表达式）
+     * @return 拆分后的非空白段组成的集合
      */
     public static Set<String> str2Set(String str, String sep) {
         return new HashSet<>(str2List(str, sep, true, false));
     }
 
     /**
-     * 字符串转list
-     *
-     * @param str         字符串
-     * @param sep         分隔符
-     * @param filterBlank 过滤纯空白
-     * @param trim        去掉首尾空白
-     * @return list集合
-     */
-    public static List<String> str2List(String str, String sep, boolean filterBlank, boolean trim) {
-        List<String> list = new ArrayList<>();
-        if (isEmpty(str)) {
-            return list;
-        }
-
-        // 过滤空白字符串
-        if (filterBlank && isBlank(str)) {
-            return list;
-        }
-        String[] split = str.split(sep);
-        for (String string : split) {
-            if (filterBlank && isBlank(string)) {
-                continue;
-            }
-            if (trim) {
-                string = trim(string);
-            }
-            list.add(string);
-        }
-
-        return list;
-    }
-
-    /**
-     * 查找指定字符串是否包含指定字符串列表中的任意一个字符串同时串忽略大小写
-     *
-     * @param cs                  指定字符串
-     * @param searchCharSequences 需要检查的字符串数组
-     * @return 是否包含任意一个字符串
-     */
-    public static boolean containsAnyIgnoreCase(CharSequence cs, CharSequence... searchCharSequences) {
-        return StrUtil.containsAnyIgnoreCase(cs, searchCharSequences);
-    }
-
-    /**
-     * 驼峰转下划线命名
+     * @param str 驼峰形式，例如 {@code userName}
+     * @return 下划线形式，例如 {@code user_name}
      */
     public static String toUnderScoreCase(String str) {
         return StrUtil.toUnderlineCase(str);
     }
 
     /**
-     * 是否包含字符串
-     *
-     * @param str  验证字符串
-     * @param strs 字符串组
-     * @return 包含返回true
-     */
-    public static boolean inStringIgnoreCase(String str, String... strs) {
-        return StrUtil.equalsAnyIgnoreCase(str, strs);
-    }
-
-    /**
-     * 将下划线大写方式命名的字符串转换为驼峰式。如果转换前的下划线大写方式命名的字符串为空，则返回空字符串。 例如：HELLO_WORLD->HelloWorld
-     *
-     * @param name 转换前的下划线大写方式命名的字符串
-     * @return 转换后的驼峰式命名的字符串
-     */
-    public static String convertToCamelCase(String name) {
-        return StrUtil.upperFirst(StrUtil.toCamelCase(name));
-    }
-
-    /**
-     * 驼峰式命名法 例如：user_name->userName
+     * @param s 下划线形式，例如 {@code user_name}
+     * @return 驼峰形式，例如 {@code userName}
      */
     public static String toCamelCase(String s) {
         return StrUtil.toCamelCase(s);
     }
 
     /**
-     * 查找指定字符串是否匹配指定字符串列表中的任意一个字符串
-     *
-     * @param str  指定字符串
-     * @param strs 需要检查的字符串数组
-     * @return 是否匹配
+     * @param name 下划线形式，例如 {@code HELLO_WORLD}
+     * @return 首字母大写的驼峰形式，例如 {@code HelloWorld}；null 返回 null
      */
-    public static boolean matches(String str, List<String> strs) {
-        if (isEmpty(str) || CollUtil.isEmpty(strs)) {
+    public static String convertToCamelCase(String name) {
+        return StrUtil.upperFirst(toCamelCase(name));
+    }
+
+    /**
+     * 按 Ant 路径规则匹配：{@code ?} 一个字符，{@code *} 一层路径内任意字符，{@code **} 任意层；区分大小写。
+     * 用于客户端的接口路径授权。
+     *
+     * @param str      路径
+     * @param patterns 规则
+     * @return 是否匹配任一规则；路径为空或没有规则时为 false
+     */
+    public static boolean matches(String str, List<String> patterns) {
+        if (isEmpty(str) || patterns == null || patterns.isEmpty()) {
             return false;
         }
-        for (String pattern : strs) {
-            if (isMatch(pattern, str)) {
+        for (String pattern : patterns) {
+            if (PATH_MATCHER.match(pattern, str)) {
                 return true;
             }
         }
@@ -228,115 +175,65 @@ public class StringUtils extends org.apache.commons.lang3.StringUtils {
     }
 
     /**
-     * 判断url是否与规则配置:
-     * ? 表示单个字符;
-     * * 表示一层路径内的任意字符串，不可跨层级;
-     * ** 表示任意层路径;
-     *
-     * @param pattern 匹配规则
-     * @param url     需要匹配的url
-     */
-    public static boolean isMatch(String pattern, String url) {
-        return ANT_PATH_MATCHER.match(pattern, url);
-    }
-
-    /**
-     * 数字左边补齐0，使之达到指定长度。注意，如果数字转换为字符串后，长度大于size，则只保留 最后size个字符。
-     *
-     * @param num  数字对象
-     * @param size 字符串指定长度
-     * @return 返回数字的字符串格式，该字符串为指定长度。
-     */
-    public static String padl(final Number num, final int size) {
-        return padl(num.toString(), size, '0');
-    }
-
-    /**
-     * 字符串左补齐。如果原始字符串s长度大于size，则只保留最后size个字符。
-     *
-     * @param s    原始字符串
-     * @param size 字符串指定长度
-     * @param c    用于补齐的字符
-     * @return 返回指定长度的字符串，由原字符串左补齐或截取得到。
-     */
-    public static String padl(final String s, final int size, final char c) {
-        final StringBuilder sb = new StringBuilder(size);
-        if (s != null) {
-            final int len = s.length();
-            if (s.length() <= size) {
-                sb.append(Convert.toStr(c).repeat(size - len));
-                sb.append(s);
-            } else {
-                return s.substring(len - size, len);
-            }
-        } else {
-            sb.append(Convert.toStr(c).repeat(Math.max(0, size)));
-        }
-        return sb.toString();
-    }
-
-    /**
-     * 切分字符串(分隔符默认逗号)
-     *
-     * @param str 被切分的字符串
-     * @return 分割后的数据列表
+     * @param str 用逗号分隔的字符串
+     * @return 拆分后的各段（保留空段与空白）
      */
     public static List<String> splitList(String str) {
-        return splitTo(str, Convert::toStr);
+        return splitTo(str, String::valueOf);
     }
 
     /**
-     * 切分字符串
-     *
-     * @param str       被切分的字符串
-     * @param separator 分隔符
-     * @return 分割后的数据列表
+     * @param str       字符串
+     * @param separator 分隔符（字面量）
+     * @return 拆分后的各段（保留空段与空白）
      */
     public static List<String> splitList(String str, String separator) {
-        return splitTo(str, separator, Convert::toStr);
+        return splitTo(str, separator, String::valueOf);
     }
 
     /**
-     * 切分字符串自定义转换(分隔符默认逗号)
-     *
-     * @param str    被切分的字符串
-     * @param mapper 自定义转换
-     * @return 分割后的数据列表
+     * @param str    用逗号分隔的字符串
+     * @param mapper 每段的转换函数，返回 null 的段丢弃
+     * @param <T>    转换结果的类型
+     * @return 可修改的列表
      */
     public static <T> List<T> splitTo(String str, Function<? super Object, T> mapper) {
         return splitTo(str, SEPARATOR, mapper);
     }
 
     /**
-     * 切分字符串自定义转换
+     * 按分隔符的字面量拆分（不是正则），不去空白、保留空段，例如 {@code "a,,b"} 得到 {@code a}、空串、{@code b}。
      *
-     * @param str       被切分的字符串
-     * @param separator 分隔符
-     * @param mapper    自定义转换
-     * @return 分割后的数据列表
+     * @param str       字符串
+     * @param separator 分隔符（字面量）
+     * @param mapper    每段的转换函数，返回 null 的段丢弃
+     * @param <T>       转换结果的类型
+     * @return 可修改的列表；str 为空白时为空列表
      */
     public static <T> List<T> splitTo(String str, String separator, Function<? super Object, T> mapper) {
+        List<T> list = new ArrayList<>();
         if (isBlank(str)) {
-            return new ArrayList<>(0);
+            return list;
         }
-        return StrUtil.split(str, separator)
-            .stream()
-            .filter(Objects::nonNull)
-            .map(mapper)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+        for (String part : splitLiteral(str, separator)) {
+            T value = mapper.apply(part);
+            if (value != null) {
+                list.add(value);
+            }
+        }
+        return list;
     }
 
     /**
-     * 不区分大小写检查 CharSequence 是否以指定的前缀开头。
-     *
-     * @param str     要检查的 CharSequence 可能为 null
-     * @param prefixs 要查找的前缀可能为 null
-     * @return 是否包含
+     * @param str      字符串
+     * @param prefixes 前缀
+     * @return 是否以任一前缀开头（忽略大小写）
      */
-    public static boolean startWithAnyIgnoreCase(CharSequence str, CharSequence... prefixs) {
-        // 判断是否是以指定字符串开头
-        for (CharSequence prefix : prefixs) {
+    public static boolean startWithAnyIgnoreCase(CharSequence str, CharSequence... prefixes) {
+        if (prefixes == null) {
+            return false;
+        }
+        for (CharSequence prefix : prefixes) {
             if (Strings.CI.startsWith(str, prefix)) {
                 return true;
             }
@@ -345,231 +242,194 @@ public class StringUtils extends org.apache.commons.lang3.StringUtils {
     }
 
     /**
-     * 将字符串从源字符集转换为目标字符集
-     *
-     * @param input       原始字符串
-     * @param fromCharset 源字符集
-     * @param toCharset   目标字符集
-     * @return 转换后的字符串
-     */
-    public static String convert(String input, Charset fromCharset, Charset toCharset) {
-        if (isBlank(input)) {
-            return input;
-        }
-        try {
-            // 从源字符集获取字节
-            byte[] bytes = input.getBytes(fromCharset);
-            // 使用目标字符集解码
-            return new String(bytes, toCharset);
-        } catch (Exception e) {
-            return input;
-        }
-    }
-
-    /**
-     * 将可迭代对象中的元素使用逗号拼接成字符串
-     *
-     * @param iterable 可迭代对象，如 List、Set 等
-     * @return 拼接后的字符串
+     * @param iterable 元素
+     * @return 逗号连接的字符串，null 元素作空串；iterable 为 null 时返回 null
      */
     public static String joinComma(Iterable<?> iterable) {
-        return StringUtils.join(iterable, SEPARATOR);
+        return join(iterable, SEPARATOR);
     }
 
     /**
-     * 将数组中的元素使用逗号拼接成字符串
-     *
-     * @param array 任意类型的数组
-     * @return 拼接后的字符串
+     * @param array 元素
+     * @return 逗号连接的字符串，null 元素作空串；array 为 null 时返回 null
      */
     public static String joinComma(Object[] array) {
-        return StringUtils.join(array, SEPARATOR);
+        return join(array, SEPARATOR);
     }
 
     /**
-     * 判断两个字符串是否相等
-     *
-     * @param cs1 字符串1
-     * @param cs2 字符串2
-     * @return 是否相等
+     * @param cs1 字符串
+     * @param cs2 字符串
+     * @return 是否相等（区分大小写），两个都为 null 时为 true
      */
-    public static boolean equals(final CharSequence cs1, final CharSequence cs2) {
+    public static boolean equals(CharSequence cs1, CharSequence cs2) {
         return Strings.CS.equals(cs1, cs2);
     }
 
     /**
-     * 判断字符串是否在指定的字符串列表中
-     *
-     * @param string        字符串
-     * @param searchStrings 字符串列表
-     * @return 是否在列表中
+     * @param cs1 字符串
+     * @param cs2 字符串
+     * @return 忽略大小写是否相等，两个都为 null 时为 true
      */
-    public static boolean equalsAny(final CharSequence string, final CharSequence... searchStrings) {
-        return Strings.CS.equalsAny(string, searchStrings);
-    }
-
-    /**
-     * 忽略大小写判断字符串是否在指定的字符串列表中
-     *
-     * @param string        字符串
-     * @param searchStrings 字符串列表
-     * @return 是否在列表中
-     */
-    public static boolean equalsAnyIgnoreCase(final CharSequence string, final CharSequence... searchStrings) {
-        return Strings.CI.equalsAny(string, searchStrings);
-    }
-
-    /**
-     * 忽略大小写判断两个字符串是否相等
-     *
-     * @param cs1 字符串1
-     * @param cs2 字符串2
-     * @return 是否相等
-     */
-    public static boolean equalsIgnoreCase(final CharSequence cs1, final CharSequence cs2) {
+    public static boolean equalsIgnoreCase(CharSequence cs1, CharSequence cs2) {
         return Strings.CI.equals(cs1, cs2);
     }
 
     /**
-     * 检查指定的字符序列中是否包含另一个字符序列。
-     *
-     * @param seq       要检查的字符序列，不能为null
-     * @param searchSeq 要搜索的字符序列，不能为null
-     * @return 如果seq中包含searchSeq，则返回true；否则返回false
+     * @param string        字符串
+     * @param searchStrings 候选
+     * @return 是否与任一候选相等（区分大小写）
      */
-    public static boolean contains(final CharSequence seq, final CharSequence searchSeq) {
+    public static boolean equalsAny(CharSequence string, CharSequence... searchStrings) {
+        return Strings.CS.equalsAny(string, searchStrings);
+    }
+
+    /**
+     * @param string        字符串
+     * @param searchStrings 候选
+     * @return 是否与任一候选相等（忽略大小写）
+     */
+    public static boolean equalsAnyIgnoreCase(CharSequence string, CharSequence... searchStrings) {
+        return Strings.CI.equalsAny(string, searchStrings);
+    }
+
+    /**
+     * @param seq       字符串
+     * @param searchSeq 要查找的内容
+     * @return 是否包含（区分大小写），任一为 null 时为 false
+     */
+    public static boolean contains(CharSequence seq, CharSequence searchSeq) {
         return Strings.CS.contains(seq, searchSeq);
     }
 
     /**
-     * 忽略大小写检查指定字符序列中是否包含另一个字符序列。
-     *
-     * @param seq       要检查的字符序列
-     * @param searchSeq 要搜索的字符序列
-     * @return 如果包含则返回 true，否则返回 false
+     * @param str       字符串
+     * @param searchStr 要查找的内容
+     * @return 是否包含（忽略大小写），任一为 null 时为 false
      */
-    public static boolean containsIgnoreCase(final CharSequence seq, final CharSequence searchSeq) {
-        return Strings.CI.contains(seq, searchSeq);
+    public static boolean containsIgnoreCase(CharSequence str, CharSequence searchStr) {
+        return Strings.CI.contains(str, searchStr);
     }
 
     /**
-     * 检查 CharSequence 是否以指定前缀开头。
-     *
-     * @param str    要检查的字符序列
-     * @param prefix 要查找的前缀
-     * @return 如果以指定前缀开头则返回 true，否则返回 false
+     * @param cs                  字符串
+     * @param searchCharSequences 要查找的内容
+     * @return 是否包含任一内容（区分大小写）
      */
-    public static boolean startsWith(final CharSequence str, final CharSequence prefix) {
-        return Strings.CS.startsWith(str, prefix);
-    }
-
-    /**
-     * 忽略大小写检查 CharSequence 是否以指定前缀开头。
-     *
-     * @param str    要检查的字符序列
-     * @param prefix 要查找的前缀
-     * @return 如果以指定前缀开头则返回 true，否则返回 false
-     */
-    public static boolean startsWithIgnoreCase(final CharSequence str, final CharSequence prefix) {
-        return Strings.CI.startsWith(str, prefix);
-    }
-
-    /**
-     * 忽略大小写检查 CharSequence 是否以指定后缀结尾。
-     *
-     * @param str    要检查的字符序列
-     * @param suffix 要查找的后缀
-     * @return 如果以指定后缀结尾则返回 true，否则返回 false
-     */
-    public static boolean endsWithIgnoreCase(final CharSequence str, final CharSequence suffix) {
-        return Strings.CI.endsWith(str, suffix);
-    }
-
-    /**
-     * 返回指定字符序列首次出现的位置。
-     *
-     * @param seq       源字符序列
-     * @param searchSeq 待查找字符序列
-     * @return 首次出现的位置，不存在时返回 -1
-     */
-    public static int indexOf(final CharSequence seq, final CharSequence searchSeq) {
-        if (seq == null || searchSeq == null) {
-            return -1;
-        }
-        return seq.toString().indexOf(searchSeq.toString());
-    }
-
-    /**
-     * 移除字符串中的指定字符序列。
-     *
-     * @param str    要处理的字符串，不能为null
-     * @param remove 要移除的字符序列，不能为null
-     * @return 处理后的字符串
-     */
-    public static String remove(final String str, final String remove) {
-        return Strings.CS.remove(str, remove);
-    }
-
-    /**
-     * 如果字符串以指定前缀开头，则移除该前缀。
-     *
-     * @param str    要处理的字符串
-     * @param remove 要移除的前缀
-     * @return 处理后的字符串
-     */
-    public static String removeStart(final String str, final String remove) {
-        if (isEmpty(str) || isEmpty(remove)) {
-            return str;
-        }
-        return startsWith(str, remove) ? str.substring(remove.length()) : str;
-    }
-
-    /**
-     * 替换字符串中的目标子串。
-     *
-     * @param text         原始字符串
-     * @param searchString 需要替换的子串
-     * @param replacement  替换后的子串
-     * @return 替换后的字符串
-     */
-    public static String replace(final String text, final String searchString, final String replacement) {
-        if (text == null || isEmpty(searchString) || replacement == null) {
-            return text;
-        }
-        return text.replace(searchString, replacement);
-    }
-
-
-    /**
-     * 检查字符串是否包含任意一个指定的字符序列
-     *
-     * @param cs                  要检查的字符串
-     * @param searchCharSequences 需要查找的字符序列数组
-     * @return 如果包含任意一个字符序列返回 true，否则返回 false
-     */
-    public static boolean containsAny(final CharSequence cs, final CharSequence... searchCharSequences) {
+    public static boolean containsAny(CharSequence cs, CharSequence... searchCharSequences) {
         return Strings.CS.containsAny(cs, searchCharSequences);
     }
 
     /**
-     * 将一个字符串替换为较大字符串内的另一个字符串，一次
+     * @param str    字符串
+     * @param prefix 前缀
+     * @return 是否以前缀开头（区分大小写）
      */
-    public static String replaceOnce(final String text, final String searchString, final String replacement) {
-        return Strings.CS.replaceOnce(text, searchString, replacement);
+    public static boolean startsWith(CharSequence str, CharSequence prefix) {
+        return Strings.CS.startsWith(str, prefix);
     }
 
     /**
-     * 测试 CharSequence 是否以所提供的任何后缀结尾。
+     * @param str    字符串
+     * @param prefix 前缀
+     * @return 是否以前缀开头（忽略大小写）
      */
-    public static boolean endsWithAny(final CharSequence sequence, final CharSequence... searchStrings) {
+    public static boolean startsWithIgnoreCase(CharSequence str, CharSequence prefix) {
+        return Strings.CI.startsWith(str, prefix);
+    }
+
+    /**
+     * @param str    字符串
+     * @param suffix 后缀
+     * @return 是否以后缀结尾（区分大小写）
+     */
+    public static boolean endsWith(CharSequence str, CharSequence suffix) {
+        return Strings.CS.endsWith(str, suffix);
+    }
+
+    /**
+     * @param str    字符串
+     * @param suffix 后缀
+     * @return 是否以后缀结尾（忽略大小写）
+     */
+    public static boolean endsWithIgnoreCase(CharSequence str, CharSequence suffix) {
+        return Strings.CI.endsWith(str, suffix);
+    }
+
+    /**
+     * @param sequence      字符串
+     * @param searchStrings 后缀
+     * @return 是否以任一后缀结尾（区分大小写）
+     */
+    public static boolean endsWithAny(CharSequence sequence, CharSequence... searchStrings) {
         return Strings.CS.endsWithAny(sequence, searchStrings);
     }
 
     /**
-     * 测试 CharSequence 是否以指定的后缀结尾。
+     * @param seq       字符串
+     * @param searchSeq 要查找的内容
+     * @return 第一次出现的位置（区分大小写）；没有或任一为 null 时为 -1
      */
-    public static boolean endsWith(final CharSequence str, final CharSequence suffix) {
-        return Strings.CS.endsWith(str, suffix);
+    public static int indexOf(CharSequence seq, CharSequence searchSeq) {
+        return Strings.CS.indexOf(seq, searchSeq);
+    }
+
+    /**
+     * @param str    字符串
+     * @param remove 要去掉的内容
+     * @return 去掉全部该内容后的字符串（区分大小写）
+     */
+    public static String remove(String str, String remove) {
+        return Strings.CS.remove(str, remove);
+    }
+
+    /**
+     * @param str    字符串
+     * @param remove 要去掉的前缀
+     * @return 以该前缀开头时去掉前缀，否则原样返回（区分大小写）
+     */
+    public static String removeStart(String str, String remove) {
+        return Strings.CS.removeStart(str, remove);
+    }
+
+    /**
+     * @param text         字符串
+     * @param searchString 要替换的内容
+     * @param replacement  替换为
+     * @return 替换全部出现之后的字符串（区分大小写）
+     */
+    public static String replace(String text, String searchString, String replacement) {
+        return Strings.CS.replace(text, searchString, replacement);
+    }
+
+    /**
+     * @param text         字符串
+     * @param searchString 要替换的内容
+     * @param replacement  替换为
+     * @return 只替换第一次出现之后的字符串（区分大小写）
+     */
+    public static String replaceOnce(String text, String searchString, String replacement) {
+        return Strings.CS.replaceOnce(text, searchString, replacement);
+    }
+
+    /**
+     * 按字面量拆分，保留全部段（包括开头、中间与末尾的空段）
+     */
+    private static List<String> splitLiteral(String str, String separator) {
+        List<String> parts = new ArrayList<>();
+        if (isEmpty(separator)) {
+            parts.add(str);
+            return parts;
+        }
+        int start = 0;
+        int index = str.indexOf(separator);
+        while (index >= 0) {
+            parts.add(str.substring(start, index));
+            start = index + separator.length();
+            index = str.indexOf(separator, start);
+        }
+        parts.add(str.substring(start));
+        return parts;
     }
 
 }

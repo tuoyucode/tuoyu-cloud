@@ -8,22 +8,26 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.tuoyu.common.mybatis.core.domain.TenantEntity;
 
-/**
- * 角色表 sys_role
- *
- * @author Lion Li
- */
+import java.io.Serial;
 
+/**
+ * 角色 sys_role
+ *
+ * @author tuoyu
+ */
 @Data
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @TableName("sys_role")
 public class SysRole extends TenantEntity {
 
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     /**
-     * 角色ID
+     * 角色 ID
      */
-    @TableId(value = "role_id")
+    @TableId("role_id")
     private Long roleId;
 
     /**
@@ -32,37 +36,37 @@ public class SysRole extends TenantEntity {
     private String roleName;
 
     /**
-     * 角色权限
+     * 角色标识（逗号分隔的多项）
      */
     private String roleKey;
 
     /**
-     * 角色排序
+     * 显示顺序
      */
     private Integer roleSort;
 
     /**
-     * 数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限 5：仅本人数据权限 6：部门及以下或本人数据权限）
+     * 数据范围（1 ~ 6，见 DataScopeType）
      */
     private String dataScope;
 
     /**
-     * 菜单树选择项是否关联显示（ 0：父子不互相关联显示 1：父子互相关联显示）
+     * 菜单树选择项是否父子联动
      */
     private Boolean menuCheckStrictly;
 
     /**
-     * 部门树选择项是否关联显示（0：父子不互相关联显示 1：父子互相关联显示 ）
+     * 部门树选择项是否父子联动
      */
     private Boolean deptCheckStrictly;
 
     /**
-     * 角色状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     private String status;
 
     /**
-     * 删除标志（0代表存在 1代表删除）
+     * 删除标志
      */
     @TableLogic
     private String delFlag;

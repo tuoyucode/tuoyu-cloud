@@ -1,50 +1,45 @@
 package org.tuoyu.system.event;
 
-import cn.hutool.core.collection.CollUtil;
-
 import java.util.Collection;
 import java.util.List;
 
 /**
- * 在线用户清理事件。
+ * 清理在线会话的事件：角色、用户授权或租户状态变化后，强制退出受影响的会话（事务提交后异步执行）。
+ * <p>
+ * 三个范围各用一个静态工厂创建，其余两项为 null。
  *
- * @param roleId   角色 ID，存在时清理拥有该角色的在线用户
- * @param userIds  用户 ID 集合，存在时清理指定在线用户
- * @param tenantId 租户编码，存在时清理该租户的全部在线用户（租户停用、删除后）
+ * @param roleId   拥有该角色的会话
+ * @param userIds  这些用户的会话（复制为不可修改的列表）
+ * @param tenantId 该租户的会话
+ * @author tuoyu
  */
 public record OnlineUserCleanEvent(Long roleId, Collection<Long> userIds, String tenantId) {
 
     public OnlineUserCleanEvent {
-        if (CollUtil.isNotEmpty(userIds)) {
+        if (userIds != null && !userIds.isEmpty()) {
             userIds = List.copyOf(userIds);
         }
     }
 
     /**
-     * 创建按角色清理在线用户事件。
-     *
      * @param roleId 角色 ID
-     * @return 在线用户清理事件
+     * @return 清理拥有该角色的会话
      */
     public static OnlineUserCleanEvent byRole(Long roleId) {
         return new OnlineUserCleanEvent(roleId, null, null);
     }
 
     /**
-     * 创建按用户清理在线用户事件。
-     *
-     * @param userIds 用户 ID 集合
-     * @return 在线用户清理事件
+     * @param userIds 用户 ID
+     * @return 清理这些用户的会话
      */
     public static OnlineUserCleanEvent byUsers(Collection<Long> userIds) {
         return new OnlineUserCleanEvent(null, userIds, null);
     }
 
     /**
-     * 创建按租户清理在线用户事件。
-     *
-     * @param tenantId 租户编码
-     * @return 在线用户清理事件
+     * @param tenantId 租户编号
+     * @return 清理该租户的会话
      */
     public static OnlineUserCleanEvent byTenant(String tenantId) {
         return new OnlineUserCleanEvent(null, null, tenantId);

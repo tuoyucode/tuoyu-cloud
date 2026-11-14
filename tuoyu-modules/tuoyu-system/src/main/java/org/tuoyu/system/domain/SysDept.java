@@ -12,13 +12,11 @@ import java.io.Serial;
 import java.util.ArrayList;
 import java.util.List;
 
-
 /**
- * 部门表 sys_dept
+ * 部门 sys_dept
  *
- * @author Lion Li
+ * @author tuoyu
  */
-
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("sys_dept")
@@ -28,13 +26,13 @@ public class SysDept extends TenantEntity {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 部门ID
+     * 部门 ID
      */
-    @TableId(value = "dept_id")
+    @TableId("dept_id")
     private Long deptId;
 
     /**
-     * 父部门ID
+     * 上级部门 ID
      */
     private Long parentId;
 
@@ -54,7 +52,7 @@ public class SysDept extends TenantEntity {
     private Integer orderNum;
 
     /**
-     * 负责人
+     * 负责人（用户 ID）
      */
     private Long leader;
 
@@ -69,23 +67,23 @@ public class SysDept extends TenantEntity {
     private String email;
 
     /**
-     * 部门状态:0正常,1停用
+     * 状态（0 正常 1 停用）
      */
     private String status;
 
     /**
-     * 删除标志（0代表存在 1代表删除）
+     * 删除标志
      */
     @TableLogic
     private String delFlag;
 
     /**
-     * 祖级列表
+     * 祖级 ID（从根到上级，逗号分隔；根部门为 "0"）
      */
     private String ancestors;
 
     /**
-     * 子菜单
+     * 下级部门（不是表的列）
      */
     @TableField(exist = false)
     private List<SysDept> children = new ArrayList<>();

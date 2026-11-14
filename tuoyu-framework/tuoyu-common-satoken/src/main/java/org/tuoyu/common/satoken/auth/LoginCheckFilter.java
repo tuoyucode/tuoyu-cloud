@@ -99,19 +99,14 @@ public final class LoginCheckFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 不校验登录的路径。只接受不带路径参数、编码字符与 {@code .} 段的规范写法：
+     * 不校验登录的路径。只接受规范写法（{@link RequestAuthenticator#isCanonicalPath}）：
      * 其他写法（例如 {@code /actuator/../system/user}）照常校验登录，避免借跳过的路径访问受保护的接口
      */
     private static boolean isExcluded(String path) {
-        if (!isPlain(path)) {
+        if (!RequestAuthenticator.isCanonicalPath(path)) {
             return false;
         }
         return ActuatorBasicAuthFilter.isActuatorPath(path) || "/error".equals(path) || "/favicon.ico".equals(path);
-    }
-
-    private static boolean isPlain(String path) {
-        return path.indexOf(';') < 0 && path.indexOf('%') < 0 && path.indexOf('\\') < 0
-            && !path.contains("//") && !path.contains("/.");
     }
 
 }

@@ -9,28 +9,27 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 字典项校验注解
+ * 校验值是某个字典中的值，一个字段中有多个值时用分隔符连接、每个都要在字典中。
+ * <p>
+ * null 与空白不校验（是否必填由 {@code @NotBlank} 等决定）。字典来自容器中的 {@code DictService}。
  *
- * @author AprilWind
+ * @author tuoyu
  */
-@Constraint(validatedBy = DictPatternValidator.class)
 @Target({ElementType.FIELD, ElementType.PARAMETER})
 @Retention(RetentionPolicy.RUNTIME)
+@Constraint(validatedBy = DictPatternValidator.class)
 public @interface DictPattern {
 
     /**
-     * 字典类型，如 "sys_user_gender"
+     * 字典类型，例如 {@code sys_user_sex}
      */
     String dictType();
 
     /**
-     * 分隔符
+     * 一个字段中有多个字典值时的分隔符
      */
     String separator() default ",";
 
-    /**
-     * 默认校验失败提示信息
-     */
     String message() default "字典值无效";
 
     Class<?>[] groups() default {};

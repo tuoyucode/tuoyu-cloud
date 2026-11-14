@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.system.domain.SysRole;
 
 import java.io.Serial;
@@ -15,11 +14,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 角色信息业务对象 sys_role
+ * 角色请求对象（新增、修改、权限、列表条件）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
-
 @Data
 @NoArgsConstructor
 @AutoMapper(target = SysRole.class, reverseConvertGenerate = false)
@@ -29,7 +27,7 @@ public class SysRoleBo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 角色ID
+     * 角色 ID
      */
     private Long roleId;
 
@@ -41,7 +39,7 @@ public class SysRoleBo implements Serializable {
     private String roleName;
 
     /**
-     * 角色权限字符串
+     * 角色标识
      */
     @NotBlank(message = "角色权限字符串不能为空")
     @Size(min = 0, max = 100, message = "权限字符长度不能超过{max}个字符")
@@ -54,22 +52,22 @@ public class SysRoleBo implements Serializable {
     private Integer roleSort;
 
     /**
-     * 数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限 5：仅本人数据权限 6：部门及以下或本人数据权限）
+     * 数据范围（1 ~ 6）
      */
     private String dataScope;
 
     /**
-     * 菜单树选择项是否关联显示
+     * 菜单树选择项是否父子联动
      */
     private Boolean menuCheckStrictly;
 
     /**
-     * 部门树选择项是否关联显示
+     * 部门树选择项是否父子联动
      */
     private Boolean deptCheckStrictly;
 
     /**
-     * 角色状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     private String status;
 
@@ -79,26 +77,17 @@ public class SysRoleBo implements Serializable {
     private String remark;
 
     /**
-     * 菜单组
+     * 菜单（修改权限时必须提供，空数组表示没有菜单）
      */
     private Long[] menuIds;
 
     /**
-     * 部门组（数据权限）
+     * 自定义数据范围的部门（修改权限时必须提供，空数组表示没有部门）
      */
     private Long[] deptIds;
 
     /**
-     * 判断当前角色是否为超级管理员角色。
-     *
-     * @return true 是超级管理员角色 false 不是超级管理员角色
-     */
-    public boolean isSuperAdmin() {
-        return SystemConstants.SUPER_ADMIN_ROLE_ID.equals(this.roleId);
-    }
-
-    /**
-     * 请求参数
+     * 请求参数（创建时间区间 beginTime、endTime）
      */
     private Map<String, Object> params = new HashMap<>();
 

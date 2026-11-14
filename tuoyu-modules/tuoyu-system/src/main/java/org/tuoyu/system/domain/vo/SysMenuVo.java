@@ -10,11 +10,10 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-
 /**
- * 菜单权限视图对象 sys_menu
+ * 菜单视图
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @AutoMapper(target = SysMenu.class)
@@ -24,7 +23,7 @@ public class SysMenuVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 菜单ID
+     * 菜单 ID
      */
     private Long menuId;
 
@@ -34,7 +33,7 @@ public class SysMenuVo implements Serializable {
     private String menuName;
 
     /**
-     * 父菜单ID
+     * 上级菜单 ID
      */
     private Long parentId;
 
@@ -59,42 +58,42 @@ public class SysMenuVo implements Serializable {
     private String queryParam;
 
     /**
-     * 是否为外链（Y是 N否）
+     * 是否外链（Y 是 N 否）
      */
     private String isFrame;
 
     /**
-     * 是否缓存（Y缓存 N不缓存）
+     * 是否缓存（Y 缓存 N 不缓存）
      */
     private String isCache;
 
     /**
-     * 菜单类型（M目录 C菜单 F按钮）
+     * 类型（M 目录 C 菜单 F 按钮）
      */
     private String menuType;
 
     /**
-     * 显示状态（0显示 1隐藏）
+     * 显示状态（0 显示 1 隐藏）
      */
     private String visible;
 
     /**
-     * 菜单状态（0正常 1停用）
+     * 菜单状态（0 正常 1 停用）
      */
     private String status;
 
     /**
-     * 权限标识
+     * 权限码
      */
     private String perms;
 
     /**
-     * 菜单图标
+     * 图标
      */
     private String icon;
 
     /**
-     * 激活菜单路径
+     * 激活的菜单路径
      */
     private String activeMenu;
 

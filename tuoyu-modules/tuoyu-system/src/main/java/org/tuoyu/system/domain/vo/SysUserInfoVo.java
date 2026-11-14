@@ -7,9 +7,9 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 用户信息
+ * 用户详情：用户与可选、已选的角色和岗位
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 public class SysUserInfoVo implements Serializable {
@@ -18,27 +18,27 @@ public class SysUserInfoVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户信息
+     * 用户
      */
     private SysUserVo user;
 
     /**
-     * 角色ID列表
+     * 用户已有的角色 ID
      */
     private List<Long> roleIds;
 
     /**
-     * 角色列表
+     * 可选的角色
      */
     private List<SysRoleVo> roles;
 
     /**
-     * 岗位ID列表
+     * 用户已有的岗位 ID
      */
     private List<Long> postIds;
 
     /**
-     * 岗位列表
+     * 可选的岗位
      */
     private List<SysPostVo> posts;
 

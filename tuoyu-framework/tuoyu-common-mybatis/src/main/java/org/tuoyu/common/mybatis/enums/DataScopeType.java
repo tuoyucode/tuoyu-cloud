@@ -1,86 +1,73 @@
 package org.tuoyu.common.mybatis.enums;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import org.tuoyu.common.core.utils.StringUtils;
-import org.tuoyu.common.mybatis.helper.DataPermissionHelper;
-
 /**
- * 数据权限类型枚举
+ * 角色的数据范围。编码是角色表 {@code data_scope} 字段的存储值。
  * <p>
- * 支持使用 SpEL 模板表达式定义 SQL 查询条件
- * 内置数据：
- * - {@code user}: 当前用户信息，参考 {@link org.tuoyu.common.core.context.CurrentUser}
- * 内置服务：
- * - {@code sdss}: 系统数据权限服务，参考 SysDataScopeService
- * 如需扩展数据，可以通过 {@link DataPermissionHelper} 进行操作
- * 如需扩展服务，可以通过 SysDataScopeService 自行编写
- * </p>
+ * 各范围生成的 SQL 条件见 {@code DataPermissionSqlHandler}。
  *
- * @author Lion Li
- * @version 3.5.0
+ * @author tuoyu
  */
-@Getter
-@AllArgsConstructor
 public enum DataScopeType {
 
     /**
-     * 全部数据权限
+     * 全部数据
      */
-    ALL("1", "", ""),
+    ALL("1"),
 
     /**
-     * 自定数据权限
+     * 角色自定义的部门
      */
-    CUSTOM("2", " #{#deptName} IN ( #{@sdss.getRoleCustom( #roleId )} ) ", " 1 = 0 "),
+    CUSTOM("2"),
 
     /**
-     * 部门数据权限
+     * 本部门
      */
-    DEPT("3", " #{#deptName} = #{#user.deptId} ", " 1 = 0 "),
+    DEPT("3"),
 
     /**
-     * 部门及以下数据权限
+     * 本部门及以下
      */
-    DEPT_AND_CHILD("4", " #{#deptName} IN ( #{@sdss.getDeptAndChild( #user.deptId )} )", " 1 = 0 "),
+    DEPT_AND_CHILD("4"),
 
     /**
-     * 仅本人数据权限
+     * 仅本人
      */
-    SELF("5", " #{#userName} = #{#user.userId} ", " 1 = 0 "),
+    SELF("5"),
 
     /**
-     * 部门及以下或本人数据权限
+     * 本部门及以下或本人
      */
-    DEPT_AND_CHILD_OR_SELF("6", " #{#deptName} IN ( #{@sdss.getDeptAndChild( #user.deptId )} ) OR #{#userName} = #{#user.userId} ", " 1 = 0 ");
+    DEPT_AND_CHILD_OR_SELF("6");
 
     private final String code;
 
-    /**
-     * SpEL 模板表达式，用于构建 SQL 条件
-     */
-    private final String sqlTemplate;
+    DataScopeType(String code) {
+        this.code = code;
+    }
 
     /**
-     * 如果不满足 {@code sqlTemplate} 的条件，则使用此默认 SQL 表达式
+     * @return 角色表中保存的编码
      */
-    private final String elseSql;
+    public String getCode() {
+        return code;
+    }
 
     /**
-     * 根据枚举代码查找对应的枚举值
+     * 按编码精确查找（不去空白、不忽略大小写）。
      *
-     * @param code 枚举代码
-     * @return 对应的枚举值，如果未找到则返回 null
+     * @param code 编码
+     * @return 对应的数据范围；编码为 null、空白或不认识时为 null
      */
     public static DataScopeType findCode(String code) {
-        if (StringUtils.isBlank(code)) {
+        if (code == null || code.isBlank()) {
             return null;
         }
         for (DataScopeType type : values()) {
-            if (type.getCode().equals(code)) {
+            if (type.code.equals(code)) {
                 return type;
             }
         }
         return null;
     }
+
 }

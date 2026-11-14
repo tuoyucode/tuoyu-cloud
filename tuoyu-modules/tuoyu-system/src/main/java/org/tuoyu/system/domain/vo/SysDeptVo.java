@@ -15,9 +15,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 部门视图对象 sys_dept
+ * 部门视图
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @ExcelIgnoreUnannotated
@@ -28,23 +28,23 @@ public class SysDeptVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 部门id
+     * 部门 ID
      */
     @ExcelProperty(value = "部门id")
     private Long deptId;
 
     /**
-     * 父部门id
+     * 上级部门 ID
      */
     private Long parentId;
 
     /**
-     * 父部门名称
+     * 上级部门名称
      */
     private String parentName;
 
     /**
-     * 祖级列表
+     * 祖级 ID
      */
     private String ancestors;
 
@@ -66,12 +66,12 @@ public class SysDeptVo implements Serializable {
     private Integer orderNum;
 
     /**
-     * 负责人ID
+     * 负责人（用户 ID）
      */
     private Long leader;
 
     /**
-     * 负责人
+     * 负责人名称
      */
     @ExcelProperty(value = "负责人")
     private String leaderName;
@@ -89,7 +89,7 @@ public class SysDeptVo implements Serializable {
     private String email;
 
     /**
-     * 部门状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     @ExcelProperty(value = "部门状态", converter = ExcelDictConvert.class)
     @ExcelDictFormat(dictType = "sys_normal_disable")
@@ -102,7 +102,7 @@ public class SysDeptVo implements Serializable {
     private LocalDateTime createTime;
 
     /**
-     * 子菜单
+     * 下级部门
      */
     private List<SysDeptVo> children = new ArrayList<>();
 

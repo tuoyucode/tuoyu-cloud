@@ -13,11 +13,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 岗位信息业务对象 sys_post
+ * 岗位请求对象（新增、修改、列表条件）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
-
 @Data
 @AutoMapper(target = SysPost.class, reverseConvertGenerate = false)
 public class SysPostBo implements Serializable {
@@ -26,18 +25,18 @@ public class SysPostBo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 岗位ID
+     * 岗位 ID
      */
     private Long postId;
 
     /**
-     * 部门id（单部门）
+     * 所属部门 ID
      */
     @NotNull(message = "部门id不能为空")
     private Long deptId;
 
     /**
-     * 归属部门id（部门树）
+     * 按该部门及其下级搜索
      */
     private Long belongDeptId;
 
@@ -68,7 +67,7 @@ public class SysPostBo implements Serializable {
     private Integer postSort;
 
     /**
-     * 状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     private String status;
 
@@ -78,9 +77,8 @@ public class SysPostBo implements Serializable {
     private String remark;
 
     /**
-     * 请求参数
+     * 请求参数（创建时间区间 beginTime、endTime）
      */
     private Map<String, Object> params = new HashMap<>();
-
 
 }

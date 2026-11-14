@@ -1,9 +1,9 @@
 package org.tuoyu.common.core.constant;
 
 /**
- * 系统常量信息
+ * 系统管理使用的常量。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface SystemConstants {
 
@@ -13,7 +13,7 @@ public interface SystemConstants {
     String NORMAL = "0";
 
     /**
-     * 异常状态
+     * 停用状态
      */
     String DISABLE = "1";
 
@@ -28,64 +28,58 @@ public interface SystemConstants {
     String NO = "N";
 
     /**
-     * 菜单类型（目录）
+     * 菜单类型：目录
      */
     String TYPE_DIR = "M";
 
     /**
-     * 菜单类型（菜单）
+     * 菜单类型：菜单
      */
     String TYPE_MENU = "C";
 
     /**
-     * 菜单类型（按钮）
+     * 菜单类型：按钮
      */
     String TYPE_BUTTON = "F";
 
     /**
-     * Layout组件标识
+     * 前端布局组件
      */
     String LAYOUT = "Layout";
 
     /**
-     * ParentView组件标识
+     * 前端多级菜单的中间层组件
      */
     String PARENT_VIEW = "ParentView";
 
     /**
-     * InnerLink组件标识
+     * 前端内嵌外链的组件
      */
     String INNER_LINK = "InnerLink";
 
     /**
-     * 超级管理员用户ID
+     * 超级管理员的用户 ID
      */
     Long SUPER_ADMIN_USER_ID = 1761100000000000001L;
 
     /**
-     * 超级管理员角色ID
+     * 超级管理员的角色 ID
      */
     Long SUPER_ADMIN_ROLE_ID = 1761300000000000001L;
 
     /**
-     * 超级管理员角色 roleKey
+     * 超级管理员的角色权限字符串
      */
     String SUPER_ADMIN_ROLE_KEY = "superadmin";
 
     /**
-     * 根部门祖级列表
+     * 根部门的祖级列表
      */
     String ROOT_DEPT_ANCESTORS = "0";
 
     /**
-     * 默认部门 ID
-     */
-    Long DEFAULT_DEPT_ID = 1761000000000000100L;
-
-    /**
-     * 排除敏感属性字段
+     * 写日志时要去掉的口令字段
      */
     String[] EXCLUDE_PROPERTIES = {"password", "oldPassword", "newPassword", "confirmPassword"};
-
 
 }

@@ -10,8 +10,7 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 选择用户时的用户信息（工作流转办、委派、加签、抄送等）：只有识别用户所需的字段，
- * 不含手机号、邮箱等联系方式，所以只要登录即可查询
+ * 选择用户时的候选项：只有识别信息，不含联系方式
  *
  * @author tuoyu
  */
@@ -23,22 +22,22 @@ public class SysUserOptionVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户ID
+     * 用户 ID
      */
     private Long userId;
 
     /**
-     * 用户账号
+     * 账号
      */
     private String userName;
 
     /**
-     * 用户昵称
+     * 昵称
      */
     private String nickName;
 
     /**
-     * 部门ID
+     * 部门 ID
      */
     private Long deptId;
 

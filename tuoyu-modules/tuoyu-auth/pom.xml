@@ -38,11 +38,6 @@
             <artifactId>tuoyu-common-selfcheck</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>cn.hutool</groupId>
-            <artifactId>hutool-captcha</artifactId>
-        </dependency>
-
         <!-- TuoYu Common Security-->
         <dependency>
             <groupId>org.tuoyu</groupId>

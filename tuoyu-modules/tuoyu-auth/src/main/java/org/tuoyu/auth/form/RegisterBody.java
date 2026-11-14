@@ -1,38 +1,29 @@
 package org.tuoyu.auth.form;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.tuoyu.common.core.domain.model.LoginBody;
 import org.hibernate.validator.constraints.Length;
 
 /**
- * 用户注册对象
+ * 用户注册
  *
- * @author Lion Li
+ * @param username 用户名
+ * @param password 密码
+ * @param userType 用户类型：{@code sys_user} 或 {@code app_user}
+ * @param tenantId 租户编码，开启多租户时必填
+ * @param code     图形验证码，开启验证码时必填
+ * @param uuid     图形验证码标识
+ * @author tuoyu
  */
-@Data
-@EqualsAndHashCode(callSuper = true)
-public class RegisterBody extends LoginBody {
-
-    /**
-     * 用户名
-     */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record RegisterBody(
     @NotBlank(message = "{user.username.not.blank}")
-    @Length(min = 2, max = 30, message = "{user.username.length.valid}")
-    private String username;
-
-    /**
-     * 用户密码
-     */
+    @Length(min = 2, max = 30, message = "{user.username.length.valid}") String username,
     @NotBlank(message = "{user.password.not.blank}")
-    @Length(min = 5, max = 30, message = "{user.password.length.valid}")
-//    @Pattern(regexp = RegexConstants.PASSWORD, message = "{user.password.format.valid}")
-    private String password;
-
-    /**
-     * 用户类型
-     */
-    private String userType;
+    @Length(min = 5, max = 30, message = "{user.password.length.valid}") String password,
+    String userType,
+    String tenantId,
+    String code,
+    String uuid) {
 
 }

@@ -2,46 +2,42 @@ package org.tuoyu.common.core.validate.dicts;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
+import org.springframework.beans.factory.ObjectProvider;
 import org.tuoyu.common.core.service.DictService;
-import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 
 /**
- * 自定义字典值校验器
+ * {@link DictPattern} 的校验器。
+ * <p>
+ * 由 Spring 的校验器（{@code LocalValidatorFactoryBean}）经容器创建并注入字典服务。字典服务可能经跨服务调用提供，
+ * 所以每次校验时才取：容器中没有字典服务时抛出异常，不当作校验通过。
+ * 初始化后只读，线程安全。
  *
- * @author AprilWind
+ * @author tuoyu
  */
 public class DictPatternValidator implements ConstraintValidator<DictPattern, String> {
 
-    /**
-     * 字典类型
-     */
+    private final ObjectProvider<DictService> dictService;
+
     private String dictType;
 
-    /**
-     * 分隔符
-     */
-    private String separator = ",";
+    private String separator;
 
     /**
-     * 初始化校验器，提取注解上的字典类型
-     *
-     * @param annotation 注解实例
+     * @param dictService 字典服务，校验时才取
      */
+    public DictPatternValidator(ObjectProvider<DictService> dictService) {
+        this.dictService = dictService;
+    }
+
     @Override
     public void initialize(DictPattern annotation) {
         this.dictType = annotation.dictType();
-        if (StringUtils.isNotBlank(annotation.separator())) {
-            this.separator = annotation.separator();
-        }
+        this.separator = StringUtils.isBlank(annotation.separator()) ? StringUtils.SEPARATOR : annotation.separator();
     }
 
     /**
-     * 校验字段值是否为指定字典类型中的合法值
-     *
-     * @param value   被校验的字段值
-     * @param context 校验上下文（可用于构建错误信息）
-     * @return true 表示校验通过（合法字典值），false 表示不通过
+     * 把整个值连同分隔符交给字典服务：多个值的拆分与“全部存在”的判断由字典服务完成。
      */
     @Override
     public boolean isValid(String value, ConstraintValidatorContext context) {
@@ -51,8 +47,11 @@ public class DictPatternValidator implements ConstraintValidator<DictPattern, St
         if (StringUtils.isBlank(dictType)) {
             return false;
         }
-        String dictLabel = SpringUtils.getBean(DictService.class).getDictLabel(dictType, value, separator);
-        return StringUtils.isNotBlank(dictLabel);
+        DictService service = dictService.getIfAvailable();
+        if (service == null) {
+            throw new IllegalStateException("容器中没有 DictService，无法校验字典值（字典类型 " + dictType + "）");
+        }
+        return StringUtils.isNotBlank(service.getDictLabel(dictType, value, separator));
     }
 
 }

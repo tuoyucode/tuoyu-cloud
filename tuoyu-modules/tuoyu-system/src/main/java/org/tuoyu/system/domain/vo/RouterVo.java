@@ -8,9 +8,9 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 路由配置信息
+ * 前端路由：null、空串与空集合都不输出
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Data
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
@@ -20,7 +20,7 @@ public class RouterVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 路由名字
+     * 路由名称
      */
     private String name;
 
@@ -30,22 +30,22 @@ public class RouterVo implements Serializable {
     private String path;
 
     /**
-     * 是否隐藏路由，当设置 true 的时候该路由不会再侧边栏出现
+     * 是否在侧边栏隐藏
      */
     private Boolean hidden;
 
     /**
-     * 重定向地址，当设置 noRedirect 的时候该路由在面包屑导航中不可被点击
+     * 重定向地址（noRedirect 表示面包屑中不可点击）
      */
     private String redirect;
 
     /**
-     * 组件地址
+     * 组件
      */
     private String component;
 
     /**
-     * 路由参数：如 {"id": 1, "name": "ry"}
+     * 路由参数（JSON）
      */
     private String query;
 
@@ -55,12 +55,12 @@ public class RouterVo implements Serializable {
     private String ext;
 
     /**
-     * 当你一个路由下面的 children 声明的路由大于1个时，自动会变成嵌套的模式--如组件页面
+     * 只有一个子路由时是否仍显示上级
      */
     private Boolean alwaysShow;
 
     /**
-     * 其他元素
+     * 显示信息
      */
     private MetaVo meta;
 

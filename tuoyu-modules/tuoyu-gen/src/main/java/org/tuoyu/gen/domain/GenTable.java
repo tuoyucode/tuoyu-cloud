@@ -9,22 +9,34 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.mybatis.core.domain.BaseEntity;
-import org.tuoyu.gen.constant.GenConstants;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 业务表 gen_table
+ * 业务表（gen_table）：导入的数据库表与它的代码生成配置。
+ * <p>
+ * 表与字段是平台共享的配置，没有租户。{@code options} 保存生成选项的 JSON（树表字段、上级菜单、导出、状态、
+ * 组合唯一与排序），读取详情时拆到同名的非持久化属性中；保存时前端把选项放在 {@code params} 中提交。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("gen_table")
 public class GenTable extends BaseEntity {
+
+    private static final String TPL_CRUD = "crud";
+
+    private static final String TPL_TREE = "tree";
+
+    private static final String TENANT_FIELD = "tenantId";
+
+    /**
+     * 实体基类 BaseEntity 中的审计字段，生成的实体中不声明
+     */
+    private static final String[] BASE_ENTITY_FIELDS = {"createDept", "createBy", "createTime", "updateBy", "updateTime"};
 
     /**
      * 编号
@@ -51,18 +63,18 @@ public class GenTable extends BaseEntity {
     private String tableComment;
 
     /**
-     * 实体类名称(首字母大写)
+     * 实体类名称（首字母大写）
      */
     @NotBlank(message = "实体类名称不能为空")
     private String className;
 
     /**
-     * 使用的模板（crud单表操作 tree树表操作）
+     * 模板类型：crud 单表，tree 树表
      */
     private String tplCategory;
 
     /**
-     * 前端模板类型：ele（Element Plus，对应 fm/vben/ele 下的页面模板）或 antd（Ant Design Vue，fm/vben/antd）
+     * 前端页面模板：ele（Element Plus）、antd（Ant Design Vue）
      */
     private String frontendType;
 
@@ -91,26 +103,26 @@ public class GenTable extends BaseEntity {
     private String functionName;
 
     /**
-     * 生成作者
+     * 作者
      */
     @NotBlank(message = "作者不能为空")
     private String functionAuthor;
 
     /**
-     * 主键信息
+     * 主键字段
      */
     @TableField(exist = false)
     private GenTableColumn pkColumn;
 
     /**
-     * 表列信息
+     * 字段
      */
     @Valid
     @TableField(exist = false)
     private List<GenTableColumn> columns;
 
     /**
-     * 其它生成选项
+     * 生成选项（JSON）
      */
     private String options;
 
@@ -138,31 +150,31 @@ public class GenTable extends BaseEntity {
     private String treeName;
 
     /**
-     * 菜单id列表
+     * 生成菜单 SQL 时使用的菜单编号（主菜单与 5 个按钮）
      */
     @TableField(exist = false)
     private List<Long> menuIds;
 
     /**
-     * 上级菜单ID字段
+     * 上级菜单编号
      */
     @TableField(exist = false)
     private Long parentMenuId;
 
     /**
-     * 上级菜单名称字段
+     * 上级菜单名称
      */
     @TableField(exist = false)
     private String parentMenuName;
 
     /**
-     * 是否启用导出
+     * 是否生成导出
      */
     @TableField(exist = false)
     private Boolean enableExport;
 
     /**
-     * 是否启用状态切换
+     * 是否生成状态切换
      */
     @TableField(exist = false)
     private Boolean enableStatus;
@@ -174,7 +186,7 @@ public class GenTable extends BaseEntity {
     private String statusField;
 
     /**
-     * 是否启用组合唯一校验
+     * 是否生成组合唯一校验
      */
     @TableField(exist = false)
     private Boolean enableUnique;
@@ -186,7 +198,7 @@ public class GenTable extends BaseEntity {
     private List<String> uniqueFields;
 
     /**
-     * 是否启用排序调整
+     * 是否生成排序调整
      */
     @TableField(exist = false)
     private Boolean enableSort;
@@ -198,7 +210,7 @@ public class GenTable extends BaseEntity {
     private String sortField;
 
     /**
-     * 树根节点值
+     * 树根节点的上级编码值
      */
     @TableField(exist = false)
     private String treeRootValue;
@@ -216,80 +228,44 @@ public class GenTable extends BaseEntity {
     private String treeOrderField;
 
     /**
-     * 请求参数
+     * 请求参数：保存时为生成选项，查询时为创建时间区间（beginTime、endTime）。
+     * 本类自己声明，JSON 中总是输出（前端编辑页按它回填选项）
      */
     @TableField(exist = false)
     private Map<String, Object> params = new HashMap<>();
 
     /**
-     * 判断当前业务表是否采用树表模板。
-     *
-     * @return 树表模板返回 {@code true}
+     * @return 是否为树表
      */
     public boolean isTree() {
-        return isTree(this.tplCategory);
+        return TPL_TREE.equals(tplCategory);
     }
 
     /**
-     * 根据模板分类判断是否为树表模板。
-     *
-     * @param tplCategory 模板分类
-     * @return 树表模板返回 {@code true}
-     */
-    public static boolean isTree(String tplCategory) {
-        return tplCategory != null && StringUtils.equals(GenConstants.TPL_TREE, tplCategory);
-    }
-
-    /**
-     * 判断当前业务表是否采用普通 CRUD 模板。
-     *
-     * @return 普通 CRUD 模板返回 {@code true}
+     * @return 是否为单表
      */
     public boolean isCrud() {
-        return isCrud(this.tplCategory);
+        return TPL_CRUD.equals(tplCategory);
     }
 
     /**
-     * 根据模板分类判断是否为普通 CRUD 模板。
-     *
-     * @param tplCategory 模板分类
-     * @return 普通 CRUD 模板返回 {@code true}
-     */
-    public static boolean isCrud(String tplCategory) {
-        return tplCategory != null && StringUtils.equals(GenConstants.TPL_CRUD, tplCategory);
-    }
-
-    /**
-     * 判断指定 Java 字段是否属于基类公共字段。
-     *
-     * @param javaField Java 字段名
-     * @return 基类公共字段返回 {@code true}
-     */
-    public boolean isSuperColumn(String javaField) {
-        if (isTenant() && StringUtils.equalsIgnoreCase(javaField, GenConstants.TENANT_FIELD)) {
-            return true;
-        }
-        return isSuperColumn(this.tplCategory, javaField);
-    }
-
-    /**
-     * 判断业务表是否按租户隔离（有 tenant_id 列）：实体继承 TenantEntity，租户由框架填写，生成的代码中不出现。
-     *
-     * @return 按租户隔离返回 {@code true}
+     * @return 是否按租户隔离（有 Java 属性名为 tenantId 的字段）：生成的实体继承 TenantEntity
      */
     public boolean isTenant() {
         return columns != null && columns.stream()
-            .anyMatch(column -> StringUtils.equalsIgnoreCase(column.getJavaField(), GenConstants.TENANT_FIELD));
+            .anyMatch(column -> StringUtils.equalsIgnoreCase(TENANT_FIELD, column.getJavaField()));
     }
 
     /**
-     * 根据模板分类与字段名判断是否属于基类公共字段。
+     * 实体基类中已有的字段（生成的实体不声明）：审计字段，按租户隔离时还有 tenantId
      *
-     * @param tplCategory 模板分类
-     * @param javaField   Java 字段名
-     * @return 基类公共字段返回 {@code true}
+     * @param javaField Java 属性名
+     * @return 是否为实体基类中的字段（忽略大小写）
      */
-    public static boolean isSuperColumn(String tplCategory, String javaField) {
-        return StringUtils.equalsAnyIgnoreCase(javaField, GenConstants.BASE_ENTITY);
+    public boolean isSuperColumn(String javaField) {
+        if (isTenant() && StringUtils.equalsIgnoreCase(TENANT_FIELD, javaField)) {
+            return true;
+        }
+        return StringUtils.equalsAnyIgnoreCase(javaField, BASE_ENTITY_FIELDS);
     }
 }

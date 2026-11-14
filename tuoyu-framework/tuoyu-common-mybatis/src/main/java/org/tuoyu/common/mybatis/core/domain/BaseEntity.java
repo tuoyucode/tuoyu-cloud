@@ -12,9 +12,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Entity基类
+ * 实体基类：创建与更新的审计字段，以及不映射到列的请求参数。
+ * <p>
+ * 审计字段在插入、更新时由 {@code InjectionMetaObjectHandler} 填充，业务代码不需要手工设置。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Data
 public class BaseEntity implements Serializable {
@@ -53,7 +55,7 @@ public class BaseEntity implements Serializable {
     private LocalDateTime updateTime;
 
     /**
-     * 请求参数
+     * 请求参数（例如区间查询的起止值），不是表的列
      */
     @JsonInclude(JsonInclude.Include.NON_EMPTY)
     @TableField(exist = false)

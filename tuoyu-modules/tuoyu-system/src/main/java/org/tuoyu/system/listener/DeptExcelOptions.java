@@ -1,36 +1,22 @@
 package org.tuoyu.system.listener;
 
-import cn.hutool.core.lang.tree.Tree;
-import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.utils.SpringUtils;
-import org.tuoyu.common.core.utils.TreeBuildUtils;
-import org.tuoyu.common.excel.core.ExcelOptionsProvider;
-import org.tuoyu.system.domain.bo.SysDeptBo;
-import org.tuoyu.system.service.ISysDeptService;
 import org.springframework.stereotype.Component;
+import org.tuoyu.common.excel.core.ExcelOptionsProvider;
 
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Excel 部门下拉选项数据源
+ * 用户导入模板中部门列的下拉选项：当前用户可见的全部部门路径（每次生成模板时计算，不缓存）
  *
- * @author AprilWind
+ * @author tuoyu
  */
 @Component
-@RequiredArgsConstructor
 public class DeptExcelOptions implements ExcelOptionsProvider {
 
-    /**
-     * 获取下拉选项数据
-     *
-     * @return 下拉选项列表
-     */
     @Override
     public Set<String> getOptions() {
-        ISysDeptService deptService = SpringUtils.getBean(ISysDeptService.class);
-        List<Tree<Long>> trees = deptService.selectDeptTreeList(new SysDeptBo());
-        return TreeBuildUtils.buildTreeNodeMap(trees, "/", Tree::getName).keySet();
+        return new LinkedHashSet<>(DeptExcelConverter.loadPathNodes().keySet());
     }
 
 }

@@ -2,283 +2,115 @@ package org.tuoyu.common.mybatis.core.query;
 
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.core.toolkit.*;
+import com.baomidou.mybatisplus.core.toolkit.ExceptionUtils;
+import com.baomidou.mybatisplus.core.toolkit.LambdaUtils;
 import com.baomidou.mybatisplus.core.toolkit.support.ColumnCache;
 import com.baomidou.mybatisplus.core.toolkit.support.LambdaMeta;
 import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import org.apache.ibatis.reflection.property.PropertyNamer;
 
-import java.util.*;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
- * Lambda 子查询构造器。
+ * IN 子查询：{@code SELECT 列 FROM 表 WHERE 条件}，由 {@link LambdaQueryBuilder#inSub} 创建并嵌入外层查询。
  * <p>
- * 常用于外层查询的 {@code selectSub}、{@code inSub}、{@code existsSub} 等方法中。
- * </p>
- * <p>
- * 注意：子查询 SQL 由本构造器直接生成，默认会根据 MyBatis-Plus 表元数据追加逻辑删除条件，
- * 但不会自动追加项目数据权限条件；如果子查询实体也需要数据权限过滤，请在子查询条件中显式添加。
- * </p>
- * <pre>{@code
- * userMapper.lambda()
- *     .inSub(SysUser::getUserId, SysUserRole.class, sub -> sub
- *         .select(SysUserRole::getUserId)
- *         .eq(SysUserRole::getRoleId, roleId))
- *     .voList();
+ * 条件中的值一律交给外层 Wrapper 绑定为参数，不拼进 SQL 文本。实体有逻辑删除字段且逻辑删除生效时，
+ * 第一个条件是逻辑删除条件。子查询的表有 {@code tenant_id} 时，租户插件在执行时给它加租户条件；
+ * 数据权限只作用于最外层，不进入子查询。
  *
- * userMapper.lambda()
- *     .select(SysUser::getUserId, SysUser::getUserName)
- *     .selectSub(SysUserRole.class, sub -> sub
- *         .selectCountAll()
- *         .eqColumn(SysUserRole::getUserId, SysUser::getUserId),
- *         UserStatVo::getRoleCount)
- *     .voList();
- * }</pre>
- *
- * @param <T> 子查询实体类型
- * @author Lion Li
+ * @author tuoyu
  */
 public final class SubQuery<T> {
 
     private final Class<T> entityClass;
-    private final SqlParamFormatter paramFormatter;
-    private final boolean placeholderParamMode;
-    private final List<String> selects = new ArrayList<>();
-    private final List<String> conditions = new ArrayList<>();
-    private final List<Object> params = new ArrayList<>();
-    private boolean withLogicDelete = true;
 
-    private SubQuery(Class<T> entityClass, SqlParamFormatter paramFormatter) {
-        this(entityClass, paramFormatter, false);
-    }
+    private final List<String> columns = new ArrayList<>();
 
-    private SubQuery(Class<T> entityClass, SqlParamFormatter paramFormatter, boolean placeholderParamMode) {
+    /**
+     * 按调用顺序的条件：参数为外层的绑定函数（值 → 占位符），结果为条件片段
+     */
+    private final List<Function<Function<Object, String>, String>> conditions = new ArrayList<>();
+
+    SubQuery(Class<T> entityClass) {
         this.entityClass = entityClass;
-        this.paramFormatter = paramFormatter;
-        this.placeholderParamMode = placeholderParamMode;
     }
 
     /**
-     * 创建子查询。
-     *
-     * @param entityClass 子查询实体类型
-     * @param <T>         子查询实体类型
-     * @return 子查询构造器
-     */
-    public static <T> SubQuery<T> of(Class<T> entityClass) {
-        return new SubQuery<>(entityClass, null);
-    }
-
-    /**
-     * 创建子查询。
-     *
-     * @param entityClass    子查询实体类型
-     * @param paramFormatter SQL 参数格式化器
-     * @param <T>            子查询实体类型
-     * @return 子查询构造器
-     */
-    public static <T> SubQuery<T> of(Class<T> entityClass, SqlParamFormatter paramFormatter) {
-        return new SubQuery<>(entityClass, paramFormatter);
-    }
-
-    /**
-     * 创建使用 {@code {0}} 参数占位符的子查询。
-     *
-     * @param entityClass 子查询实体类型
-     * @param <T>         子查询实体类型
-     * @return 子查询构造器
-     */
-    static <T> SubQuery<T> ofPlaceholders(Class<T> entityClass) {
-        return new SubQuery<>(entityClass, null, true);
-    }
-
-    /**
-     * 指定子查询字段。
-     * <pre>{@code
-     * sub.select(SysUserRole::getUserId)
-     * }</pre>
-     *
-     * @param column 查询字段
-     * @return 当前子查询构造器
+     * 追加查询列
      */
     public SubQuery<T> select(SFunction<T, ?> column) {
-        selects.add(columnName(column));
+        columns.add(columnName(column));
         return this;
     }
 
     /**
-     * 指定 COUNT(*) 查询字段。
-     * <pre>{@code
-     * sub.selectCountAll()
-     * }</pre>
-     *
-     * @return 当前子查询构造器
-     */
-    public SubQuery<T> selectCountAll() {
-        selects.add(SqlAggregateFunction.COUNT.format("*"));
-        return this;
-    }
-
-    /**
-     * 指定 SUM 聚合查询字段。
-     *
-     * @param column 聚合字段
-     * @return 当前子查询构造器
-     */
-    public SubQuery<T> selectSum(SFunction<T, ?> column) {
-        return selectAggregate(SqlAggregateFunction.SUM, column);
-    }
-
-    /**
-     * 指定 MAX 聚合查询字段。
-     *
-     * @param column 聚合字段
-     * @return 当前子查询构造器
-     */
-    public SubQuery<T> selectMax(SFunction<T, ?> column) {
-        return selectAggregate(SqlAggregateFunction.MAX, column);
-    }
-
-    /**
-     * 指定 MIN 聚合查询字段。
-     *
-     * @param column 聚合字段
-     * @return 当前子查询构造器
-     */
-    public SubQuery<T> selectMin(SFunction<T, ?> column) {
-        return selectAggregate(SqlAggregateFunction.MIN, column);
-    }
-
-    /**
-     * 指定 AVG 聚合查询字段。
-     *
-     * @param column 聚合字段
-     * @return 当前子查询构造器
-     */
-    public SubQuery<T> selectAvg(SFunction<T, ?> column) {
-        return selectAggregate(SqlAggregateFunction.AVG, column);
-    }
-
-    /**
-     * 指定 COUNT 聚合查询字段。
-     *
-     * @param column 聚合字段
-     * @return 当前子查询构造器
-     */
-    public SubQuery<T> selectCount(SFunction<T, ?> column) {
-        return selectAggregate(SqlAggregateFunction.COUNT, column);
-    }
-
-    /**
-     * 禁用子查询逻辑删除条件。
-     * <pre>{@code
-     * sub.disableLogicDelete()
-     * }</pre>
-     *
-     * @return 当前子查询构造器
-     */
-    public SubQuery<T> disableLogicDelete() {
-        this.withLogicDelete = false;
-        return this;
-    }
-
-    /**
-     * 添加等于条件。
-     * <pre>{@code
-     * sub.eq(SysUserRole::getRoleId, roleId)
-     * }</pre>
-     *
-     * @param column 字段
-     * @param value  条件值
-     * @return 当前子查询构造器
+     * {@code 列 = 值}
      */
     public SubQuery<T> eq(SFunction<T, ?> column, Object value) {
-        return condition(column, Constants.EQUALS, value);
+        return compare(column, "=", value);
     }
 
     /**
-     * 添加大于条件。
-     *
-     * @param column 字段
-     * @param value  条件值
-     * @return 当前子查询构造器
+     * {@code 列 > 值}
      */
     public SubQuery<T> gt(SFunction<T, ?> column, Object value) {
-        return condition(column, ">", value);
+        return compare(column, ">", value);
     }
 
     /**
-     * 添加大于等于条件。
-     *
-     * @param column 字段
-     * @param value  条件值
-     * @return 当前子查询构造器
+     * {@code 列 >= 值}
      */
     public SubQuery<T> ge(SFunction<T, ?> column, Object value) {
-        return condition(column, ">=", value);
+        return compare(column, ">=", value);
     }
 
     /**
-     * 添加小于条件。
-     *
-     * @param column 字段
-     * @param value  条件值
-     * @return 当前子查询构造器
+     * {@code 列 < 值}
      */
     public SubQuery<T> lt(SFunction<T, ?> column, Object value) {
-        return condition(column, "<", value);
+        return compare(column, "<", value);
     }
 
     /**
-     * 添加小于等于条件。
-     *
-     * @param column 字段
-     * @param value  条件值
-     * @return 当前子查询构造器
+     * {@code 列 <= 值}
      */
     public SubQuery<T> le(SFunction<T, ?> column, Object value) {
-        return condition(column, "<=", value);
+        return compare(column, "<=", value);
     }
 
     /**
-     * 添加模糊匹配条件。
-     *
-     * @param column 字段
-     * @param value  条件值
-     * @return 当前子查询构造器
+     * {@code 列 LIKE %值%}
      */
     public SubQuery<T> like(SFunction<T, ?> column, Object value) {
-        return condition(column, "LIKE", "%" + value + "%");
+        return compare(column, "LIKE", "%" + value + "%");
     }
 
     /**
-     * 添加 IN 条件。
-     * <pre>{@code
-     * sub.in(SysUserRole::getRoleId, roleIds)
-     * }</pre>
-     *
-     * @param column 字段
-     * @param values 条件值集合
-     * @return 当前子查询构造器
+     * {@code 列 IN (值, …)}；集合为 null 或空时不追加
      */
     public SubQuery<T> in(SFunction<T, ?> column, Collection<?> values) {
-        if (CollectionUtils.isEmpty(values)) {
+        if (values == null || values.isEmpty()) {
             return this;
         }
-        conditions.add(columnName(column) + " IN (" + values.stream()
-            .map(this::formatParam)
-            .collect(Collectors.joining(Constants.COMMA)) + ")");
+        String name = columnName(column);
+        List<Object> copy = new ArrayList<>(values);
+        conditions.add(binder -> {
+            List<String> placeholders = new ArrayList<>(copy.size());
+            for (Object value : copy) {
+                placeholders.add(binder.apply(value));
+            }
+            return name + " IN (" + String.join(",", placeholders) + ")";
+        });
         return this;
     }
 
     /**
-     * 添加 IN 条件。
-     *
-     * @param column 字段
-     * @param values 条件值数组
-     * @return 当前子查询构造器
+     * {@code 列 IN (值, …)}；没有值时不追加
      */
     public SubQuery<T> in(SFunction<T, ?> column, Object... values) {
         if (values == null || values.length == 0) {
@@ -288,150 +120,62 @@ public final class SubQuery<T> {
     }
 
     /**
-     * 添加 BETWEEN 条件。
-     *
-     * @param column 字段
-     * @param begin  起始值
-     * @param end    结束值
-     * @return 当前子查询构造器
+     * {@code 列 BETWEEN 起 AND 止}
      */
     public SubQuery<T> between(SFunction<T, ?> column, Object begin, Object end) {
-        conditions.add(columnName(column) + " BETWEEN " + formatParam(begin) + " AND " + formatParam(end));
+        String name = columnName(column);
+        conditions.add(binder -> name + " BETWEEN " + binder.apply(begin) + " AND " + binder.apply(end));
         return this;
     }
 
     /**
-     * 添加字段相等条件，用于关联外层查询字段。
-     * <pre>{@code
-     * sub.eqColumn(SysUserRole::getUserId, SysUser::getUserId)
-     * }</pre>
+     * 生成子查询文本，条件值经 binder 绑定到外层 Wrapper
      *
-     * @param column      子查询字段
-     * @param otherColumn 其他表字段
-     * @param <O>         其他表实体类型
-     * @return 当前子查询构造器
+     * @param binder 值 → 参数占位符
+     * @return {@code SELECT 列1,列2 FROM 表名 [WHERE 条件1 AND …]}
      */
-    public <O> SubQuery<T> eqColumn(SFunction<T, ?> column, SFunction<O, ?> otherColumn) {
-        conditions.add(columnName(column) + Constants.EQUALS + qualifiedColumnName(otherColumn));
-        return this;
-    }
-
-    /**
-     * 添加字段相等条件，用于关联外层查询字段。
-     * <pre>{@code
-     * sub.eqColumn(SysUserRole::getUserId, "u", SysUser::getUserId)
-     * }</pre>
-     *
-     * @param column      子查询字段
-     * @param tableAlias  其他表别名
-     * @param otherColumn 其他表字段
-     * @param <O>         其他表实体类型
-     * @return 当前子查询构造器
-     */
-    public <O> SubQuery<T> eqColumn(SFunction<T, ?> column, String tableAlias, SFunction<O, ?> otherColumn) {
-        conditions.add(columnName(column) + Constants.EQUALS + AggregateSelectUtils.checkAlias(tableAlias)
-            + StringPool.DOT + columnName(otherColumn));
-        return this;
-    }
-
-    /**
-     * 按条件添加子查询条件。
-     *
-     * @param condition 是否添加
-     * @param consumer  子查询条件
-     * @return 当前子查询构造器
-     */
-    public SubQuery<T> when(boolean condition, Consumer<SubQuery<T>> consumer) {
-        if (condition) {
-            consumer.accept(this);
+    String toSql(Function<Object, String> binder) {
+        if (columns.isEmpty()) {
+            throw ExceptionUtils.mpe("子查询必须指定查询字段");
         }
-        return this;
-    }
-
-    /**
-     * 构建子查询 SQL。
-     *
-     * @return 子查询 SQL
-     */
-    public String build() {
-        Assert.notEmpty(selects, "子查询必须指定查询字段");
-        String sql = "SELECT " + String.join(Constants.COMMA, selects) + " FROM " + tableName();
-        List<String> whereConditions = buildWhereConditions();
-        if (!whereConditions.isEmpty()) {
-            sql += " WHERE " + String.join(" AND ", whereConditions);
-        }
-        return sql;
-    }
-
-    /**
-     * 获取子查询参数。
-     *
-     * @return 子查询参数数组
-     */
-    Object[] params() {
-        return params.toArray();
-    }
-
-    private SubQuery<T> selectAggregate(SqlAggregateFunction function, SFunction<T, ?> column) {
-        selects.add(function.format(columnName(column)));
-        return this;
-    }
-
-    private SubQuery<T> condition(SFunction<T, ?> column, String operator, Object value) {
-        conditions.add(columnName(column) + StringPool.SPACE + operator + StringPool.SPACE + formatParam(value));
-        return this;
-    }
-
-    private String formatParam(Object value) {
-        if (placeholderParamMode) {
-            params.add(value);
-            return "{" + (params.size() - 1) + "}";
-        }
-        Assert.notNull(paramFormatter, "子查询参数需要在外层查询方法中构造");
-        return paramFormatter.format(value);
-    }
-
-    private String tableName() {
-        return tableInfo().getTableName();
-    }
-
-    private List<String> buildWhereConditions() {
-        List<String> whereConditions = new ArrayList<>();
-        String logicDeleteSql = logicDeleteSql();
-        if (StringUtils.isNotBlank(logicDeleteSql)) {
-            whereConditions.add(logicDeleteSql);
-        }
-        whereConditions.addAll(conditions);
-        return whereConditions;
-    }
-
-    private String logicDeleteSql() {
-        if (!withLogicDelete) {
-            return StringPool.EMPTY;
-        }
-        return tableInfo().getLogicDeleteSql(false, true);
-    }
-
-    private TableInfo tableInfo() {
         TableInfo tableInfo = TableInfoHelper.getTableInfo(entityClass);
-        Assert.notNull(tableInfo, "无法获取实体表信息: %s", entityClass.getName());
-        return tableInfo;
+        if (tableInfo == null) {
+            throw ExceptionUtils.mpe("无法获取实体表信息: %s", entityClass.getName());
+        }
+        List<String> where = new ArrayList<>(conditions.size() + 1);
+        String logicDelete = tableInfo.isWithLogicDelete() ? tableInfo.getLogicDeleteSql(false, true) : "";
+        if (logicDelete != null && !logicDelete.isEmpty()) {
+            where.add(logicDelete);
+        }
+        for (Function<Function<Object, String>, String> condition : conditions) {
+            where.add(condition.apply(binder));
+        }
+        StringBuilder sql = new StringBuilder("SELECT ").append(String.join(",", columns))
+            .append(" FROM ").append(tableInfo.getTableName());
+        if (!where.isEmpty()) {
+            sql.append(" WHERE ").append(String.join(" AND ", where));
+        }
+        return sql.toString();
     }
 
-    private String qualifiedColumnName(SFunction<?, ?> column) {
-        Class<?> columnEntityClass = LambdaUtils.extract(column).getInstantiatedClass();
-        TableInfo tableInfo = TableInfoHelper.getTableInfo(columnEntityClass);
-        Assert.notNull(tableInfo, "无法获取实体表信息: %s", columnEntityClass.getName());
-        return tableInfo.getTableName() + StringPool.DOT + columnName(column);
+    private SubQuery<T> compare(SFunction<T, ?> column, String operator, Object value) {
+        String name = columnName(column);
+        conditions.add(binder -> name + " " + operator + " " + binder.apply(value));
+        return this;
     }
 
+    /**
+     * getter 所属实体的列缓存中的列名
+     */
     private static String columnName(SFunction<?, ?> column) {
         LambdaMeta meta = LambdaUtils.extract(column);
-        String fieldName = PropertyNamer.methodToProperty(meta.getImplMethodName());
-        Map<String, ColumnCache> columnMap = LambdaUtils.getColumnMap(meta.getInstantiatedClass());
-        Assert.notNull(columnMap, "can not find lambda cache for this entity [%s]", meta.getInstantiatedClass().getName());
-        ColumnCache cache = columnMap.get(LambdaUtils.formatKey(fieldName));
-        Assert.notNull(cache, "can not find lambda cache for this property [%s]", fieldName);
+        String property = PropertyNamer.methodToProperty(meta.getImplMethodName());
+        Class<?> owner = meta.getInstantiatedClass();
+        Map<String, ColumnCache> columnMap = LambdaUtils.getColumnMap(owner);
+        ColumnCache cache = columnMap == null ? null : columnMap.get(LambdaUtils.formatKey(property));
+        if (cache == null) {
+            throw ExceptionUtils.mpe("无法获取实体字段对应的列: %s.%s", owner.getName(), property);
+        }
         return cache.getColumn();
     }
 

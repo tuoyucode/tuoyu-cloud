@@ -1,44 +1,34 @@
 package org.tuoyu.common.core.constant;
 
 /**
- * 通用常量信息
+ * 通用常量。
  *
  * @author tuoyu
  */
 public interface Constants {
 
     /**
-     * UTF-8 字符集
-     */
-    String UTF8 = "UTF-8";
-
-    /**
-     * GBK 字符集
-     */
-    String GBK = "GBK";
-
-    /**
-     * www主域
+     * www 主域
      */
     String WWW = "www.";
 
     /**
-     * http请求
+     * http 请求
      */
     String HTTP = "http://";
 
     /**
-     * https请求
+     * https 请求
      */
     String HTTPS = "https://";
 
     /**
-     * 通用成功标识
+     * 成功标记
      */
     String SUCCESS = "0";
 
     /**
-     * 通用失败标识
+     * 失败标记
      */
     String FAIL = "1";
 
@@ -48,7 +38,7 @@ public interface Constants {
     String LOGIN_SUCCESS = "Success";
 
     /**
-     * 注销
+     * 退出登录
      */
     String LOGOUT = "Logout";
 
@@ -63,17 +53,17 @@ public interface Constants {
     String LOGIN_FAIL = "Error";
 
     /**
-     * 验证码有效期（分钟）
+     * 验证码的有效期（分钟）
      */
     Integer CAPTCHA_EXPIRATION = 2;
 
     /**
-     * 顶级部门id
+     * 树形数据的顶级父节点 ID
      */
     Long TOP_PARENT_ID = 0L;
 
     /**
-     * 加密头
+     * 加密字段值的前缀
      */
     String ENCRYPT_HEADER = "ENC_";
 

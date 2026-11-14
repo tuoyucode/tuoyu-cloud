@@ -1,101 +1,88 @@
 package org.tuoyu.system.mapper;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.yulichang.base.MPJBaseMapper;
-import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.mybatis.annotation.DataColumn;
 import org.tuoyu.common.mybatis.annotation.DataPermission;
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysDept;
 import org.tuoyu.system.domain.SysRoleDept;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
- * 部门管理 数据层
+ * 部门数据层。数据权限只按部门列。
+ * <p>
+ * 部门及下级的计算（{@link #selectDeptAndChildById}）是数据权限的输入，不能标注数据权限，否则改写时递归。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface SysDeptMapper extends BaseMapper<SysDept>, MPJBaseMapper<SysDept> {
 
     /**
-     * 查询部门管理数据
+     * 查询部门列表
      *
-     * @param queryWrapper 查询条件
-     * @return 部门信息集合
+     * @param queryWrapper 条件
+     * @return 部门
      */
-    @DataPermission({
-        @DataColumn(key = "deptName", value = "dept_id")
-    })
+    @DataPermission({@DataColumn(key = "deptName", value = "dept_id")})
     default List<SysDept> selectDeptList(Wrapper<SysDept> queryWrapper) {
         return this.selectList(queryWrapper);
     }
 
     /**
-     * 分页查询部门管理数据
+     * 分页查询部门
      *
-     * @param page         分页信息
-     * @param queryWrapper 查询条件
-     * @return 部门信息集合
+     * @param page         分页
+     * @param queryWrapper 条件
+     * @return 分页结果
      */
-    @DataPermission({
-        @DataColumn(key = "deptName", value = "dept_id"),
-    })
+    @DataPermission({@DataColumn(key = "deptName", value = "dept_id")})
     default Page<SysDept> selectPageDeptList(Page<SysDept> page, Wrapper<SysDept> queryWrapper) {
         return this.selectPage(page, queryWrapper);
     }
 
     /**
-     * 统计指定部门ID的部门数量
+     * 数据权限内是否有该部门
      *
-     * @param deptId 部门ID
-     * @return 该部门ID的部门数量
+     * @param deptId 部门 ID
+     * @return 数据权限内该 ID 的部门数
      */
-    @DataPermission({
-        @DataColumn(key = "deptName", value = "dept_id")
-    })
+    @DataPermission({@DataColumn(key = "deptName", value = "dept_id")})
     default long countDeptById(Long deptId) {
         return this.selectCount(QueryBuilder.lambda(SysDept.class).eq(SysDept::getDeptId, deptId).build());
     }
 
     /**
-     * 根据父部门ID查询其所有子部门的列表
+     * 部门及其全部下级的 ID
      *
-     * @param parentId 父部门ID
-     * @return 包含子部门的列表
+     * @param parentId 部门 ID
+     * @return 下级部门的 ID，末尾为部门本身（可修改的列表）
      */
-    default List<SysDept> selectListByParentId(Long parentId) {
-        return this.selectList(QueryBuilder.lambda(SysDept.class)
+    default List<Long> selectDeptAndChildById(Long parentId) {
+        List<SysDept> children = this.selectList(QueryBuilder.lambda(SysDept.class)
             .select(SysDept::getDeptId)
             .findInSet(parentId, "ancestors")
             .build());
+        List<Long> ids = new ArrayList<>(children.size() + 1);
+        for (SysDept child : children) {
+            ids.add(child.getDeptId());
+        }
+        ids.add(parentId);
+        return ids;
     }
 
     /**
-     * 查询某个部门及其所有子部门ID（含自身）
+     * 角色已选的部门 ID（回显，不看角色状态）
      *
-     * @param parentId 父部门ID
-     * @return 部门ID集合
-     */
-    default List<Long> selectDeptAndChildById(Long parentId) {
-        List<SysDept> deptList = this.selectListByParentId(parentId);
-        List<Long> deptIds = StreamUtils.toList(deptList, SysDept::getDeptId);
-        deptIds.add(parentId);
-        return deptIds;
-    }
-
-    /**
-     * 根据角色ID查询部门树信息（编辑角色的数据权限时回显已分配的部门）。
-     * 不按角色状态过滤：停用的角色同样回显，否则在停用期间保存会把已分配的部门清空
-     *
-     * @param roleId            角色ID
-     * @param deptCheckStrictly 部门树选择项是否关联显示
-     * @return 选中部门列表
+     * @param roleId            角色 ID
+     * @param deptCheckStrictly 父子联动时只回显叶子：去掉作为其他结果上级的部门
+     * @return 部门 ID，按上级、顺序排列
      */
     default List<Long> selectDeptListByRoleId(Long roleId, boolean deptCheckStrictly) {
         List<SysDept> depts = this.selectJoinList(SysDept.class, QueryBuilder.lambdaJoin("d", SysDept.class)
@@ -106,11 +93,19 @@ public interface SysDeptMapper extends BaseMapper<SysDept>, MPJBaseMapper<SysDep
             .orderByAsc("d", SysDept::getParentId)
             .orderByAsc("d", SysDept::getOrderNum)
             .build());
-        Set<Long> parentIds = deptCheckStrictly ? new HashSet<>(StreamUtils.toList(depts, SysDept::getParentId)) : Collections.emptySet();
-        return depts.stream()
-            .map(SysDept::getDeptId)
-            .filter(deptId -> !parentIds.contains(deptId))
-            .toList();
+        Set<Long> parents = new HashSet<>();
+        if (deptCheckStrictly) {
+            for (SysDept dept : depts) {
+                parents.add(dept.getParentId());
+            }
+        }
+        List<Long> ids = new ArrayList<>(depts.size());
+        for (SysDept dept : depts) {
+            if (!parents.contains(dept.getDeptId())) {
+                ids.add(dept.getDeptId());
+            }
+        }
+        return ids;
     }
 
 }

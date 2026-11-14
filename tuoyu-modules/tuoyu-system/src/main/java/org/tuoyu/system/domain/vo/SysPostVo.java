@@ -14,11 +14,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-
 /**
- * 岗位信息视图对象 sys_post
+ * 岗位视图
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @ExcelIgnoreUnannotated
@@ -29,13 +28,13 @@ public class SysPostVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 岗位ID
+     * 岗位 ID
      */
     @ExcelProperty(value = "岗位序号")
     private Long postId;
 
     /**
-     * 部门id
+     * 所属部门 ID
      */
     @ExcelProperty(value = "部门id")
     private Long deptId;
@@ -65,7 +64,7 @@ public class SysPostVo implements Serializable {
     private Integer postSort;
 
     /**
-     * 状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     @ExcelProperty(value = "状态", converter = ExcelDictConvert.class)
     @ExcelDictFormat(dictType = "sys_normal_disable")
@@ -84,7 +83,7 @@ public class SysPostVo implements Serializable {
     private LocalDateTime createTime;
 
     /**
-     * 部门名
+     * 部门名称
      */
     @Translation(type = TransConstant.DEPT_ID_TO_NAME, mapper = "deptId")
     private String deptName;

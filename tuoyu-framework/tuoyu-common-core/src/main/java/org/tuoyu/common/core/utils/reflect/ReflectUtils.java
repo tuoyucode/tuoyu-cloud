@@ -1,55 +1,45 @@
 package org.tuoyu.common.core.utils.reflect;
 
 import cn.hutool.core.util.ReflectUtil;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 import org.tuoyu.common.core.utils.StringUtils;
 
-import java.lang.reflect.Method;
-
 /**
- * 反射工具类. 提供调用getter/setter方法, 访问私有变量, 调用私有方法, 获取泛型类型Class, 被AOP过的真实类等工具函数.
+ * 反射工具。
+ * <p>
+ * 继承 hutool 的 {@link ReflectUtil}（{@code getField}、{@code getFields}、{@code setFieldValue} 等经本类调用）。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReflectUtils extends ReflectUtil {
-
-    private static final String SETTER_PREFIX = "set";
 
     private static final String GETTER_PREFIX = "get";
 
-    /**
-     * 调用Getter方法.
-     * 支持多级，如：对象名.对象名.方法
-     */
-    @SuppressWarnings("unchecked")
-    public static <E> E invokeGetter(Object obj, String propertyName) {
-        Object object = obj;
-        for (String name : StringUtils.split(propertyName, ".")) {
-            String getterMethodName = GETTER_PREFIX + StringUtils.capitalize(name);
-            object = invoke(object, getterMethodName);
-        }
-        return (E) object;
+    private ReflectUtils() {
     }
 
     /**
-     * 调用Setter方法, 仅匹配方法名。
-     * 支持多级，如：对象名.对象名.方法
+     * 按属性路径逐级调用 getter，例如 {@code dept.leader.name} 依次调用 {@code getDept()}、{@code getLeader()}、
+     * {@code getName()}，上一级的返回值作为下一级的对象。
+     * <p>
+     * getter 可以在父类中声明，也可以不是 public；只认 {@code get} 前缀。
+     *
+     * @param obj          对象
+     * @param propertyName 属性路径，用 {@code .} 分隔，空段忽略
+     * @param <E>          结果类型
+     * @return 最后一级的值
+     * @throws cn.hutool.core.exceptions.UtilException 某一级的 getter 不存在时
+     * @throws IllegalArgumentException                某一级的对象为 null 时
      */
-    public static <E> void invokeSetter(Object obj, String propertyName, E value) {
-        Object object = obj;
-        String[] names = StringUtils.split(propertyName, ".");
-        for (int i = 0; i < names.length; i++) {
-            if (i < names.length - 1) {
-                String getterMethodName = GETTER_PREFIX + StringUtils.capitalize(names[i]);
-                object = invoke(object, getterMethodName);
-            } else {
-                String setterMethodName = SETTER_PREFIX + StringUtils.capitalize(names[i]);
-                Method method = getMethodByName(object.getClass(), setterMethodName);
-                invoke(object, method, value);
+    @SuppressWarnings("unchecked")
+    public static <E> E invokeGetter(Object obj, String propertyName) {
+        Object current = obj;
+        for (String name : StringUtils.split(propertyName, '.')) {
+            if (current == null) {
+                throw new IllegalArgumentException("读取属性 " + propertyName + " 时遇到 null，无法继续读取 " + name);
             }
+            current = invoke(current, GETTER_PREFIX + StringUtils.capitalize(name));
         }
+        return (E) current;
     }
 
 }

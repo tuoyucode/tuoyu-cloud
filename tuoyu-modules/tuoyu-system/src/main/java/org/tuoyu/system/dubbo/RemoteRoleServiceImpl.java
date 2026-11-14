@@ -1,46 +1,42 @@
 package org.tuoyu.system.dubbo;
 
-import cn.hutool.core.collection.CollUtil;
-import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.utils.StreamUtils;
+import org.springframework.stereotype.Service;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.api.RemoteRoleService;
 import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.mapper.SysRoleMapper;
-import org.springframework.stereotype.Service;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 角色服务
+ * 角色服务的跨模块实现（不带数据权限，租户隔离照常）
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class RemoteRoleServiceImpl implements RemoteRoleService {
 
     private final SysRoleMapper roleMapper;
 
-    /**
-     * 根据角色 ID 列表查询角色名称映射关系
-     *
-     * @param roleIds 角色 ID 列表
-     * @return Map，其中 key 为角色 ID，value 为对应的角色名称
-     */
     @Override
     public Map<Long, String> selectRoleNamesByIds(Collection<Long> roleIds) {
-        if (CollUtil.isEmpty(roleIds)) {
-            return Collections.emptyMap();
+        Map<Long, String> names = new HashMap<>();
+        if (roleIds == null || roleIds.isEmpty()) {
+            return names;
         }
-        List<SysRole> list = roleMapper.selectList(QueryBuilder.lambda(SysRole.class)
+        for (SysRole role : roleMapper.selectList(QueryBuilder.lambda(SysRole.class)
             .select(SysRole::getRoleId, SysRole::getRoleName)
             .in(SysRole::getRoleId, roleIds)
-            .build());
-        return StreamUtils.toMap(list, SysRole::getRoleId, SysRole::getRoleName);
+            .build())) {
+            if (role != null) {
+                names.put(role.getRoleId(), role.getRoleName());
+            }
+        }
+        return names;
     }
 
 }

@@ -1,19 +1,19 @@
 package org.tuoyu.system.dubbo;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 import org.tuoyu.system.api.RemotePermissionService;
 import org.tuoyu.system.service.ISysPermissionService;
-import org.springframework.stereotype.Service;
 
 import java.util.Set;
 
 /**
- * 权限服务
+ * 权限服务的跨模块实现
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class RemotePermissionServiceImpl implements RemotePermissionService {
 
     private final ISysPermissionService permissionService;
@@ -27,4 +27,5 @@ public class RemotePermissionServiceImpl implements RemotePermissionService {
     public Set<String> getMenuPermission(Long userId) {
         return permissionService.getMenuPermission(userId);
     }
+
 }

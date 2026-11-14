@@ -2,38 +2,29 @@ package org.tuoyu.common.core.enums;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import org.tuoyu.common.core.utils.StringUtils;
 
 /**
- * 用户类型
+ * 用户类型。注册接口按 {@link #values()} 精确匹配请求中的用户类型。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Getter
 @AllArgsConstructor
 public enum UserType {
 
     /**
-     * 后台系统用户
+     * 后台管理用户
      */
     SYS_USER("sys_user"),
 
     /**
-     * 移动客户端用户
+     * 移动端用户
      */
     APP_USER("app_user");
 
     /**
-     * 用户类型标识（用于 token、权限识别等）
+     * 类型标识
      */
     private final String userType;
 
-    public static UserType getUserType(String str) {
-        for (UserType value : values()) {
-            if (StringUtils.contains(str, value.getUserType())) {
-                return value;
-            }
-        }
-        throw new RuntimeException("'UserType' not found By " + str);
-    }
 }

@@ -1,0 +1,14 @@
+{
+  "title": "Dept demo",
+  "list": "Dept demo list",
+  "create": "New dept demo",
+  "edit": "Edit dept demo",
+  "delete": "Delete dept demo",
+  "exportFileName": "deptDemo",
+  "deptId": "Dept id",
+  "parentId": "Parent id",
+  "ancestors": "Ancestors",
+  "deptName": "Dept name",
+  "orderNum": "Order num",
+  "status": "Status"
+}

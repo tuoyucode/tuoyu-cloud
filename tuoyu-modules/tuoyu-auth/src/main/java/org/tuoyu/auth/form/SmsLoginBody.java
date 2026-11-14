@@ -1,29 +1,18 @@
 package org.tuoyu.auth.form;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.tuoyu.common.core.domain.model.LoginBody;
 
 /**
- * 短信登录对象
+ * 短信验证码登录
  *
- * @author Lion Li
+ * @param phoneNumber 手机号
+ * @param smsCode     短信验证码
+ * @author tuoyu
  */
-@Data
-@EqualsAndHashCode(callSuper = true)
-public class SmsLoginBody extends LoginBody {
-
-    /**
-     * 手机号
-     */
-    @NotBlank(message = "{user.phonenumber.not.blank}")
-    private String phoneNumber;
-
-    /**
-     * 短信code
-     */
-    @NotBlank(message = "{sms.code.not.blank}")
-    private String smsCode;
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record SmsLoginBody(
+    @NotBlank(message = "{user.phonenumber.not.blank}") String phoneNumber,
+    @NotBlank(message = "{sms.code.not.blank}") String smsCode) {
 
 }

@@ -5,42 +5,34 @@ import org.tuoyu.system.api.domain.bo.RemoteTaskAssigneeBo;
 import org.tuoyu.system.api.domain.vo.RemoteTaskAssigneeVo;
 
 /**
- * 工作流设计器获取任务执行人
+ * 工作流设计器选择办理人：按角色、岗位、部门、用户分页查询（按当前操作者的数据权限）
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @RemoteApi
 public interface RemoteTaskAssigneeService {
 
     /**
-     * 查询角色并返回任务指派的列表，支持分页
-     *
      * @param taskQuery 查询条件
-     * @return 办理人
+     * @return 正常状态的角色
      */
     RemoteTaskAssigneeVo selectRolesByTaskAssigneeList(RemoteTaskAssigneeBo taskQuery);
 
     /**
-     * 查询岗位并返回任务指派的列表，支持分页
-     *
      * @param taskQuery 查询条件
-     * @return 办理人
+     * @return 正常状态的岗位
      */
     RemoteTaskAssigneeVo selectPostsByTaskAssigneeList(RemoteTaskAssigneeBo taskQuery);
 
     /**
-     * 查询部门并返回任务指派的列表，支持分页
-     *
      * @param taskQuery 查询条件
-     * @return 办理人
+     * @return 正常状态的部门
      */
     RemoteTaskAssigneeVo selectDeptsByTaskAssigneeList(RemoteTaskAssigneeBo taskQuery);
 
     /**
-     * 查询用户并返回任务指派的列表，支持分页
-     *
      * @param taskQuery 查询条件
-     * @return 办理人
+     * @return 正常状态的用户
      */
     RemoteTaskAssigneeVo selectUsersByTaskAssigneeList(RemoteTaskAssigneeBo taskQuery);
 

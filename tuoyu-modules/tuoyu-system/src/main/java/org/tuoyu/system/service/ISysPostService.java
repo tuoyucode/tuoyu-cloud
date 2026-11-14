@@ -8,133 +8,106 @@ import org.tuoyu.system.domain.vo.SysPostVo;
 import java.util.List;
 
 /**
- * 岗位信息 服务层
+ * 岗位服务
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface ISysPostService {
 
     /**
-     * 分页查询岗位列表
+     * 分页查询岗位（数据权限内）
      *
-     * @param post      查询条件
-     * @param pageParam 分页参数
-     * @return 岗位分页列表
+     * @param post      条件
+     * @param pageParam 分页
+     * @return 分页结果
      */
     PageResult<SysPostVo> selectPagePostList(SysPostBo post, PageParam pageParam);
 
     /**
-     * 查询岗位信息集合
+     * 查询岗位列表（数据权限内）
      *
-     * @param post 岗位信息
-     * @return 岗位列表
+     * @param post 条件
+     * @return 岗位
      */
     List<SysPostVo> selectPostList(SysPostBo post);
 
     /**
-     * 统计符合条件的岗位数量（导出前先统计，查询条件与列表一致）
+     * 统计岗位数（导出前检查行数）
      *
-     * @param post 岗位信息
+     * @param post 条件
      * @return 行数
      */
     long countPostList(SysPostBo post);
 
     /**
-     * 查询用户所属岗位组
-     *
-     * @param userId 用户ID
-     * @return 岗位ID
+     * @param userId 用户 ID
+     * @return 用户的岗位
      */
     List<SysPostVo> selectPostsByUserId(Long userId);
 
     /**
-     * 查询所有岗位
-     *
-     * @return 岗位列表
-     */
-    List<SysPostVo> selectPostAll();
-
-    /**
-     * 通过岗位ID查询岗位信息
-     *
-     * @param postId 岗位ID
-     * @return 角色对象信息
+     * @param postId 岗位 ID
+     * @return 数据权限内的岗位；不存在或在范围外时为 null
      */
     SysPostVo selectPostById(Long postId);
 
     /**
-     * 根据用户ID获取岗位选择框列表
-     *
-     * @param userId 用户ID
-     * @return 选中岗位ID列表
+     * @param userId 用户 ID
+     * @return 用户的岗位 ID
      */
     List<Long> selectPostListByUserId(Long userId);
 
     /**
-     * 通过岗位ID串查询岗位
+     * 正常状态的岗位（下拉选项）
      *
-     * @param postIds 岗位id串
-     * @return 岗位列表信息
+     * @param postIds 只查这些岗位，为空时不限
+     * @return 岗位
      */
     List<SysPostVo> selectPostByIds(List<Long> postIds);
 
     /**
-     * 校验岗位名称
-     *
-     * @param post 岗位信息
-     * @return 结果
+     * @param post 岗位（修改时排除自己）
+     * @return 同一部门内是否没有其他同名岗位
      */
     boolean checkPostNameUnique(SysPostBo post);
 
     /**
-     * 校验岗位编码
-     *
-     * @param post 岗位信息
-     * @return 结果
+     * @param post 岗位（修改时排除自己）
+     * @return 是否没有其他同编码的岗位
      */
     boolean checkPostCodeUnique(SysPostBo post);
 
     /**
-     * 通过岗位ID查询岗位使用数量
-     *
-     * @param postId 岗位ID
-     * @return 结果
+     * @param postId 岗位 ID
+     * @return 使用该岗位的用户数
      */
     long countUserPostById(Long postId);
 
     /**
-     * 通过部门ID查询岗位使用数量
-     *
-     * @param deptId 部门id
-     * @return 结果
+     * @param deptId 部门 ID
+     * @return 该部门的岗位数（不受数据权限限制，删除部门前检查）
      */
     long countPostByDeptId(Long deptId);
 
     /**
-     * 删除岗位信息
+     * 新增岗位
      *
-     * @param postId 岗位ID
-     */
-    void deletePostById(Long postId);
-
-    /**
-     * 批量删除岗位信息
-     *
-     * @param postIds 需要删除的岗位ID
-     */
-    void deletePostByIds(List<Long> postIds);
-
-    /**
-     * 新增保存岗位信息
-     *
-     * @param bo 岗位信息
+     * @param bo 岗位
      */
     void insertPost(SysPostBo bo);
 
     /**
-     * 修改保存岗位信息
+     * 修改岗位（检查数据权限）
      *
-     * @param bo 岗位信息
+     * @param bo 岗位
      */
     void updatePost(SysPostBo bo);
+
+    /**
+     * 批量删除岗位（检查数据权限；已分配给用户的岗位不能删除）
+     *
+     * @param postIds 岗位 ID
+     */
+    void deletePostByIds(List<Long> postIds);
+
 }

@@ -2,6 +2,7 @@ package org.tuoyu.system.dubbo;
 
 import cn.hutool.core.convert.Convert;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.mybatis.core.page.PageParam;
@@ -20,119 +21,86 @@ import org.tuoyu.system.service.ISysDeptService;
 import org.tuoyu.system.service.ISysPostService;
 import org.tuoyu.system.service.ISysRoleService;
 import org.tuoyu.system.service.ISysUserService;
-import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Map;
 
 /**
- * 工作流设计器获取任务执行人
+ * 工作流设计器选择办理人的跨模块实现：只查正常状态的角色、岗位、部门、用户，
+ * 分页查询带数据权限（与当前操作者一致）
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class RemoteTaskAssigneeServiceImpl implements RemoteTaskAssigneeService {
 
-    // 上级Service注入下级Service 其他Service永远不可能注入当前类 避免循环注入
     private final ISysPostService postService;
     private final ISysDeptService deptService;
     private final ISysUserService userService;
     private final ISysRoleService roleService;
 
-    /**
-     * 查询角色并返回任务指派的列表，支持分页
-     *
-     * @param taskQuery 查询条件
-     * @return 办理人
-     */
     @Override
     public RemoteTaskAssigneeVo selectRolesByTaskAssigneeList(RemoteTaskAssigneeBo taskQuery) {
-        PageParam pageParam = new PageParam(taskQuery.getPage(), taskQuery.getPageSize());
         SysRoleBo bo = new SysRoleBo();
         bo.setRoleKey(taskQuery.getHandlerCode());
         bo.setRoleName(taskQuery.getHandlerName());
         bo.setStatus(SystemConstants.NORMAL);
-        Map<String, Object> params = bo.getParams();
-        params.put("beginTime", taskQuery.getBeginTime());
-        params.put("endTime", taskQuery.getEndTime());
-        PageResult<SysRoleVo> page = roleService.selectPageRoleList(bo, pageParam);
-        // 使用封装的字段映射方法进行转换
-        List<RemoteTaskAssigneeVo.TaskHandler> handlers = RemoteTaskAssigneeVo.convertToHandlerList(page.getItems(),
-            item -> Convert.toStr(item.getRoleId()), SysRoleVo::getRoleKey, SysRoleVo::getRoleName, item -> "", SysRoleVo::getCreateTime);
-        return new RemoteTaskAssigneeVo(page.getTotal(), handlers);
+        putTimeRange(bo.getParams(), taskQuery);
+        PageResult<SysRoleVo> page = roleService.selectPageRoleList(bo, pageParam(taskQuery));
+        return new RemoteTaskAssigneeVo(page.getTotal(), RemoteTaskAssigneeVo.convertToHandlerList(page.getItems(),
+            role -> Convert.toStr(role.getRoleId()), SysRoleVo::getRoleKey, SysRoleVo::getRoleName,
+            role -> "", SysRoleVo::getCreateTime));
     }
 
-    /**
-     * 查询岗位并返回任务指派的列表，支持分页
-     *
-     * @param taskQuery 查询条件
-     * @return 办理人
-     */
     @Override
     public RemoteTaskAssigneeVo selectPostsByTaskAssigneeList(RemoteTaskAssigneeBo taskQuery) {
-        PageParam pageParam = new PageParam(taskQuery.getPage(), taskQuery.getPageSize());
         SysPostBo bo = new SysPostBo();
         bo.setPostCategory(taskQuery.getHandlerCode());
         bo.setPostName(taskQuery.getHandlerName());
-        bo.setStatus(SystemConstants.NORMAL);
-        Map<String, Object> params = bo.getParams();
-        params.put("beginTime", taskQuery.getBeginTime());
-        params.put("endTime", taskQuery.getEndTime());
         bo.setBelongDeptId(Convert.toLong(taskQuery.getGroupId()));
-        PageResult<SysPostVo> page = postService.selectPagePostList(bo, pageParam);
-        // 使用封装的字段映射方法进行转换
-        List<RemoteTaskAssigneeVo.TaskHandler> handlers = RemoteTaskAssigneeVo.convertToHandlerList(page.getItems(),
-            item -> Convert.toStr(item.getPostId()), SysPostVo::getPostCategory, SysPostVo::getPostName, item -> Convert.toStr(item.getDeptId()), SysPostVo::getCreateTime);
-        return new RemoteTaskAssigneeVo(page.getTotal(), handlers);
+        bo.setStatus(SystemConstants.NORMAL);
+        putTimeRange(bo.getParams(), taskQuery);
+        PageResult<SysPostVo> page = postService.selectPagePostList(bo, pageParam(taskQuery));
+        return new RemoteTaskAssigneeVo(page.getTotal(), RemoteTaskAssigneeVo.convertToHandlerList(page.getItems(),
+            post -> Convert.toStr(post.getPostId()), SysPostVo::getPostCategory, SysPostVo::getPostName,
+            post -> Convert.toStr(post.getDeptId()), SysPostVo::getCreateTime));
     }
 
-    /**
-     * 查询部门并返回任务指派的列表，支持分页
-     *
-     * @param taskQuery 查询条件
-     * @return 办理人
-     */
     @Override
     public RemoteTaskAssigneeVo selectDeptsByTaskAssigneeList(RemoteTaskAssigneeBo taskQuery) {
-        PageParam pageParam = new PageParam(taskQuery.getPage(), taskQuery.getPageSize());
         SysDeptBo bo = new SysDeptBo();
         bo.setDeptCategory(taskQuery.getHandlerCode());
         bo.setDeptName(taskQuery.getHandlerName());
-        bo.setStatus(SystemConstants.NORMAL);
-        Map<String, Object> params = bo.getParams();
-        params.put("beginTime", taskQuery.getBeginTime());
-        params.put("endTime", taskQuery.getEndTime());
         bo.setBelongDeptId(Convert.toLong(taskQuery.getGroupId()));
-        PageResult<SysDeptVo> page = deptService.selectPageDeptList(bo, pageParam);
-        // 使用封装的字段映射方法进行转换
-        List<RemoteTaskAssigneeVo.TaskHandler> handlers = RemoteTaskAssigneeVo.convertToHandlerList(page.getItems(),
-            item -> Convert.toStr(item.getDeptId()), SysDeptVo::getDeptCategory, SysDeptVo::getDeptName, item -> Convert.toStr(item.getParentId()), SysDeptVo::getCreateTime);
-        return new RemoteTaskAssigneeVo(page.getTotal(), handlers);
+        bo.setStatus(SystemConstants.NORMAL);
+        putTimeRange(bo.getParams(), taskQuery);
+        PageResult<SysDeptVo> page = deptService.selectPageDeptList(bo, pageParam(taskQuery));
+        return new RemoteTaskAssigneeVo(page.getTotal(), RemoteTaskAssigneeVo.convertToHandlerList(page.getItems(),
+            dept -> Convert.toStr(dept.getDeptId()), SysDeptVo::getDeptCategory, SysDeptVo::getDeptName,
+            dept -> Convert.toStr(dept.getParentId()), SysDeptVo::getCreateTime));
     }
 
-    /**
-     * 查询用户并返回任务指派的列表，支持分页
-     *
-     * @param taskQuery 查询条件
-     * @return 办理人
-     */
     @Override
     public RemoteTaskAssigneeVo selectUsersByTaskAssigneeList(RemoteTaskAssigneeBo taskQuery) {
-        PageParam pageParam = new PageParam(taskQuery.getPage(), taskQuery.getPageSize());
         SysUserBo bo = new SysUserBo();
         bo.setUserName(taskQuery.getHandlerCode());
         bo.setNickName(taskQuery.getHandlerName());
+        bo.setDeptId(Convert.toLong(taskQuery.getGroupId()));
         bo.setStatus(SystemConstants.NORMAL);
-        Map<String, Object> params = bo.getParams();
+        putTimeRange(bo.getParams(), taskQuery);
+        PageResult<SysUserVo> page = userService.selectPageUserList(bo, pageParam(taskQuery));
+        return new RemoteTaskAssigneeVo(page.getTotal(), RemoteTaskAssigneeVo.convertToHandlerList(page.getItems(),
+            user -> Convert.toStr(user.getUserId()), SysUserVo::getUserName, SysUserVo::getNickName,
+            user -> Convert.toStr(user.getDeptId()), SysUserVo::getCreateTime));
+    }
+
+    private static PageParam pageParam(RemoteTaskAssigneeBo taskQuery) {
+        return new PageParam(taskQuery.getPage(), taskQuery.getPageSize());
+    }
+
+    private static void putTimeRange(Map<String, Object> params, RemoteTaskAssigneeBo taskQuery) {
         params.put("beginTime", taskQuery.getBeginTime());
         params.put("endTime", taskQuery.getEndTime());
-        bo.setDeptId(Convert.toLong(taskQuery.getGroupId()));
-        PageResult<SysUserVo> page = userService.selectPageUserList(bo, pageParam);
-        // 使用封装的字段映射方法进行转换
-        List<RemoteTaskAssigneeVo.TaskHandler> handlers = RemoteTaskAssigneeVo.convertToHandlerList(page.getItems(),
-            item -> Convert.toStr(item.getUserId()), SysUserVo::getUserName, SysUserVo::getNickName, item -> Convert.toStr(item.getDeptId()), SysUserVo::getCreateTime);
-        return new RemoteTaskAssigneeVo(page.getTotal(), handlers);
     }
 
 }

@@ -1,172 +1,165 @@
 package org.tuoyu.common.core.utils;
 
-import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.lang.tree.Tree;
 import cn.hutool.core.lang.tree.TreeNodeConfig;
 import cn.hutool.core.lang.tree.TreeUtil;
 import cn.hutool.core.lang.tree.parser.NodeParser;
-import cn.hutool.core.util.StrUtil;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 import org.tuoyu.common.core.utils.reflect.ReflectUtils;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
- * 扩展 hutool TreeUtil 封装系统树构建
+ * 构建树形结构。
+ * <p>
+ * 树节点使用 hutool 的 {@link Tree}（它是一个 Map，接口按其中的键输出 JSON）。本类构建的节点把名称放在键
+ * {@code label} 下（前端读取 {@code label}），其他键保持 hutool 的默认值（{@code id}、{@code parentId}、
+ * {@code weight}、{@code children}）；同级节点按 weight 升序。使用本类自己的配置，不修改 hutool 的全局默认配置。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class TreeBuildUtils extends TreeUtil {
+public final class TreeBuildUtils {
 
     /**
-     * 根据前端定制差异化字段
+     * 名称键
      */
-    public static final TreeNodeConfig DEFAULT_CONFIG = TreeNodeConfig.DEFAULT_CONFIG.setNameKey("label");
+    private static final String NAME_KEY = "label";
 
-    /**
-     * 使用动态规划构建树形结构
-     *
-     * @param items      节点列表项
-     * @param parentId   父节点ID
-     * @param classifier 动态规划表分类函数
-     * @param action     回溯动作
-     * @param <K>        节点ID的类型
-     * @param <T>        输入节点的类型
-     * @return 构建好的树形结构列表
-     */
-    public static <K, T> List<T> build(List<T> items, K parentId, Function<T, K> classifier, BiConsumer<T, Map<K, List<T>>> action) {
-        Map<K, List<T>> nodeTreeMaps = items.stream().collect(Collectors.groupingBy(classifier));
-        items.forEach(item -> action.accept(item, nodeTreeMaps));
-        return nodeTreeMaps.get(parentId);
+    private TreeBuildUtils() {
     }
 
     /**
-     * 构建树形结构
+     * 构建树，顶级父 ID 取第一个元素的 {@code parentId} 属性（调用它的 {@code getParentId()}）。
      *
-     * @param <T>        输入节点的类型
-     * @param <K>        节点ID的类型
-     * @param list       节点列表，其中包含了要构建树形结构的所有节点
-     * @param nodeParser 解析器，用于将输入节点转换为树节点
-     * @return 构建好的树形结构列表
+     * @param list       节点数据
+     * @param nodeParser 把数据填充到树节点
+     * @param <T>        数据类型
+     * @param <K>        ID 类型
+     * @return 顶级父 ID 下的树；list 为空时为可修改的空列表
      */
     public static <T, K> List<Tree<K>> build(List<T> list, NodeParser<T, K> nodeParser) {
-        if (CollUtil.isEmpty(list)) {
-            return CollUtil.newArrayList();
+        if (list == null || list.isEmpty()) {
+            return new ArrayList<>();
         }
-        K k = ReflectUtils.invokeGetter(list.getFirst(), "parentId");
-        return TreeUtil.build(list, k, DEFAULT_CONFIG, nodeParser);
+        K parentId = ReflectUtils.invokeGetter(list.get(0), "parentId");
+        return buildUnder(list, parentId, nodeParser);
     }
 
     /**
-     * 构建树形结构
+     * 按分类函数分组后由调用方设置子节点，不使用 hutool 的树。
      *
-     * @param <T>        输入节点的类型
-     * @param <K>        节点ID的类型
-     * @param parentId   顶级节点
-     * @param list       节点列表，其中包含了要构建树形结构的所有节点
-     * @param nodeParser 解析器，用于将输入节点转换为树节点
-     * @return 构建好的树形结构列表
+     * @param items      元素
+     * @param parentId   顶级父 ID
+     * @param classifier 分类函数（通常取父 ID），不能返回 null
+     * @param action     对每个元素调用一次，参数为元素与分组表（父 ID → 子元素），调用方据此设置子节点
+     * @param <K>        ID 类型
+     * @param <T>        元素类型
+     * @return 分组表中 parentId 对应的元素；没有时为 null
      */
-    public static <T, K> List<Tree<K>> build(List<T> list, K parentId, NodeParser<T, K> nodeParser) {
-        if (CollUtil.isEmpty(list)) {
-            return CollUtil.newArrayList();
+    public static <K, T> List<T> build(List<T> items, K parentId, Function<T, K> classifier,
+                                       BiConsumer<T, Map<K, List<T>>> action) {
+        Map<K, List<T>> groups = new LinkedHashMap<>();
+        for (T item : items) {
+            K key = Objects.requireNonNull(classifier.apply(item), "分类函数的结果不能为 null");
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(item);
         }
-        return TreeUtil.build(list, parentId, DEFAULT_CONFIG, nodeParser);
+        for (T item : items) {
+            action.accept(item, groups);
+        }
+        return groups.get(parentId);
     }
 
     /**
-     * 构建多根节点的树结构（支持多个顶级节点）
+     * 构建有多个顶级节点的树：顶级父 ID 为不在 ID 集合中的父 ID。不同顶级父 ID 之间的先后顺序不保证。
      *
-     * @param list        原始数据列表
-     * @param getId       获取节点 ID 的方法引用，例如：node -> node.getId()
-     * @param getParentId 获取节点父级 ID 的方法引用，例如：node -> node.getParentId()
-     * @param parser      树节点属性映射器，用于将原始节点 T 转为 Tree 节点
-     * @param <T>         原始数据类型（如实体类、DTO 等）
-     * @param <K>         节点 ID 类型（如 Long、String）
-     * @return 构建完成的树形结构（可能包含多个顶级根节点）
+     * @param list        节点数据
+     * @param getId       取 ID
+     * @param getParentId 取父 ID
+     * @param parser      把数据填充到树节点
+     * @param <T>         数据类型
+     * @param <K>         ID 类型
+     * @return 全部顶级父 ID 下的树；list 为空时为空列表
      */
-    public static <T, K> List<Tree<K>> buildMultiRoot(List<T> list, Function<T, K> getId, Function<T, K> getParentId, NodeParser<T, K> parser) {
-        if (CollUtil.isEmpty(list)) {
-            return CollUtil.newArrayList();
+    public static <T, K> List<Tree<K>> buildMultiRoot(List<T> list, Function<T, K> getId, Function<T, K> getParentId,
+                                                      NodeParser<T, K> parser) {
+        List<Tree<K>> result = new ArrayList<>();
+        if (list == null || list.isEmpty()) {
+            return result;
         }
-
-        Set<K> rootParentIds = StreamUtils.toSet(list, getParentId);
-        rootParentIds.removeAll(StreamUtils.toSet(list, getId));
-        return rootParentIds.stream()
-            .flatMap(rootParentId -> TreeUtil.build(list, rootParentId, parser).stream())
-            .collect(Collectors.toList());
+        Set<K> ids = new HashSet<>();
+        Set<K> parentIds = new LinkedHashSet<>();
+        for (T item : list) {
+            ids.add(getId.apply(item));
+            K parentId = getParentId.apply(item);
+            if (parentId != null) {
+                parentIds.add(parentId);
+            }
+        }
+        parentIds.removeAll(ids);
+        for (K rootParentId : parentIds) {
+            result.addAll(buildUnder(list, rootParentId, parser));
+        }
+        return result;
     }
 
     /**
-     * 获取节点列表中所有节点的叶子节点
+     * 建立节点路径表：深度优先（先父后子，同级按列表顺序）遍历，键为从根到节点的取值用连接符连接的路径。
+     * 取值为 null 或空串的节点连同其子树跳过；路径重复时后者覆盖前者。
      *
-     * @param <K>   节点ID的类型
-     * @param nodes 节点列表
-     * @return 包含所有叶子节点的列表
+     * @param trees       树
+     * @param joiner      路径连接符
+     * @param fieldGetter 取节点的值
+     * @param <K>         ID 类型
+     * @return 路径 → 节点，按遍历顺序；trees 为空时为空 Map
      */
-    public static <K> List<Tree<K>> getLeafNodes(List<Tree<K>> nodes) {
-        if (CollUtil.isEmpty(nodes)) {
-            return CollUtil.newArrayList();
+    public static <K> Map<String, Tree<K>> buildTreeNodeMap(List<Tree<K>> trees, String joiner,
+                                                            Function<Tree<K>, CharSequence> fieldGetter) {
+        Map<String, Tree<K>> result = new LinkedHashMap<>();
+        if (trees != null) {
+            for (Tree<K> tree : trees) {
+                collectPaths(tree, null, joiner, fieldGetter, result);
+            }
         }
-        return nodes.stream()
-            .flatMap(TreeBuildUtils::extractLeafNodes)
-            .collect(Collectors.toList());
+        return result;
     }
 
-    /**
-     * 构建树节点路径 Map: 路径为 key, 节点为 value
-     *
-     * @param trees       树结构
-     * @param joiner      拼接符
-     * @param fieldGetter 路径拼接字段
-     * @return Map<拼接路径, 原始Tree节点>
-     */
-    public static <K> Map<String, Tree<K>> buildTreeNodeMap(List<Tree<K>> trees, String joiner, Function<Tree<K>, CharSequence> fieldGetter) {
-        Map<String, Tree<K>> nodeMap = new LinkedHashMap<>();
-        doBuildTreeNodeMap(trees, "", joiner, fieldGetter, nodeMap);
-        return nodeMap;
-    }
-
-    /**
-     * 获取指定节点下的所有叶子节点
-     *
-     * @param <K>  节点ID的类型
-     * @param node 要查找叶子节点的根节点
-     * @return 包含所有叶子节点的列表
-     */
-    private static <K> Stream<Tree<K>> extractLeafNodes(Tree<K> node) {
-        if (!node.hasChild()) {
-            return Stream.of(node);
-        } else {
-            // 递归调用，获取所有子节点的叶子节点
-            return node.getChildren().stream()
-                .flatMap(TreeBuildUtils::extractLeafNodes);
-        }
-    }
-
-    private static <K> void doBuildTreeNodeMap(List<Tree<K>> trees, String parentPath, String joiner,
-                                               Function<Tree<K>, CharSequence> fieldGetter, Map<String, Tree<K>> nodeMap) {
-        if (CollUtil.isEmpty(trees)) {
+    private static <K> void collectPaths(Tree<K> node, String parentPath, String joiner,
+                                         Function<Tree<K>, CharSequence> fieldGetter, Map<String, Tree<K>> result) {
+        CharSequence value = fieldGetter.apply(node);
+        if (value == null || value.isEmpty()) {
             return;
         }
-        for (Tree<K> tree : trees) {
-            CharSequence field = fieldGetter.apply(tree);
-            if (StrUtil.isEmpty(field)) {
-                continue;
+        String path = parentPath == null ? value.toString() : parentPath + joiner + value;
+        result.put(path, node);
+        Collection<Tree<K>> children = node.getChildren();
+        if (children != null) {
+            for (Tree<K> child : children) {
+                collectPaths(child, path, joiner, fieldGetter, result);
             }
-            String currentPath = StrUtil.isEmpty(parentPath) ? field.toString() : parentPath + joiner + field;
-            nodeMap.put(currentPath, tree);
-            doBuildTreeNodeMap(tree.getChildren(), currentPath, joiner, fieldGetter, nodeMap);
         }
+    }
+
+    private static <T, K> List<Tree<K>> buildUnder(List<T> list, K parentId, NodeParser<T, K> parser) {
+        List<Tree<K>> trees = TreeUtil.build(list, parentId, config(), parser);
+        return trees == null ? new ArrayList<>() : trees;
+    }
+
+    /**
+     * hutool 的配置是可修改的对象，每次构建用一份新的，避免被其他代码改动
+     */
+    private static TreeNodeConfig config() {
+        TreeNodeConfig config = new TreeNodeConfig();
+        config.setNameKey(NAME_KEY);
+        return config;
     }
 
 }

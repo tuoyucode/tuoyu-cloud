@@ -1,46 +1,42 @@
 package org.tuoyu.system.dubbo;
 
-import cn.hutool.core.collection.CollUtil;
-import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import lombok.RequiredArgsConstructor;
-import org.tuoyu.common.core.utils.StreamUtils;
+import org.springframework.stereotype.Service;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.api.RemotePostService;
 import org.tuoyu.system.domain.SysPost;
 import org.tuoyu.system.mapper.SysPostMapper;
-import org.springframework.stereotype.Service;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 岗位服务
+ * 岗位服务的跨模块实现（不带数据权限，租户隔离照常）
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class RemotePostServiceImpl implements RemotePostService {
 
     private final SysPostMapper postMapper;
 
-    /**
-     * 根据岗位 ID 列表查询岗位名称映射关系
-     *
-     * @param postIds 岗位 ID 列表
-     * @return Map，其中 key 为岗位 ID，value 为对应的岗位名称
-     */
     @Override
     public Map<Long, String> selectPostNamesByIds(Collection<Long> postIds) {
-        if (CollUtil.isEmpty(postIds)) {
-            return Collections.emptyMap();
+        Map<Long, String> names = new HashMap<>();
+        if (postIds == null || postIds.isEmpty()) {
+            return names;
         }
-        List<SysPost> list = postMapper.selectList(QueryBuilder.lambda(SysPost.class)
+        for (SysPost post : postMapper.selectList(QueryBuilder.lambda(SysPost.class)
             .select(SysPost::getPostId, SysPost::getPostName)
             .in(SysPost::getPostId, postIds)
-            .build());
-        return StreamUtils.toMap(list, SysPost::getPostId, SysPost::getPostName);
+            .build())) {
+            if (post != null) {
+                names.put(post.getPostId(), post.getPostName());
+            }
+        }
+        return names;
     }
 
 }

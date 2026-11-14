@@ -10,28 +10,39 @@ import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.mybatis.core.domain.BaseEntity;
 
+import java.io.Serial;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 菜单权限表 sys_menu
+ * 菜单 sys_menu（平台共享，不分租户）。
+ * <p>
+ * 除表中的列外，提供生成前端路由时用到的计算：路由名称、路由地址与组件。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("sys_menu")
 public class SysMenu extends BaseEntity {
 
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     /**
-     * 菜单ID
+     * 内链地址中要替换的片段与替换结果（一次扫描替换，顺序一一对应）
      */
-    @TableId(value = "menu_id")
+    private static final String[] INNER_LINK_SEARCH = {"http://", "https://", "www.", ".", ":"};
+    private static final String[] INNER_LINK_REPLACEMENT = {"", "", "", "/", "/"};
+
+    /**
+     * 菜单 ID
+     */
+    @TableId("menu_id")
     private Long menuId;
 
     /**
-     * 父菜单ID
+     * 上级菜单 ID
      */
     private Long parentId;
 
@@ -61,42 +72,42 @@ public class SysMenu extends BaseEntity {
     private String queryParam;
 
     /**
-     * 是否为外链（Y是 N否）
+     * 是否外链（Y 是 N 否）
      */
     private String isFrame;
 
     /**
-     * 是否缓存（Y缓存 N不缓存）
+     * 是否缓存（Y 缓存 N 不缓存）
      */
     private String isCache;
 
     /**
-     * 类型（M目录 C菜单 F按钮）
+     * 类型（M 目录 C 菜单 F 按钮）
      */
     private String menuType;
 
     /**
-     * 显示状态（0显示 1隐藏）
+     * 显示状态（0 显示 1 隐藏）
      */
     private String visible;
 
     /**
-     * 菜单状态（0正常 1停用）
+     * 菜单状态（0 正常 1 停用）
      */
     private String status;
 
     /**
-     * 权限字符串
+     * 权限码
      */
     private String perms;
 
     /**
-     * 菜单图标
+     * 图标（Iconify 名称）
      */
     private String icon;
 
     /**
-     * 激活菜单路径
+     * 激活的菜单路径
      */
     private String activeMenu;
 
@@ -111,91 +122,99 @@ public class SysMenu extends BaseEntity {
     private String remark;
 
     /**
-     * 父菜单名称
+     * 上级菜单名称（不是表的列）
      */
     @TableField(exist = false)
     private String parentName;
 
     /**
-     * 子菜单
+     * 子菜单（不是表的列）
      */
     @TableField(exist = false)
     private List<SysMenu> children = new ArrayList<>();
 
     /**
-     * 获取路由名称
+     * @return 是否一级（上级为根）
      */
-    public String getRouteName() {
-        String routerName = StringUtils.capitalize(path);
-        // 非外链并且是一级目录（类型为目录）
-        if (isMenuFrame()) {
-            routerName = StringUtils.EMPTY;
-        }
-        return routerName;
+    private boolean isTopLevel() {
+        return Constants.TOP_PARENT_ID.equals(parentId);
     }
 
     /**
-     * 获取路由地址
+     * @return 是否外链（外链标记为空时按否）
+     */
+    private boolean isExternalLink() {
+        return SystemConstants.YES.equals(isFrame);
+    }
+
+    /**
+     * @return 是否一级菜单（不是外链）：前端用一层空路径的布局包住它
+     */
+    public boolean isMenuFrame() {
+        return isTopLevel() && SystemConstants.TYPE_MENU.equals(menuType) && !isExternalLink();
+    }
+
+    /**
+     * @return 是否内链（不是外链、地址为 http(s)）：在系统内嵌入显示
+     */
+    public boolean isInnerLink() {
+        return !isExternalLink() && StringUtils.ishttp(path);
+    }
+
+    /**
+     * @return 是否非一级的目录：前端用 ParentView 承载子路由
+     */
+    public boolean isParentView() {
+        return !isTopLevel() && SystemConstants.TYPE_DIR.equals(menuType);
+    }
+
+    /**
+     * 把内链地址转换为路由地址：去掉协议与 {@code www.}，点与冒号换成斜杠
+     *
+     * @param path 内链地址
+     * @return 路由地址
+     */
+    public static String innerLinkReplaceEach(String path) {
+        return StringUtils.replaceEach(path, INNER_LINK_SEARCH, INNER_LINK_REPLACEMENT);
+    }
+
+    /**
+     * @return 路由名称：一级菜单为空串（由外层布局路由命名），其他为地址首字母大写
+     */
+    public String getRouteName() {
+        return isMenuFrame() ? StringUtils.EMPTY : StringUtils.capitalize(path);
+    }
+
+    /**
+     * @return 路由地址
      */
     public String getRouterPath() {
-        String routerPath = this.path;
-        // 内链打开外网方式
-        if (!Constants.TOP_PARENT_ID.equals(getParentId()) && isInnerLink()) {
+        String routerPath = path;
+        if (!isTopLevel() && isInnerLink()) {
             routerPath = innerLinkReplaceEach(routerPath);
         }
-        // 非外链并且是一级目录（类型为目录）
-        if (Constants.TOP_PARENT_ID.equals(getParentId()) && SystemConstants.TYPE_DIR.equals(getMenuType())
-            && SystemConstants.NO.equals(getIsFrame())) {
-            routerPath = "/" + this.path;
-        }
-        // 非外链并且是一级目录（类型为菜单）
-        else if (isMenuFrame()) {
+        if (isTopLevel() && SystemConstants.TYPE_DIR.equals(menuType) && SystemConstants.NO.equals(isFrame)) {
+            routerPath = "/" + path;
+        } else if (isMenuFrame()) {
             routerPath = "/";
         }
         return routerPath;
     }
 
     /**
-     * 获取组件信息
+     * @return 前端组件：页面组件、内链组件、ParentView 或布局
      */
     public String getComponentInfo() {
-        String component = SystemConstants.LAYOUT;
-        if (StringUtils.isNotEmpty(this.component) && !isMenuFrame()) {
-            component = this.component;
-        } else if (StringUtils.isEmpty(this.component) && !Constants.TOP_PARENT_ID.equals(getParentId()) && isInnerLink()) {
-            component = SystemConstants.INNER_LINK;
-        } else if (StringUtils.isEmpty(this.component) && isParentView()) {
-            component = SystemConstants.PARENT_VIEW;
+        if (StringUtils.isNotEmpty(component) && !isMenuFrame()) {
+            return component;
         }
-        return component;
+        if (StringUtils.isEmpty(component) && !isTopLevel() && isInnerLink()) {
+            return SystemConstants.INNER_LINK;
+        }
+        if (StringUtils.isEmpty(component) && isParentView()) {
+            return SystemConstants.PARENT_VIEW;
+        }
+        return SystemConstants.LAYOUT;
     }
 
-    /**
-     * 是否为菜单内部跳转（未设置外链标记时按“否”处理，与数据库默认值一致）
-     */
-    public boolean isMenuFrame() {
-        return Constants.TOP_PARENT_ID.equals(getParentId()) && SystemConstants.TYPE_MENU.equals(menuType) && !SystemConstants.YES.equals(isFrame);
-    }
-
-    /**
-     * 是否为内链组件
-     */
-    public boolean isInnerLink() {
-        return !SystemConstants.YES.equals(isFrame) && StringUtils.ishttp(path);
-    }
-
-    /**
-     * 是否为parent_view组件
-     */
-    public boolean isParentView() {
-        return !Constants.TOP_PARENT_ID.equals(getParentId()) && SystemConstants.TYPE_DIR.equals(menuType);
-    }
-
-    /**
-     * 内链域名特殊字符替换
-     */
-    public static String innerLinkReplaceEach(String path) {
-        return StringUtils.replaceEach(path, new String[]{Constants.HTTP, Constants.HTTPS, Constants.WWW, ".", StringUtils.COLON},
-            new String[]{"", "", "", "/", "/"});
-    }
 }

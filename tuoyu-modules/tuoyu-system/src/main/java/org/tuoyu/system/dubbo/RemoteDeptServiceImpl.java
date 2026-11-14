@@ -1,91 +1,78 @@
 package org.tuoyu.system.dubbo;
 
-import cn.hutool.core.bean.BeanUtil;
-import org.tuoyu.common.core.utils.BeanMapper;
-import org.tuoyu.common.mybatis.core.query.QueryBuilder;
-import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.util.ObjectUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 import org.tuoyu.common.core.constant.SystemConstants;
-import org.tuoyu.common.core.utils.StreamUtils;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.api.RemoteDeptService;
 import org.tuoyu.system.api.domain.vo.RemoteDeptVo;
 import org.tuoyu.system.domain.SysDept;
 import org.tuoyu.system.domain.vo.SysDeptVo;
 import org.tuoyu.system.mapper.SysDeptMapper;
 import org.tuoyu.system.service.ISysDeptService;
-import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 部门服务
+ * 部门服务的跨模块实现（不带数据权限，租户隔离照常）
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class RemoteDeptServiceImpl implements RemoteDeptService {
 
     private final ISysDeptService deptService;
     private final SysDeptMapper deptMapper;
 
-    /**
-     * 通过部门ID查询部门名称
-     *
-     * @param deptIds 部门ID串逗号分隔
-     * @return 部门名称串逗号分隔
-     */
     @Override
     public String selectDeptNameByIds(String deptIds) {
         return deptService.selectDeptNameByIds(deptIds);
     }
 
-    /**
-     * 根据部门ID查询部门负责人
-     *
-     * @param deptId 部门ID，用于指定需要查询的部门
-     * @return 返回该部门的负责人ID
-     */
     @Override
     public Long selectDeptLeaderById(Long deptId) {
-        SysDeptVo vo = deptService.selectDeptById(deptId);
-        return ObjectUtil.isNull(vo) ? null : vo.getLeader();
+        SysDeptVo dept = deptService.selectDeptById(deptId);
+        return dept == null ? null : dept.getLeader();
     }
 
-    /**
-     * 查询部门
-     *
-     * @return 部门列表
-     */
     @Override
     public List<RemoteDeptVo> selectDeptsByList() {
-        List<SysDeptVo> list = BeanMapper.mapList(deptMapper.selectList(QueryBuilder.lambda(SysDept.class)
+        List<RemoteDeptVo> result = new ArrayList<>();
+        for (SysDept dept : deptMapper.selectList(QueryBuilder.lambda(SysDept.class)
             .select(SysDept::getDeptId, SysDept::getDeptName, SysDept::getParentId)
             .eq(SysDept::getStatus, SystemConstants.NORMAL)
-            .build()), SysDeptVo.class);
-        return BeanUtil.copyToList(list, RemoteDeptVo.class);
+            .build())) {
+            if (dept != null) {
+                RemoteDeptVo vo = new RemoteDeptVo();
+                vo.setDeptId(dept.getDeptId());
+                vo.setParentId(dept.getParentId());
+                vo.setDeptName(dept.getDeptName());
+                result.add(vo);
+            }
+        }
+        return result;
     }
 
-    /**
-     * 根据部门 ID 列表查询部门名称映射关系
-     *
-     * @param deptIds 部门 ID 列表
-     * @return Map，其中 key 为部门 ID，value 为对应的部门名称
-     */
     @Override
     public Map<Long, String> selectDeptNamesByIds(Collection<Long> deptIds) {
-        if (CollUtil.isEmpty(deptIds)) {
-            return Collections.emptyMap();
+        Map<Long, String> names = new HashMap<>();
+        if (deptIds == null || deptIds.isEmpty()) {
+            return names;
         }
-        List<SysDept> list = deptMapper.selectList(QueryBuilder.lambda(SysDept.class)
+        for (SysDept dept : deptMapper.selectList(QueryBuilder.lambda(SysDept.class)
             .select(SysDept::getDeptId, SysDept::getDeptName)
             .in(SysDept::getDeptId, deptIds)
-            .build());
-        return StreamUtils.toMap(list, SysDept::getDeptId, SysDept::getDeptName);
+            .build())) {
+            if (dept != null) {
+                names.put(dept.getDeptId(), dept.getDeptName());
+            }
+        }
+        return names;
     }
 
 }

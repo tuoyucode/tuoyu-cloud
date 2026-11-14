@@ -1,52 +1,46 @@
-package ${packageName}.domain;
+<#-- 实体：不声明实体基类（BaseEntity、按租户隔离时 TenantEntity）中已有的字段 -->
+package ${gen.packageName}.domain;
 
-<#if table.tenant>
-import org.tuoyu.common.mybatis.core.domain.TenantEntity;
-<#else>
-import org.tuoyu.common.mybatis.core.domain.BaseEntity;
-</#if>
+import org.tuoyu.common.mybatis.core.domain.${gen.baseEntity};
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-<#list importList as import>
-import ${import};
+<#list gen.domainImports as name>
+import ${name};
 </#list>
 
 import java.io.Serial;
 
 /**
- * ${functionName}对象 ${tableName}
+ * ${functionName}对象 ${gen.tableName}
  *
- * @author ${author}
- * @date ${datetime}
+ * @author ${gen.author}
+ * @date ${gen.datetime}
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("${tableName}")
-public class ${ClassName} extends <#if table.tenant>TenantEntity<#else>BaseEntity</#if> {
+@TableName("${gen.tableName}")
+public class ${ClassName} extends ${gen.baseEntity} {
 
     @Serial
     private static final long serialVersionUID = 1L;
 
-<#list columns as column>
-<#if !table.isSuperColumn(column.javaField)>
+<#list gen.domainColumns as column>
     /**
      * ${column.columnComment}
      */
-<#if column.javaField=='delFlag'>
+<#if column.javaField == 'delFlag'>
     @TableLogic
 </#if>
-<#if column.javaField=='version'>
+<#if column.javaField == 'version'>
     @Version
 </#if>
 <#if column.pk>
-    @TableId(value = "${column.columnName}")
+    @TableId(value = "${column.columnName?j_string}")
 <#elseif column.needTableField>
-    @TableField(value = "${column.columnName}")
+    @TableField(value = "${column.columnName?j_string}")
 </#if>
     private ${column.javaType} ${column.javaField};
 
-</#if>
 </#list>
-
 }

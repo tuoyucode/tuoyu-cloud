@@ -4,16 +4,16 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 推送消息来源枚举
+ * 推送消息的来源。取值写进推送的消息体，前端按它区分消息。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Getter
 @AllArgsConstructor
 public enum PushSourceEnum {
 
     /**
-     * 后端系统消息
+     * 后端业务
      */
     BACKEND("backend"),
 
@@ -33,9 +33,13 @@ public enum PushSourceEnum {
     LLM("llm"),
 
     /**
-     * 客户端消息
+     * 客户端
      */
     CLIENT("client");
 
+    /**
+     * 来源标识
+     */
     private final String source;
+
 }

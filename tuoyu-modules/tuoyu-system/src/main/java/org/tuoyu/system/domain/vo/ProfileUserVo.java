@@ -8,11 +8,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-
 /**
- * 用户信息视图对象 sys_user
+ * 个人中心的用户信息（本人查看，不脱敏）
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Data
 public class ProfileUserVo implements Serializable {
@@ -21,47 +20,47 @@ public class ProfileUserVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户ID
+     * 用户 ID
      */
     private Long userId;
 
     /**
-     * 部门ID
+     * 部门 ID
      */
     private Long deptId;
 
     /**
-     * 用户账号
+     * 账号
      */
     private String userName;
 
     /**
-     * 用户昵称
+     * 昵称
      */
     private String nickName;
 
     /**
-     * 用户类型（sys_user系统用户）
+     * 用户类型
      */
     private String userType;
 
     /**
-     * 用户邮箱
+     * 邮箱
      */
     private String email;
 
     /**
-     * 手机号码
+     * 手机号
      */
     private String phoneNumber;
 
     /**
-     * 用户性别（0男 1女 2未知）
+     * 性别
      */
     private String gender;
 
     /**
-     * 头像 OSS ID
+     * 头像（对象存储 ID）
      */
     private Long avatar;
 
@@ -72,7 +71,7 @@ public class ProfileUserVo implements Serializable {
     private String avatarUrl;
 
     /**
-     * 最后登录IP
+     * 最后登录 IP
      */
     private String loginIp;
 
@@ -82,7 +81,7 @@ public class ProfileUserVo implements Serializable {
     private LocalDateTime loginDate;
 
     /**
-     * 部门名
+     * 部门名称
      */
     @Translation(type = TransConstant.DEPT_ID_TO_NAME, mapper = "deptId")
     private String deptName;

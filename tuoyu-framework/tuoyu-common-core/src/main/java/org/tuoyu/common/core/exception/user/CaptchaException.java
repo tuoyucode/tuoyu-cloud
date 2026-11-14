@@ -3,11 +3,12 @@ package org.tuoyu.common.core.exception.user;
 import java.io.Serial;
 
 /**
- * 验证码错误异常类
+ * 验证码错误。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public class CaptchaException extends UserException {
+
     @Serial
     private static final long serialVersionUID = 1L;
 
@@ -15,7 +16,4 @@ public class CaptchaException extends UserException {
         super("user.jcaptcha.error");
     }
 
-    public CaptchaException(String msg) {
-        super(msg);
-    }
 }

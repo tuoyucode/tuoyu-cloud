@@ -7,33 +7,29 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 用户权限处理
+ * 权限计算：用户的角色标识、权限码，以及数据权限用到的“权限码 → 角色”映射
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface ISysPermissionService {
 
     /**
-     * 获取角色数据权限
-     *
-     * @param userId 用户id
-     * @return 角色权限信息
+     * @param userId 用户 ID
+     * @return 角色标识（超级管理员为 superadmin）
      */
     Set<String> getRolePermission(Long userId);
 
     /**
-     * 获取菜单数据权限
-     *
-     * @param userId 用户id
-     * @return 菜单权限信息
+     * @param userId 用户 ID
+     * @return 权限码（超级管理员为 *:*:*）
      */
     Set<String> getMenuPermission(Long userId);
 
     /**
-     * 根据角色列表构建数据权限角色映射
+     * 权限码 → 拥有它的角色 ID：数据权限按接口的访问要求选取授予它的角色
      *
-     * @param roles 角色列表
-     * @return key 为权限码 value 为命中的角色ID列表
+     * @param roles 用户的角色
+     * @return 映射；没有角色时为空
      */
     Map<String, List<Long>> getDataScopeRoleMap(List<RoleDTO> roles);
 

@@ -1,7 +1,7 @@
 package org.tuoyu.auth.support;
 
 import cn.hutool.extra.spring.SpringUtil;
-import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.PayloadApplicationEvent;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.context.MessageSource;
@@ -10,6 +10,7 @@ import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import org.mockito.Mockito;
 import org.redisson.api.RedissonClient;
+import org.tuoyu.auth.service.LoginAudit;
 import org.tuoyu.common.log.event.LoginInfoEvent;
 import org.tuoyu.common.social.utils.AuthRedisStateCache;
 import tools.jackson.databind.json.JsonMapper;
@@ -58,15 +59,18 @@ public final class AuthTestContext {
     }
 
     /**
-     * 注册（或替换）一个单例，例如按名称查找的登录策略 {@code passwordAuthStrategy}
+     * @return 测试环境的事件发布器：发布的登录日志事件记录在 {@link #loginEvents()} 中
      */
-    public static synchronized void registerSingleton(String name, Object bean) {
+    public static ApplicationEventPublisher publisher() {
         init();
-        DefaultListableBeanFactory beanFactory = (DefaultListableBeanFactory) context.getBeanFactory();
-        if (beanFactory.containsSingleton(name)) {
-            beanFactory.destroySingleton(name);
-        }
-        beanFactory.registerSingleton(name, bean);
+        return context;
+    }
+
+    /**
+     * @return 写入测试环境的登录日志
+     */
+    public static LoginAudit loginAudit() {
+        return new LoginAudit(publisher());
     }
 
     /**

@@ -5,24 +5,29 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-/**
- * 角色和菜单关联 sys_role_menu
- *
- * @author Lion Li
- */
+import java.io.Serial;
+import java.io.Serializable;
 
+/**
+ * 角色与菜单关联 sys_role_menu
+ *
+ * @author tuoyu
+ */
 @Data
 @TableName("sys_role_menu")
-public class SysRoleMenu {
+public class SysRoleMenu implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /**
-     * 角色ID
+     * 角色 ID
      */
     @TableId(type = IdType.INPUT)
     private Long roleId;
 
     /**
-     * 菜单ID
+     * 菜单 ID
      */
     private Long menuId;
 

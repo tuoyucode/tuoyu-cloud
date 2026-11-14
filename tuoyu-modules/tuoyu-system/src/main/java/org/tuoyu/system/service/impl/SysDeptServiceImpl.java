@@ -1,21 +1,27 @@
 package org.tuoyu.system.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
-import org.tuoyu.common.core.utils.BeanMapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import org.tuoyu.common.mybatis.core.page.PageResults;
-import org.tuoyu.common.core.context.UserContext;
 import cn.hutool.core.convert.Convert;
 import cn.hutool.core.lang.tree.Tree;
-import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.tuoyu.common.core.constant.CacheNames;
+import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.core.constant.SystemConstants;
+import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.core.utils.*;
+import org.tuoyu.common.core.utils.BeanMapper;
+import org.tuoyu.common.core.utils.SpringUtils;
+import org.tuoyu.common.core.utils.StringUtils;
+import org.tuoyu.common.core.utils.TreeBuildUtils;
 import org.tuoyu.common.mybatis.core.page.PageParam;
+import org.tuoyu.common.mybatis.core.page.PageResults;
 import org.tuoyu.common.mybatis.core.query.LambdaQueryBuilder;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.redis.utils.CacheUtils;
@@ -28,150 +34,76 @@ import org.tuoyu.system.mapper.SysDeptMapper;
 import org.tuoyu.system.mapper.SysRoleMapper;
 import org.tuoyu.system.mapper.SysUserMapper;
 import org.tuoyu.system.service.ISysDeptService;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
 /**
- * 部门管理 服务实现
+ * 部门服务实现。列表、树与数据权限检查经带数据权限的 Mapper 方法执行
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class SysDeptServiceImpl implements ISysDeptService {
 
     private final SysDeptMapper deptMapper;
     private final SysRoleMapper roleMapper;
     private final SysUserMapper userMapper;
 
-    /**
-     * 分页查询部门管理数据
-     *
-     * @param dept      部门信息
-     * @param pageParam 分页对象
-     * @return 部门信息集合
-     */
     @Override
     public PageResult<SysDeptVo> selectPageDeptList(SysDeptBo dept, PageParam pageParam) {
-        return PageResults.of(deptMapper.selectPageDeptList(pageParam.toPage(SysDept.class), buildQueryWrapper(dept)), SysDeptVo.class);
+        return PageResults.of(deptMapper.selectPageDeptList(pageParam.toPage(SysDept.class), buildQueryWrapper(dept)),
+            SysDeptVo.class);
     }
 
-    /**
-     * 查询部门管理数据
-     *
-     * @param dept 部门信息
-     * @return 部门信息集合
-     */
     @Override
     public List<SysDeptVo> selectDeptList(SysDeptBo dept) {
-        LambdaQueryWrapper<SysDept> lqw = buildQueryWrapper(dept);
-        return BeanMapper.mapList(deptMapper.selectDeptList(lqw), SysDeptVo.class);
+        return BeanMapper.mapList(deptMapper.selectDeptList(buildQueryWrapper(dept)), SysDeptVo.class);
     }
 
-    /**
-     * 查询部门树结构信息
-     *
-     * @param bo 部门信息
-     * @return 部门树信息集合
-     */
     @Override
-    public List<Tree<Long>> selectDeptTreeList(SysDeptBo bo) {
-        LambdaQueryWrapper<SysDept> lqw = buildQueryWrapper(bo);
-        List<SysDeptVo> depts = BeanMapper.mapList(deptMapper.selectDeptList(lqw), SysDeptVo.class);
-        return buildDeptTreeSelect(depts);
-    }
-
-    private LambdaQueryWrapper<SysDept> buildQueryWrapper(SysDeptBo bo) {
-        Map<String, Object> params = bo.getParams();
-        LambdaQueryBuilder<SysDept> builder = QueryBuilder.lambda(SysDept.class)
-            .eqIfPresent(SysDept::getDeptId, bo.getDeptId())
-            .eqIfPresent(SysDept::getParentId, bo.getParentId())
-            .likeIfText(SysDept::getDeptName, bo.getDeptName())
-            .likeIfText(SysDept::getDeptCategory, bo.getDeptCategory())
-            .eqIfText(SysDept::getStatus, bo.getStatus())
-            .betweenParams(SysDept::getCreateTime, params, "beginTime", "endTime")
-            .orderByAsc(SysDept::getAncestors, SysDept::getParentId, SysDept::getOrderNum, SysDept::getDeptId);
-        if (ObjectUtil.isNotNull(bo.getBelongDeptId())) {
-            //部门树搜索
-            builder.and(x -> {
-                List<Long> deptIds = deptMapper.selectDeptAndChildById(bo.getBelongDeptId());
-                x.in(SysDept::getDeptId, deptIds);
-            });
+    public List<Tree<Long>> selectDeptTreeList(SysDeptBo dept) {
+        List<SysDept> depts = deptMapper.selectDeptList(buildQueryWrapper(dept));
+        if (depts == null || depts.isEmpty()) {
+            return new ArrayList<>();
         }
-        return builder.build();
-    }
-
-    /**
-     * 构建前端所需要下拉树结构
-     *
-     * @param depts 部门列表
-     * @return 下拉树结构列表
-     */
-    @Override
-    public List<Tree<Long>> buildDeptTreeSelect(List<SysDeptVo> depts) {
-        if (CollUtil.isEmpty(depts)) {
-            return CollUtil.newArrayList();
-        }
-        return TreeBuildUtils.buildMultiRoot(
-            depts,
-            SysDeptVo::getDeptId,
-            SysDeptVo::getParentId,
-            (node, treeNode) -> treeNode
-                .setId(node.getDeptId())
+        return TreeBuildUtils.buildMultiRoot(depts, SysDept::getDeptId, SysDept::getParentId, (node, tree) -> {
+            tree.setId(node.getDeptId())
                 .setParentId(node.getParentId())
                 .setName(node.getDeptName())
-                .setWeight(node.getOrderNum())
-                .putExtra("disabled", SystemConstants.DISABLE.equals(node.getStatus()))
-        );
+                .setWeight(node.getOrderNum());
+            tree.putExtra("disabled", SystemConstants.DISABLE.equals(node.getStatus()));
+        });
     }
 
-    /**
-     * 根据角色ID查询部门树信息
-     *
-     * @param roleId 角色ID
-     * @return 选中部门列表
-     */
     @Override
     public List<Long> selectDeptListByRoleId(Long roleId) {
         SysRole role = roleMapper.selectById(roleId);
-        return deptMapper.selectDeptListByRoleId(roleId, role.getDeptCheckStrictly());
+        if (role == null) {
+            throw new ServiceException("角色不存在", HttpStatus.NOT_FOUND);
+        }
+        return deptMapper.selectDeptListByRoleId(roleId, Boolean.TRUE.equals(role.getDeptCheckStrictly()));
     }
 
-    /**
-     * 根据部门ID查询信息
-     *
-     * @param deptId 部门ID
-     * @return 部门信息
-     */
-    @Cacheable(cacheNames = CacheNames.SYS_DEPT, key = "#deptId")
     @Override
+    @Cacheable(cacheNames = CacheNames.SYS_DEPT, key = "#deptId")
     public SysDeptVo selectDeptById(Long deptId) {
         SysDeptVo dept = BeanMapper.map(deptMapper.selectById(deptId), SysDeptVo.class);
-        if (ObjectUtil.isNull(dept)) {
+        if (dept == null) {
             return null;
         }
-        SysDept parentDept = deptMapper.selectOne(QueryBuilder.lambda(SysDept.class)
-            .select(SysDept::getDeptName)
-            .eq(SysDept::getDeptId, dept.getParentId())
-            .build());
-        dept.setParentName(ObjectUtils.notNullGetter(parentDept, SysDept::getDeptName));
+        if (dept.getParentId() != null) {
+            SysDept parent = deptMapper.selectOne(QueryBuilder.lambda(SysDept.class)
+                .select(SysDept::getDeptName)
+                .eq(SysDept::getDeptId, dept.getParentId())
+                .build());
+            dept.setParentName(parent == null ? null : parent.getDeptName());
+        }
         return dept;
     }
 
-    /**
-     * 通过部门ID串查询部门
-     *
-     * @param deptIds 部门id串
-     * @return 部门列表信息
-     */
     @Override
     public List<SysDeptVo> selectDeptByIds(List<Long> deptIds) {
         return BeanMapper.mapList(deptMapper.selectDeptList(QueryBuilder.lambda(SysDept.class)
@@ -181,30 +113,25 @@ public class SysDeptServiceImpl implements ISysDeptService {
             .build()), SysDeptVo.class);
     }
 
-    /**
-     * 通过部门ID查询部门名称
-     *
-     * @param deptIds 部门ID串逗号分隔
-     * @return 部门名称串逗号分隔
-     */
     @Override
     public String selectDeptNameByIds(String deptIds) {
-        List<String> list = new ArrayList<>();
-        for (Long id : StringUtils.splitTo(deptIds, Convert::toLong)) {
-            SysDeptVo vo = SpringUtils.getAopProxy(this).selectDeptById(id);
-            if (ObjectUtil.isNotNull(vo)) {
-                list.add(vo.getDeptName());
+        if (StringUtils.isBlank(deptIds)) {
+            return StringUtils.EMPTY;
+        }
+        ISysDeptService self = SpringUtils.getAopProxy(this);
+        List<String> names = new ArrayList<>();
+        for (Long deptId : StringUtils.splitTo(deptIds, Convert::toLong)) {
+            if (deptId == null) {
+                continue;
+            }
+            SysDeptVo dept = self.selectDeptById(deptId);
+            if (dept != null) {
+                names.add(dept.getDeptName());
             }
         }
-        return StringUtils.joinComma(list);
+        return String.join(StringUtils.SEPARATOR, names);
     }
 
-    /**
-     * 根据ID查询所有子部门数（正常状态）
-     *
-     * @param deptId 部门ID
-     * @return 子部门数
-     */
     @Override
     public long selectNormalChildrenDeptById(Long deptId) {
         return deptMapper.selectCount(QueryBuilder.lambda(SysDept.class)
@@ -213,55 +140,28 @@ public class SysDeptServiceImpl implements ISysDeptService {
             .build());
     }
 
-    /**
-     * 是否存在子节点
-     *
-     * @param deptId 部门ID
-     * @return 结果
-     */
     @Override
     public boolean hasChildByDeptId(Long deptId) {
         return deptMapper.exists(QueryBuilder.lambda(SysDept.class).eq(SysDept::getParentId, deptId).build());
     }
 
-    /**
-     * 查询部门是否存在用户
-     *
-     * @param deptId 部门ID
-     * @return 结果 true 存在 false 不存在
-     */
     @Override
     public boolean checkDeptExistUser(Long deptId) {
         return userMapper.exists(QueryBuilder.lambda(SysUser.class).eq(SysUser::getDeptId, deptId).build());
     }
 
-    /**
-     * 校验部门名称是否唯一
-     *
-     * @param dept 部门信息
-     * @return 结果
-     */
     @Override
     public boolean checkDeptNameUnique(SysDeptBo dept) {
-        boolean exist = deptMapper.exists(QueryBuilder.lambda(SysDept.class)
+        return !deptMapper.exists(QueryBuilder.lambda(SysDept.class)
             .eq(SysDept::getDeptName, dept.getDeptName())
             .eq(SysDept::getParentId, dept.getParentId())
             .neIfPresent(SysDept::getDeptId, dept.getDeptId())
             .build());
-        return !exist;
     }
 
-    /**
-     * 校验部门是否有数据权限
-     *
-     * @param deptId 部门id
-     */
     @Override
     public void checkDeptDataScope(Long deptId) {
-        if (ObjectUtil.isNull(deptId)) {
-            return;
-        }
-        if (UserContext.isSuperAdmin()) {
+        if (deptId == null || UserContext.isSuperAdmin()) {
             return;
         }
         if (deptMapper.countDeptById(deptId) == 0) {
@@ -269,136 +169,135 @@ public class SysDeptServiceImpl implements ISysDeptService {
         }
     }
 
-    /**
-     * 新增保存部门信息
-     *
-     * @param bo 部门信息
-     */
-    @CacheEvict(cacheNames = CacheNames.SYS_DEPT_AND_CHILD, allEntries = true)
     @Override
+    @CacheEvict(cacheNames = CacheNames.SYS_DEPT_AND_CHILD, allEntries = true)
     public void insertDept(SysDeptBo bo) {
-        SysDept info = deptMapper.selectById(bo.getParentId());
-        // 如果父节点不存在或不为正常状态,则不允许新增子节点
-        if (ObjectUtil.isNull(info)) {
+        SysDept parent = deptMapper.selectById(bo.getParentId());
+        if (parent == null) {
             throw new ServiceException("父部门不存在");
         }
-        if (!SystemConstants.NORMAL.equals(info.getStatus())) {
+        if (!SystemConstants.NORMAL.equals(parent.getStatus())) {
             throw new ServiceException("部门停用，不允许新增");
         }
         SysDept dept = BeanMapper.map(bo, SysDept.class);
-        dept.setAncestors(info.getAncestors() + StringUtils.SEPARATOR + dept.getParentId());
+        dept.setAncestors(parent.getAncestors() + StringUtils.SEPARATOR + bo.getParentId());
         deptMapper.insert(dept);
     }
 
-    /**
-     * 修改保存部门信息
-     *
-     * @param bo 部门信息
-     * @return 结果
-     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     @Caching(evict = {
         @CacheEvict(cacheNames = CacheNames.SYS_DEPT, key = "#bo.deptId"),
         @CacheEvict(cacheNames = CacheNames.SYS_DEPT_AND_CHILD, allEntries = true)
     })
-    @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updateDept(SysDeptBo bo) {
-        SysDept dept = BeanMapper.map(bo, SysDept.class);
-        SysDept oldDept = deptMapper.selectById(dept.getDeptId());
-        if (ObjectUtil.isNull(oldDept)) {
+        SysDept old = deptMapper.selectById(bo.getDeptId());
+        if (old == null) {
             throw new ServiceException("部门不存在，无法修改");
         }
-        if (!oldDept.getParentId().equals(dept.getParentId())) {
-            // 如果是新父部门 则校验是否具有新父部门权限 避免越权
-            this.checkDeptDataScope(dept.getParentId());
-            SysDept newParentDept = deptMapper.selectById(dept.getParentId());
-            if (ObjectUtil.isNotNull(newParentDept)) {
-                String newAncestors = newParentDept.getAncestors() + StringUtils.SEPARATOR + newParentDept.getDeptId();
-                String oldAncestors = oldDept.getAncestors();
-                dept.setAncestors(newAncestors);
-                updateDeptChildren(dept.getDeptId(), newAncestors, oldAncestors);
-            }
+        SysDept dept = BeanMapper.map(bo, SysDept.class);
+        if (Objects.equals(old.getParentId(), bo.getParentId())) {
+            dept.setAncestors(old.getAncestors());
         } else {
-            dept.setAncestors(oldDept.getAncestors());
+            checkDeptDataScope(bo.getParentId());
+            SysDept newParent = deptMapper.selectById(bo.getParentId());
+            if (newParent != null) {
+                if (StringUtils.splitList(newParent.getAncestors()).contains(String.valueOf(bo.getDeptId()))) {
+                    throw new ServiceException("修改部门'{}'失败，上级部门不能是自己的下级部门", bo.getDeptName());
+                }
+                String newAncestors = newParent.getAncestors() + StringUtils.SEPARATOR + newParent.getDeptId();
+                updateChildrenAncestors(bo.getDeptId(), newAncestors, old.getAncestors());
+                dept.setAncestors(newAncestors);
+            }
         }
         if (deptMapper.updateById(dept) == 0) {
             throw new ServiceException("修改部门'{}'失败，部门不存在", bo.getDeptName());
         }
-        clearLeaderIfRemoved(oldDept, dept);
-        // 如果部门状态为启用，且部门祖级列表不为空，且部门祖级列表不等于根部门祖级列表（如果部门祖级列表不等于根部门祖级列表，则说明存在上级部门）
-        if (SystemConstants.NORMAL.equals(dept.getStatus())
-            && StringUtils.isNotEmpty(dept.getAncestors())
-            && !StringUtils.equals(SystemConstants.ROOT_DEPT_ANCESTORS, dept.getAncestors())) {
-            // 如果该部门是启用状态，则启用该部门的所有上级部门
-            updateParentDeptStatusNormal(dept);
-        }
-    }
-
-    /**
-     * 清空负责人：全局更新策略为 NOT_NULL，updateById 不会写入 null。
-     * 修改接口提交的是完整的编辑表单，原来有负责人、这次未选，表示清空
-     *
-     * @param oldDept 修改前的部门
-     * @param dept    本次提交的部门
-     */
-    void clearLeaderIfRemoved(SysDept oldDept, SysDept dept) {
-        if (dept.getLeader() == null && oldDept.getLeader() != null) {
+        // 全局更新策略为 NOT_NULL，按 ID 更新不会写入 null；修改接口提交完整表单，未选负责人表示清空
+        if (old.getLeader() != null && bo.getLeader() == null) {
             deptMapper.update(Wrappers.<SysDept>lambdaUpdate()
                 .set(SysDept::getLeader, null)
-                .eq(SysDept::getDeptId, dept.getDeptId()));
+                .eq(SysDept::getDeptId, bo.getDeptId()));
         }
-    }
-
-    /**
-     * 修改该部门的父级部门状态
-     *
-     * @param dept 当前部门
-     */
-    private void updateParentDeptStatusNormal(SysDept dept) {
         String ancestors = dept.getAncestors();
-        Long[] deptIds = Convert.toLongArray(ancestors);
-        deptMapper.update(Wrappers.<SysDept>lambdaUpdate()
-            .set(SysDept::getStatus, SystemConstants.NORMAL)
-            .in(SysDept::getDeptId, Arrays.asList(deptIds)));
-    }
-
-    /**
-     * 修改子元素关系
-     *
-     * @param deptId       被修改的部门ID
-     * @param newAncestors 新的父ID集合
-     * @param oldAncestors 旧的父ID集合
-     */
-    private void updateDeptChildren(Long deptId, String newAncestors, String oldAncestors) {
-        List<SysDept> children = deptMapper.selectList(QueryBuilder.lambda(SysDept.class).findInSet(deptId, "ancestors").build());
-        List<SysDept> list = new ArrayList<>();
-        for (SysDept child : children) {
-            SysDept dept = new SysDept();
-            dept.setDeptId(child.getDeptId());
-            dept.setAncestors(StringUtils.replaceOnce(child.getAncestors(), oldAncestors, newAncestors));
-            list.add(dept);
-        }
-        if (CollUtil.isNotEmpty(list)) {
-            deptMapper.updateById(list);
-            list.forEach(dept -> CacheUtils.evict(CacheNames.SYS_DEPT, dept.getDeptId()));
+        if (SystemConstants.NORMAL.equals(dept.getStatus()) && StringUtils.isNotEmpty(ancestors)
+            && !StringUtils.equals(SystemConstants.ROOT_DEPT_ANCESTORS, ancestors)) {
+            enableParents(ancestors);
         }
     }
 
-    /**
-     * 删除部门管理信息
-     *
-     * @param deptId 部门ID
-     * @return 结果
-     */
+    @Override
     @Caching(evict = {
         @CacheEvict(cacheNames = CacheNames.SYS_DEPT, key = "#deptId"),
         @CacheEvict(cacheNames = CacheNames.SYS_DEPT_AND_CHILD, allEntries = true)
     })
-    @Override
     public void deleteDeptById(Long deptId) {
         if (deptMapper.deleteById(deptId) == 0) {
             throw new ServiceException("删除部门失败，部门不存在");
         }
+    }
+
+    /**
+     * 更换上级后改写全部下级的祖级：把其中的旧祖级前缀换成新祖级，并清除它们的部门缓存
+     *
+     * @param deptId       被移动的部门
+     * @param newAncestors 被移动部门的新祖级
+     * @param oldAncestors 被移动部门的旧祖级
+     */
+    private void updateChildrenAncestors(Long deptId, String newAncestors, String oldAncestors) {
+        List<SysDept> children = deptMapper.selectList(QueryBuilder.lambda(SysDept.class)
+            .select(SysDept::getDeptId, SysDept::getAncestors)
+            .findInSet(deptId, "ancestors")
+            .build());
+        if (children == null || children.isEmpty()) {
+            return;
+        }
+        List<SysDept> updates = new ArrayList<>(children.size());
+        for (SysDept child : children) {
+            SysDept update = new SysDept();
+            update.setDeptId(child.getDeptId());
+            update.setAncestors(StringUtils.replaceOnce(child.getAncestors(), oldAncestors, newAncestors));
+            updates.add(update);
+        }
+        deptMapper.updateById(updates);
+        for (SysDept update : updates) {
+            CacheUtils.evict(CacheNames.SYS_DEPT, update.getDeptId());
+        }
+    }
+
+    /**
+     * 启用部门时一并启用它的全部上级，并清除这些上级的部门缓存
+     *
+     * @param ancestors 部门的祖级
+     */
+    private void enableParents(String ancestors) {
+        List<Long> parentIds = StringUtils.splitTo(ancestors, Convert::toLong);
+        deptMapper.update(Wrappers.<SysDept>lambdaUpdate()
+            .set(SysDept::getStatus, SystemConstants.NORMAL)
+            .in(SysDept::getDeptId, parentIds));
+        for (Long parentId : parentIds) {
+            if (parentId != null && parentId > 0) {
+                CacheUtils.evict(CacheNames.SYS_DEPT, parentId);
+            }
+        }
+    }
+
+    /**
+     * 列表条件：ID、上级相等，名称、类别模糊，状态相等，创建时间区间，所属部门含下级
+     */
+    private LambdaQueryWrapper<SysDept> buildQueryWrapper(SysDeptBo bo) {
+        LambdaQueryBuilder<SysDept> query = QueryBuilder.lambda(SysDept.class)
+            .eqIfPresent(SysDept::getDeptId, bo.getDeptId())
+            .eqIfPresent(SysDept::getParentId, bo.getParentId())
+            .likeIfText(SysDept::getDeptName, bo.getDeptName())
+            .likeIfText(SysDept::getDeptCategory, bo.getDeptCategory())
+            .eqIfText(SysDept::getStatus, bo.getStatus())
+            .betweenParams(SysDept::getCreateTime, bo.getParams(), "beginTime", "endTime")
+            .orderByAsc(SysDept::getAncestors, SysDept::getParentId, SysDept::getOrderNum, SysDept::getDeptId);
+        if (bo.getBelongDeptId() != null) {
+            query.in(SysDept::getDeptId, deptMapper.selectDeptAndChildById(bo.getBelongDeptId()));
+        }
+        return query.build();
     }
 
 }

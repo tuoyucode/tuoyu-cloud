@@ -3,25 +3,21 @@ package org.tuoyu.common.core.service;
 import java.util.Set;
 
 /**
- * 用户权限处理
+ * 用户的角色与菜单权限。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface PermissionService {
 
     /**
-     * 获取角色数据权限
-     *
-     * @param userId 用户id
-     * @return 角色权限信息
+     * @param userId 用户 ID
+     * @return 角色权限字符串
      */
     Set<String> getRolePermission(Long userId);
 
     /**
-     * 获取菜单数据权限
-     *
-     * @param userId 用户id
-     * @return 菜单权限信息
+     * @param userId 用户 ID
+     * @return 菜单权限码
      */
     Set<String> getMenuPermission(Long userId);
 

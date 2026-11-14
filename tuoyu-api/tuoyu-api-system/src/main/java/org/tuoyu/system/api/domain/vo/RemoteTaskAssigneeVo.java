@@ -7,15 +7,15 @@ import lombok.NoArgsConstructor;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
- * 任务受让人
+ * 工作流设计器选择办理人的分页结果
  *
- * @author AprilWind
+ * @author tuoyu
  */
 @Data
 @NoArgsConstructor
@@ -25,49 +25,55 @@ public class RemoteTaskAssigneeVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 总大小
+     * 总数
      */
     private Long total = 0L;
 
     /**
-     *
+     * 本页的办理人
      */
     private List<TaskHandler> list;
 
+    /**
+     * @param total 总数
+     * @param list  本页的办理人
+     */
     public RemoteTaskAssigneeVo(Long total, List<TaskHandler> list) {
         this.total = total;
         this.list = list;
     }
 
     /**
-     * 将源列表转换为 TaskHandler 列表
+     * 把任意来源转换为办理人列表：对每个元素按顺序调用取值函数
      *
-     * @param <T>              通用类型
-     * @param sourceCollection 待转换的源列表
-     * @param storageId        提取 storageId 的函数
-     * @param handlerCode      提取 handlerCode 的函数
-     * @param handlerName      提取 handlerName 的函数
-     * @param groupName        提取 groupName 的函数
-     * @param createTimeMapper 提取 createTime 的函数
-     * @return 转换后的 TaskHandler 列表
+     * @param source      来源，为 null 时返回空列表
+     * @param storageId   取存储 ID
+     * @param handlerCode 取办理人编码
+     * @param handlerName 取办理人名称
+     * @param groupName   取分组名称
+     * @param createTime  取创建时间
+     * @param <T>         来源元素类型
+     * @return 可修改的新列表
      */
-    public static <T> List<TaskHandler> convertToHandlerList(
-        Collection<T> sourceCollection,
-        Function<T, String> storageId,
-        Function<T, String> handlerCode,
-        Function<T, String> handlerName,
-        Function<T, String> groupName,
-        Function<T, LocalDateTime> createTimeMapper) {
-        return sourceCollection.stream()
-            .map(item -> new TaskHandler(
-                storageId.apply(item),
-                handlerCode.apply(item),
-                handlerName.apply(item),
-                groupName.apply(item),
-                createTimeMapper.apply(item)
-            )).collect(Collectors.toList());
+    public static <T> List<TaskHandler> convertToHandlerList(Collection<T> source, Function<T, String> storageId,
+                                                             Function<T, String> handlerCode,
+                                                             Function<T, String> handlerName,
+                                                             Function<T, String> groupName,
+                                                             Function<T, LocalDateTime> createTime) {
+        List<TaskHandler> handlers = new ArrayList<>();
+        if (source == null) {
+            return handlers;
+        }
+        for (T item : source) {
+            handlers.add(new TaskHandler(storageId.apply(item), handlerCode.apply(item), handlerName.apply(item),
+                groupName.apply(item), createTime.apply(item)));
+        }
+        return handlers;
     }
 
+    /**
+     * 办理人
+     */
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -77,22 +83,22 @@ public class RemoteTaskAssigneeVo implements Serializable {
         private static final long serialVersionUID = 1L;
 
         /**
-         * 主键
+         * 存储 ID（角色、岗位、部门或用户的 ID）
          */
         private String storageId;
 
         /**
-         * 权限编码
+         * 办理人编码
          */
         private String handlerCode;
 
         /**
-         * 权限名称
+         * 办理人名称
          */
         private String handlerName;
 
         /**
-         * 权限分组
+         * 分组名称
          */
         private String groupName;
 
@@ -100,6 +106,7 @@ public class RemoteTaskAssigneeVo implements Serializable {
          * 创建时间
          */
         private LocalDateTime createTime;
+
     }
 
 }

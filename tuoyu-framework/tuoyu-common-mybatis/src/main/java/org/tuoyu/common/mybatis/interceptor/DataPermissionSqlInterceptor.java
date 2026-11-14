@@ -2,13 +2,11 @@ package org.tuoyu.common.mybatis.interceptor;
 
 import com.baomidou.mybatisplus.core.plugins.InterceptorIgnoreHelper;
 import com.baomidou.mybatisplus.core.toolkit.PluginUtils;
-import com.baomidou.mybatisplus.extension.plugins.handler.MultiDataPermissionHandler;
-import com.baomidou.mybatisplus.extension.plugins.inner.BaseMultiTableInnerInterceptor;
+import com.baomidou.mybatisplus.extension.parser.JsqlParserSupport;
 import com.baomidou.mybatisplus.extension.plugins.inner.InnerInterceptor;
-import lombok.extern.slf4j.Slf4j;
 import net.sf.jsqlparser.expression.Expression;
-import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.delete.Delete;
+import net.sf.jsqlparser.statement.select.ParenthesedSelect;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.select.SetOperationList;
@@ -20,156 +18,120 @@ import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.mapping.SqlCommandType;
 import org.apache.ibatis.session.ResultHandler;
 import org.apache.ibatis.session.RowBounds;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.mybatis.handler.DataPermissionSqlHandler;
+import org.tuoyu.common.mybatis.helper.DataPermissionHelper;
 
 import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.List;
 
 /**
- * 数据权限拦截器
+ * 数据权限拦截器（MyBatis-Plus 内部拦截器）：调用标注了 {@code @DataPermission} 的方法期间执行的 SQL，
+ * 按 {@link DataPermissionSqlHandler} 生成的条件改写最外层的 WHERE。
+ * <p>
+ * 改写的时机与范围：
+ * <ul>
+ *     <li>查询在 {@code beforeQuery} 中改写，修改与删除在 {@code beforePrepare} 中改写，插入不改写；</li>
+ *     <li>没有当前注解、处于忽略数据权限的代码块中、或 Mapper / 方法标注了
+ *     {@code @InterceptorIgnore(dataPermission = "true")} 时不改写；</li>
+ *     <li>查询的条件加在最外层的 WHERE：UNION 等集合查询的每个分支、带括号的查询（可以多层）的括号内都加；
+ *     {@code WITH} 子句、{@code FROM} 与 WHERE 中的子查询、联表的 {@code ON}、查询列中的子查询不改写。
+ *     无法识别的查询类型拒绝执行，不会不加条件放行。</li>
+ * </ul>
+ * 与其他拦截器的关系：
+ * <ul>
+ *     <li>拦截器链的顺序由 {@code MybatisPlusConfiguration} 决定：租户 → 数据权限 → 分页 → 乐观锁。MyBatis-Plus
+ *     对查询按顺序对每个内部拦截器执行 {@code willDoQuery} 再执行 {@code beforeQuery}，分页插件在 {@code willDoQuery}
+ *     中用当时的 SQL 统计总数，所以统计语句也带数据权限条件；</li>
+ *     <li>租户条件由租户插件加（包括子查询与联表），与数据权限条件互不影响；</li>
+ *     <li>游标查询（{@code Executor.queryCursor}）不经过 MyBatis-Plus 的查询拦截，不受数据权限与租户限制，项目中没有使用游标；</li>
+ *     <li>完整 SQL 日志（{@link SqlLogInterceptor}）在语句执行时输出，看到的是改写后的 SQL。</li>
+ * </ul>
  *
- * @author Lion Li
- * @version 3.5.0
+ * @author tuoyu
  */
-@Slf4j
-public class DataPermissionSqlInterceptor extends BaseMultiTableInnerInterceptor implements InnerInterceptor {
+public class DataPermissionSqlInterceptor extends JsqlParserSupport implements InnerInterceptor {
 
-    private final DataPermissionSqlHandler dataPermissionHandler;
-
-    public DataPermissionSqlInterceptor(DataPermissionSqlHandler dataPermissionHandler) {
-        this.dataPermissionHandler = dataPermissionHandler;
-    }
+    private final DataPermissionSqlHandler handler;
 
     /**
-     * 在执行查询之前，检查并处理数据权限相关逻辑
-     *
-     * @param executor      MyBatis 执行器对象
-     * @param ms            映射语句对象
-     * @param parameter     方法参数
-     * @param rowBounds     分页对象
-     * @param resultHandler 结果处理器
-     * @param boundSql      绑定的 SQL 对象
-     * @throws SQLException 如果发生 SQL 异常
+     * @param handler 生成数据权限条件
      */
+    public DataPermissionSqlInterceptor(DataPermissionSqlHandler handler) {
+        this.handler = handler;
+    }
+
     @Override
-    public void beforeQuery(Executor executor, MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, BoundSql boundSql) throws SQLException {
-        // 检查是否需要忽略数据权限处理
-        if (InterceptorIgnoreHelper.willIgnoreDataPermission(ms.getId())) {
+    public void beforeQuery(Executor executor, MappedStatement ms, Object parameter, RowBounds rowBounds,
+                            ResultHandler resultHandler, BoundSql boundSql) {
+        if (skip(ms)) {
             return;
         }
-        // 检查是否缺少有效的数据权限注解
-        if (dataPermissionHandler.invalid()) {
-            return;
-        }
-        // 解析 sql 分配对应方法
-        PluginUtils.MPBoundSql mpBs = PluginUtils.mpBoundSql(boundSql);
-        mpBs.sql(parserSingle(mpBs.sql(), ms.getId()));
+        PluginUtils.MPBoundSql mpBoundSql = PluginUtils.mpBoundSql(boundSql);
+        mpBoundSql.sql(parserSingle(mpBoundSql.sql(), ms.getId()));
     }
 
-    /**
-     * 在准备 SQL 语句之前，检查并处理更新和删除操作的数据权限相关逻辑
-     *
-     * @param sh                 MyBatis StatementHandler 对象
-     * @param connection         数据库连接对象
-     * @param transactionTimeout 事务超时时间
-     */
     @Override
     public void beforePrepare(StatementHandler sh, Connection connection, Integer transactionTimeout) {
-        PluginUtils.MPStatementHandler mpSh = PluginUtils.mpStatementHandler(sh);
-        MappedStatement ms = mpSh.mappedStatement();
-        // 获取 SQL 命令类型（增、删、改、查）
-        SqlCommandType sct = ms.getSqlCommandType();
-
-        // 只处理更新和删除操作的 SQL 语句
-        if (sct == SqlCommandType.UPDATE || sct == SqlCommandType.DELETE) {
-            if (InterceptorIgnoreHelper.willIgnoreDataPermission(ms.getId())) {
-                return;
-            }
-            // 检查是否缺少有效的数据权限注解
-            if (dataPermissionHandler.invalid()) {
-                return;
-            }
-            PluginUtils.MPBoundSql mpBs = mpSh.mPBoundSql();
-            mpBs.sql(parserMulti(mpBs.sql(), ms.getId()));
+        PluginUtils.MPStatementHandler mpStatementHandler = PluginUtils.mpStatementHandler(sh);
+        MappedStatement ms = mpStatementHandler.mappedStatement();
+        SqlCommandType type = ms.getSqlCommandType();
+        if (type != SqlCommandType.UPDATE && type != SqlCommandType.DELETE) {
+            return;
         }
+        if (skip(ms)) {
+            return;
+        }
+        PluginUtils.MPBoundSql mpBoundSql = mpStatementHandler.mPBoundSql();
+        mpBoundSql.sql(parserMulti(mpBoundSql.sql(), ms.getId()));
     }
 
     /**
-     * 处理 SELECT 查询语句中的 WHERE 条件
-     *
-     * @param select SELECT 查询对象
-     * @param index  查询语句的索引
-     * @param sql    查询语句
-     * @param obj    WHERE 条件参数
+     * @return 是否不改写：语句处于忽略数据权限的状态，或当前没有数据权限注解
      */
+    private static boolean skip(MappedStatement ms) {
+        return InterceptorIgnoreHelper.willIgnoreDataPermission(ms.getId()) || DataPermissionHelper.getPermission() == null;
+    }
+
     @Override
     protected void processSelect(Select select, int index, String sql, Object obj) {
-        if (select instanceof PlainSelect) {
-            this.setWhere((PlainSelect) select, (String) obj);
-        } else if (select instanceof SetOperationList setOperationList) {
-            List<Select> selectBodyList = setOperationList.getSelects();
-            selectBodyList.forEach(s -> this.setWhere((PlainSelect) s, (String) obj));
-        }
+        restrict(select);
     }
 
     /**
-     * 处理 UPDATE 语句中的 WHERE 条件
-     *
-     * @param update UPDATE 查询对象
-     * @param index  查询语句的索引
-     * @param sql    查询语句
-     * @param obj    WHERE 条件参数
+     * 给查询的最外层（集合查询的每个分支、括号内的查询）加上条件
      */
+    private void restrict(Select select) {
+        if (select instanceof PlainSelect plainSelect) {
+            Expression where = handler.getSqlSegment(plainSelect.getWhere(), true);
+            if (where != null) {
+                plainSelect.setWhere(where);
+            }
+        } else if (select instanceof SetOperationList setOperationList) {
+            for (Select branch : setOperationList.getSelects()) {
+                restrict(branch);
+            }
+        } else if (select instanceof ParenthesedSelect parenthesedSelect) {
+            restrict(parenthesedSelect.getSelect());
+        } else {
+            // 例如 VALUES：无法加条件，拒绝执行
+            throw new ServiceException("数据权限不支持该查询语句");
+        }
+    }
+
     @Override
     protected void processUpdate(Update update, int index, String sql, Object obj) {
-        Expression sqlSegment = dataPermissionHandler.getSqlSegment(update.getWhere(), false);
-        if (null != sqlSegment) {
-            update.setWhere(sqlSegment);
+        Expression where = handler.getSqlSegment(update.getWhere(), false);
+        if (where != null) {
+            update.setWhere(where);
         }
     }
 
-    /**
-     * 处理 DELETE 语句中的 WHERE 条件
-     *
-     * @param delete DELETE 查询对象
-     * @param index  查询语句的索引
-     * @param sql    查询语句
-     * @param obj    WHERE 条件参数
-     */
     @Override
     protected void processDelete(Delete delete, int index, String sql, Object obj) {
-        Expression sqlSegment = dataPermissionHandler.getSqlSegment(delete.getWhere(), false);
-        if (null != sqlSegment) {
-            delete.setWhere(sqlSegment);
+        Expression where = handler.getSqlSegment(delete.getWhere(), false);
+        if (where != null) {
+            delete.setWhere(where);
         }
     }
 
-    /**
-     * 设置 SELECT 语句的 WHERE 条件
-     *
-     * @param plainSelect       SELECT 查询对象
-     * @param mappedStatementId 映射语句的 ID
-     */
-    protected void setWhere(PlainSelect plainSelect, String mappedStatementId) {
-        Expression sqlSegment = dataPermissionHandler.getSqlSegment(plainSelect.getWhere(), true);
-        if (null != sqlSegment) {
-            plainSelect.setWhere(sqlSegment);
-        }
-    }
-
-    /**
-     * 构建表达式，用于处理表的数据权限
-     *
-     * @param table        表对象
-     * @param where        WHERE 条件表达式
-     * @param whereSegment WHERE 条件片段
-     * @return 构建的表达式
-     */
-    @Override
-    public Expression buildTableExpression(Table table, Expression where, String whereSegment) {
-        // 只有新版数据权限处理器才会执行到这里
-        final MultiDataPermissionHandler handler = (MultiDataPermissionHandler) dataPermissionHandler;
-        return handler.getSqlSegment(table, where, whereSegment);
-    }
 }

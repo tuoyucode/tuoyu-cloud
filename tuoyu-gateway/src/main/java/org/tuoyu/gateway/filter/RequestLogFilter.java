@@ -89,14 +89,16 @@ public class RequestLogFilter extends OncePerRequestFilter {
             log.info("[网关]收到请求 {} {}，无参数", method, uri);
             return;
         }
-        String content;
+        JsonNode node;
         try {
-            JsonNode node = JsonUtils.getJsonMapper().readTree(body);
-            content = JsonUtils.removeFields(node, SystemConstants.EXCLUDE_PROPERTIES).toString();
+            node = JsonUtils.getJsonMapper().readTree(body);
         } catch (JacksonException e) {
-            content = body;
+            // 解析不了就无法去掉口令字段，原文可能带着口令，不记录
+            log.info("[网关]收到请求 {} {}，JSON 无法解析，不记录参数", method, uri);
+            return;
         }
-        log.info("[网关]收到请求 {} {}，JSON 参数：{}", method, uri, content);
+        log.info("[网关]收到请求 {} {}，JSON 参数：{}", method, uri,
+            JsonUtils.removeFields(node, SystemConstants.EXCLUDE_PROPERTIES).toString());
     }
 
     /**

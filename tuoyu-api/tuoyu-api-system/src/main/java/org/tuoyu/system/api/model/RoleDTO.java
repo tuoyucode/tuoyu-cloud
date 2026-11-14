@@ -7,11 +7,10 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 角色
+ * 登录用户的角色（保存在会话中，数据权限按其中的数据范围计算）
  *
- * @author Lion Li
+ * @author tuoyu
  */
-
 @Data
 @NoArgsConstructor
 public class RoleDTO implements Serializable {
@@ -20,7 +19,7 @@ public class RoleDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 角色ID
+     * 角色 ID
      */
     private Long roleId;
 
@@ -30,12 +29,12 @@ public class RoleDTO implements Serializable {
     private String roleName;
 
     /**
-     * 角色权限
+     * 角色标识
      */
     private String roleKey;
 
     /**
-     * 数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限 5：仅本人数据权限 6：部门及以下或本人数据权限）
+     * 数据范围（1 ~ 6）
      */
     private String dataScope;
 

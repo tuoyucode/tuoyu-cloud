@@ -10,211 +10,193 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 角色业务层
+ * 角色服务
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface ISysRoleService {
 
     /**
-     * 分页查询角色列表
+     * 分页查询角色（数据权限内）
      *
-     * @param role      查询条件
-     * @param pageParam 分页参数
-     * @return 角色分页列表
+     * @param role      条件
+     * @param pageParam 分页
+     * @return 分页结果
      */
     PageResult<SysRoleVo> selectPageRoleList(SysRoleBo role, PageParam pageParam);
 
     /**
-     * 根据条件分页查询角色数据
+     * 查询角色列表（数据权限内）
      *
-     * @param role 角色信息
-     * @return 角色数据集合信息
+     * @param role 条件
+     * @return 角色
      */
     List<SysRoleVo> selectRoleList(SysRoleBo role);
 
     /**
-     * 统计符合条件的角色数量（导出前先统计，查询条件与列表一致）
+     * 统计角色数（导出前检查行数）
      *
-     * @param role 角色信息
+     * @param role 条件
      * @return 行数
      */
     long countRoleList(SysRoleBo role);
 
     /**
-     * 根据用户ID查询角色列表
-     *
-     * @param userId 用户ID
-     * @return 角色列表
+     * @param userId 用户 ID
+     * @return 用户的全部角色（含停用的角色）
      */
     List<SysRoleVo> selectRolesByUserId(Long userId);
 
     /**
-     * 根据用户ID查询角色列表(包含被授权状态)
+     * 授权页的角色列表：当前用户可见的全部角色，用户已有的打上标记
      *
-     * @param userId 用户ID
-     * @return 角色列表
+     * @param userId 用户 ID
+     * @return 角色
      */
     List<SysRoleVo> selectRolesAuthByUserId(Long userId);
 
     /**
-     * 根据用户ID查询角色权限
-     *
-     * @param userId 用户ID
-     * @return 权限列表
+     * @param userId 用户 ID
+     * @return 用户的正常状态角色的角色标识（逗号分隔的多项逐项拆开）
      */
     Set<String> selectRolePermissionByUserId(Long userId);
 
     /**
-     * 查询所有角色
-     *
-     * @return 角色列表
-     */
-    List<SysRoleVo> selectRoleAll();
-
-    /**
-     * 根据用户ID获取角色选择框列表
-     *
-     * @param userId 用户ID
-     * @return 选中角色ID列表
+     * @param userId 用户 ID
+     * @return 用户的角色 ID（含停用的角色，用于回显）
      */
     List<Long> selectRoleListByUserId(Long userId);
 
     /**
-     * 通过角色ID查询角色
-     *
-     * @param roleId 角色ID
-     * @return 角色对象信息
+     * @param roleId 角色 ID
+     * @return 数据权限内的角色；不存在或在范围外时为 null
      */
     SysRoleVo selectRoleById(Long roleId);
 
     /**
-     * 通过角色ID串查询角色
+     * 正常状态的角色（下拉选项，数据权限内）
      *
-     * @param roleIds 角色ID串
-     * @return 角色列表信息
+     * @param roleIds 只查这些角色，为空时不限
+     * @return 角色
      */
     List<SysRoleVo> selectRoleByIds(List<Long> roleIds);
 
     /**
-     * 校验角色名称是否唯一
-     *
-     * @param role 角色信息
-     * @return 结果
-     */
-    boolean checkRoleNameUnique(SysRoleBo role);
-
-    /**
-     * 校验角色权限是否唯一
-     *
-     * @param role 角色信息
-     * @return 结果
-     */
-    boolean checkRoleKeyUnique(SysRoleBo role);
-
-    /**
-     * 校验角色是否允许操作
-     *
-     * @param role 角色信息
-     */
-    void checkRoleAllowed(SysRoleBo role);
-
-    /**
-     * 校验角色是否有数据权限
-     *
-     * @param roleId 角色id
-     */
-    void checkRoleDataScope(Long roleId);
-
-    /**
-     * 校验角色是否有数据权限
-     *
-     * @param roleIds 角色ID列表（支持传单个ID）
-     */
-    void checkRoleDataScope(List<Long> roleIds);
-
-    /**
-     * 通过角色ID查询角色使用数量
-     *
-     * @param roleId 角色ID
-     * @return 结果
+     * @param roleId 角色 ID
+     * @return 拥有该角色的用户数
      */
     long countUserRoleByRoleId(Long roleId);
 
     /**
-     * 新增保存角色信息
+     * @param role 角色（修改时排除自己）
+     * @return 是否没有其他同名角色
+     */
+    boolean checkRoleNameUnique(SysRoleBo role);
+
+    /**
+     * @param role 角色（修改时排除自己）
+     * @return 是否没有其他同标识角色
+     */
+    boolean checkRoleKeyUnique(SysRoleBo role);
+
+    /**
+     * 检查角色允许操作：不能操作超级管理员角色，不能使用或改掉内置管理员标识
      *
-     * @param bo 角色信息
+     * @param role 角色
+     */
+    void checkRoleAllowed(SysRoleBo role);
+
+    /**
+     * 检查角色在当前用户的数据权限内
+     *
+     * @param roleId 角色 ID，为 null 时不检查
+     */
+    void checkRoleDataScope(Long roleId);
+
+    /**
+     * 检查角色都在当前用户的数据权限内
+     *
+     * @param roleIds 角色 ID，为空时不检查
+     */
+    void checkRoleDataScope(List<Long> roleIds);
+
+    /**
+     * 新增角色与它的菜单
+     *
+     * @param bo 角色
      */
     void insertRole(SysRoleBo bo);
 
     /**
-     * 修改角色基础信息（不包含菜单/数据权限）。
+     * 修改角色的基础信息（不含菜单与数据权限）
      *
-     * @param bo 角色信息
+     * @param bo 角色
      */
     void updateRoleBaseInfo(SysRoleBo bo);
 
     /**
-     * 修改角色权限信息（菜单权限 + 数据权限）。
+     * 修改角色的菜单与数据权限
      *
-     * @param bo 角色权限参数
+     * @param bo 角色（菜单与部门都必须提供，空数组表示清空）
      */
     void updateRolePermission(SysRoleBo bo);
 
     /**
      * 修改角色状态
      *
-     * @param roleId 角色ID
-     * @param status 角色状态
+     * @param roleId 角色 ID
+     * @param status 状态
      */
     void updateRoleStatus(Long roleId, String status);
 
     /**
-     * 通过角色ID删除角色
+     * 批量删除角色
      *
-     * @param roleId 角色ID
-     */
-    void deleteRoleById(Long roleId);
-
-    /**
-     * 批量删除角色信息
-     *
-     * @param roleIds 需要删除的角色ID
+     * @param roleIds 角色 ID
      */
     void deleteRoleByIds(List<Long> roleIds);
 
     /**
-     * 取消授权用户角色
+     * 取消一个用户的角色
      *
-     * @param userRole 用户和角色关联信息
+     * @param userRole 用户与角色
      */
     void deleteAuthUser(SysUserRole userRole);
 
     /**
-     * 批量取消授权用户角色
+     * 批量取消用户的角色
      *
-     * @param roleId  角色ID
-     * @param userIds 需要取消授权的用户数据ID
+     * @param roleId  角色 ID
+     * @param userIds 用户 ID
      */
     void deleteAuthUsers(Long roleId, Long[] userIds);
 
     /**
-     * 批量选择授权用户角色
+     * 批量授予用户角色
      *
-     * @param roleId  角色ID
-     * @param userIds 需要删除的用户数据ID
+     * @param roleId  角色 ID
+     * @param userIds 用户 ID
      */
     void insertAuthUsers(Long roleId, Long[] userIds);
 
+    /**
+     * 强制退出拥有该角色的在线会话
+     *
+     * @param roleId 角色 ID
+     */
     void cleanOnlineUserByRole(Long roleId);
 
+    /**
+     * 强制退出这些用户的在线会话
+     *
+     * @param userIds 用户 ID
+     */
     void cleanOnlineUser(List<Long> userIds);
 
     /**
-     * 清除某个租户的全部在线会话（租户停用、删除后，已登录的用户不能继续使用）
+     * 强制退出该租户的在线会话
      *
-     * @param tenantId 租户编码
+     * @param tenantId 租户编号
      */
     void cleanOnlineUserByTenant(String tenantId);
 

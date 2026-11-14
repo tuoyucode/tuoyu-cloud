@@ -1,18 +1,20 @@
 package org.tuoyu.system.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
-import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.mybatis.core.query.QueryBuilder;
-import org.tuoyu.common.core.context.UserContext;
 import cn.hutool.core.lang.tree.Tree;
-import cn.hutool.core.util.ObjectUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.tuoyu.common.core.constant.Constants;
+import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.core.constant.SystemConstants;
+import org.tuoyu.common.core.context.UserContext;
+import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.core.utils.TreeBuildUtils;
+import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysMenu;
 import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.domain.SysRoleMenu;
@@ -24,49 +26,44 @@ import org.tuoyu.system.mapper.SysMenuMapper;
 import org.tuoyu.system.mapper.SysRoleMapper;
 import org.tuoyu.system.mapper.SysRoleMenuMapper;
 import org.tuoyu.system.service.ISysMenuService;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
- * 菜单 业务层处理
+ * 菜单服务实现。
+ * <p>
+ * 菜单平台共享；租户内只能使用租户套餐中的菜单（读取时按套餐筛选），关闭多租户时隐藏租户管理菜单。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Slf4j
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class SysMenuServiceImpl implements ISysMenuService {
+
+    private static final String NO_REDIRECT = "noRedirect";
 
     private final SysMenuMapper menuMapper;
     private final SysRoleMapper roleMapper;
     private final SysRoleMenuMapper roleMenuMapper;
     private final TenantMenuScope tenantMenuScope;
 
-    /**
-     * 根据用户查询系统菜单列表
-     *
-     * @param userId 用户ID
-     * @return 菜单列表
-     */
     @Override
     public List<SysMenuVo> selectMenuList(Long userId) {
         return selectMenuList(new SysMenuBo(), userId);
     }
 
-    /**
-     * 查询系统菜单列表
-     *
-     * @param menu   菜单筛选条件
-     * @param userId 当前查询的用户主键
-     * @return 菜单列表
-     */
     @Override
     public List<SysMenuVo> selectMenuList(SysMenuBo menu, Long userId) {
-        // 管理员显示所有菜单信息 不是管理员 按用户id过滤菜单
         List<SysMenuVo> menus;
         if (UserContext.isSuperAdmin(userId)) {
             menus = BeanMapper.mapList(menuMapper.selectList(QueryBuilder.lambda(SysMenu.class)
@@ -81,26 +78,9 @@ public class SysMenuServiceImpl implements ISysMenuService {
         } else {
             menus = menuMapper.selectMenuListByUserId(menu, userId);
         }
-        return scoped(menus, SysMenuVo::getMenuId, SysMenuVo::getPerms, UserContext.isSuperAdmin(userId));
+        return filterByTenant(menus, userId, SysMenuVo::getMenuId, SysMenuVo::getPerms);
     }
 
-    /**
-     * 按租户套餐限制菜单：租户内只能使用套餐中的菜单，超级管理员不受限制；关闭多租户时隐藏租户管理菜单
-     */
-    private <M> List<M> scoped(List<M> menus, Function<M, Long> id, Function<M, String> perms, boolean superAdmin) {
-        Optional<Set<Long>> allowed = superAdmin ? Optional.empty() : tenantMenuScope.allowedMenuIds();
-        return menus.stream()
-            .filter(menu -> tenantMenuScope.visible(perms.apply(menu)))
-            .filter(menu -> allowed.map(ids -> ids.contains(id.apply(menu))).orElse(true))
-            .collect(Collectors.toCollection(ArrayList::new));
-    }
-
-    /**
-     * 根据用户ID查询权限
-     *
-     * @param userId 用户ID
-     * @return 权限列表
-     */
     @Override
     public Set<String> selectMenuPermsByUserId(Long userId) {
         Set<String> perms = menuMapper.selectMenuPermsByUserId(userId);
@@ -108,196 +88,104 @@ public class SysMenuServiceImpl implements ISysMenuService {
         if (allowed.isEmpty() || UserContext.isSuperAdmin(userId)) {
             return perms;
         }
-        // 租户内只保留套餐中菜单的权限码（套餐缩小后，角色里多出的权限立即失效）
-        Set<String> allowedPerms = allowed.get().isEmpty() ? Set.of() : menuMapper.selectList(QueryBuilder.lambda(SysMenu.class)
+        Set<String> result = new HashSet<>();
+        if (allowed.get().isEmpty() || perms == null || perms.isEmpty()) {
+            return result;
+        }
+        Set<String> allowedPerms = new HashSet<>();
+        for (SysMenu menu : menuMapper.selectList(QueryBuilder.lambda(SysMenu.class)
             .select(SysMenu::getPerms)
             .in(SysMenu::getMenuId, allowed.get())
-            .build()).stream()
-            .map(SysMenu::getPerms)
-            .filter(StringUtils::isNotBlank)
-            .flatMap(p -> StringUtils.splitList(p).stream())
-            .collect(Collectors.toSet());
-        return perms.stream().filter(allowedPerms::contains).collect(Collectors.toSet());
+            .build())) {
+            if (menu != null) {
+                allowedPerms.addAll(StringUtils.str2List(menu.getPerms(), StringUtils.SEPARATOR, true, true));
+            }
+        }
+        for (String perm : perms) {
+            if (allowedPerms.contains(perm)) {
+                result.add(perm);
+            }
+        }
+        return result;
     }
 
-    /**
-     * 根据角色ID查询权限
-     *
-     * @param roleId 角色ID
-     * @return 权限列表
-     */
     @Override
     public Set<String> selectMenuPermsByRoleId(Long roleId) {
         return menuMapper.selectMenuPermsByRoleId(roleId);
     }
 
-    /**
-     * 根据角色ID列表批量查询权限
-     *
-     * @param roleIds 角色ID列表
-     * @return 角色权限映射
-     */
     @Override
     public Map<Long, Set<String>> selectMenuPermsByRoleIds(Collection<Long> roleIds) {
         return menuMapper.selectMenuPermsByRoleIds(roleIds);
     }
 
-    /**
-     * 根据用户ID查询菜单树信息
-     *
-     * @param userId 用户ID
-     * @return 按树结构组织的菜单列表
-     */
     @Override
     public List<SysMenu> selectMenuTreeByUserId(Long userId) {
-        List<SysMenu> menus;
-        if (UserContext.isSuperAdmin(userId)) {
-            menus = menuMapper.selectMenuTreeAll();
-        } else {
-            menus = menuMapper.selectMenuTreeByUserId(userId);
+        List<SysMenu> menus = UserContext.isSuperAdmin(userId)
+            ? menuMapper.selectMenuTreeAll()
+            : menuMapper.selectMenuTreeByUserId(userId);
+        menus = filterByTenant(menus, userId, SysMenu::getMenuId, SysMenu::getPerms);
+        if (menus.isEmpty()) {
+            return new ArrayList<>();
         }
-        menus = scoped(menus, SysMenu::getMenuId, SysMenu::getPerms, UserContext.isSuperAdmin(userId));
-        if (CollUtil.isEmpty(menus)) {
-            return CollUtil.newArrayList();
+        Map<Long, List<SysMenu>> byParent = new LinkedHashMap<>();
+        for (SysMenu menu : menus) {
+            byParent.computeIfAbsent(menu.getParentId(), id -> new ArrayList<>()).add(menu);
         }
-
-        List<SysMenu> menuTree = TreeBuildUtils.build(menus, Constants.TOP_PARENT_ID, SysMenu::getParentId, (menu, nodeTreeMaps) -> {
-            // 将当前节点的菜单ID用作父节点ID
-            Long menuParentId = menu.getMenuId();
-            // 从动态规划表中取出子节点列表
-            // 如果不存在子节点，则返回一个空的列表，确保数据在进行JSON序列化时该字段的类型和结构是正确的
-            List<SysMenu> childMenus = nodeTreeMaps.getOrDefault(menuParentId, Collections.emptyList());
-            // 设置子节点
-            // 如果存在根节点指向尾节点的情况，则会出现环形依赖。但在菜单表中基本不会出现这种情况...
-            menu.setChildren(childMenus);
-        });
-        return CollUtil.isEmpty(menuTree) ? CollUtil.newArrayList() : menuTree;
+        for (SysMenu menu : menus) {
+            menu.setChildren(byParent.getOrDefault(menu.getMenuId(), new ArrayList<>()));
+        }
+        return byParent.getOrDefault(Constants.TOP_PARENT_ID, new ArrayList<>());
     }
 
-    /**
-     * 根据角色ID查询菜单树信息
-     *
-     * @param roleId 角色ID
-     * @return 选中菜单列表
-     */
     @Override
     public List<Long> selectMenuListByRoleId(Long roleId) {
         SysRole role = roleMapper.selectById(roleId);
-        return menuMapper.selectMenuListByRoleId(roleId, role.getMenuCheckStrictly());
+        if (role == null) {
+            throw new ServiceException("角色不存在", HttpStatus.NOT_FOUND);
+        }
+        return menuMapper.selectMenuListByRoleId(roleId, Boolean.TRUE.equals(role.getMenuCheckStrictly()));
     }
 
-    /**
-     * 构建前端路由所需要的菜单
-     * 路由name命名规则 path首字母转大写 + id
-     *
-     * @param menus 菜单列表
-     * @return 路由列表
-     */
     @Override
     public List<RouterVo> buildMenus(List<SysMenu> menus) {
-        if (CollUtil.isEmpty(menus)) {
-            return CollUtil.newArrayList();
+        List<RouterVo> routers = new ArrayList<>();
+        if (menus == null || menus.isEmpty()) {
+            return routers;
         }
-        List<RouterVo> routers = new LinkedList<>();
         for (SysMenu menu : menus) {
-            String name = menu.getRouteName() + menu.getMenuId();
-            RouterVo router = new RouterVo();
-            router.setHidden("1".equals(menu.getVisible()));
-            router.setName(name);
-            router.setPath(menu.getRouterPath());
-            router.setComponent(menu.getComponentInfo());
-            router.setQuery(menu.getQueryParam());
-            router.setExt(menu.getExt());
-            router.setMeta(new MetaVo(menu.getMenuName(), menu.getIcon(), StringUtils.equals(SystemConstants.NO, menu.getIsCache()), menu.getPath(), menu.getActiveMenu()));
-            List<SysMenu> cMenus = menu.getChildren();
-            if (CollUtil.isNotEmpty(cMenus) && SystemConstants.TYPE_DIR.equals(menu.getMenuType())) {
-                router.setAlwaysShow(true);
-                router.setRedirect("noRedirect");
-                router.setChildren(buildMenus(cMenus));
-            } else if (menu.isMenuFrame()) {
-                String frameName = StringUtils.capitalize(menu.getPath()) + menu.getMenuId();
-                router.setMeta(null);
-                List<RouterVo> childrenList = new ArrayList<>();
-                RouterVo children = new RouterVo();
-                children.setPath(menu.getPath());
-                children.setComponent(menu.getComponent());
-                children.setName(frameName);
-                children.setMeta(new MetaVo(menu.getMenuName(), menu.getIcon(), StringUtils.equals(SystemConstants.NO, menu.getIsCache()), menu.getPath(), menu.getActiveMenu()));
-                children.setQuery(menu.getQueryParam());
-                children.setExt(menu.getExt());
-                childrenList.add(children);
-                router.setChildren(childrenList);
-            } else if (menu.getParentId().equals(Constants.TOP_PARENT_ID) && menu.isInnerLink()) {
-                router.setMeta(new MetaVo(menu.getMenuName(), menu.getIcon()));
-                router.setPath("/");
-                List<RouterVo> childrenList = new ArrayList<>();
-                RouterVo children = new RouterVo();
-                String routerPath = SysMenu.innerLinkReplaceEach(menu.getPath());
-                String innerLinkName = StringUtils.capitalize(routerPath) + menu.getMenuId();
-                children.setPath(routerPath);
-                children.setComponent(SystemConstants.INNER_LINK);
-                children.setName(innerLinkName);
-                children.setMeta(new MetaVo(menu.getMenuName(), menu.getIcon(), menu.getPath()));
-                children.setExt(menu.getExt());
-                childrenList.add(children);
-                router.setChildren(childrenList);
-            }
-            routers.add(router);
+            routers.add(buildRouter(menu));
         }
         return routers;
     }
 
-    /**
-     * 构建前端所需要下拉树结构
-     *
-     * @param menus 菜单列表
-     * @return 下拉树结构列表
-     */
     @Override
     public List<Tree<Long>> buildMenuTreeSelect(List<SysMenuVo> menus) {
-        if (CollUtil.isEmpty(menus)) {
-            return CollUtil.newArrayList();
+        if (menus == null || menus.isEmpty()) {
+            return new ArrayList<>();
         }
         return TreeBuildUtils.build(menus, (menu, tree) -> {
-            Tree<Long> menuTree = tree.setId(menu.getMenuId())
+            tree.setId(menu.getMenuId())
                 .setParentId(menu.getParentId())
                 .setName(menu.getMenuName())
                 .setWeight(menu.getOrderNum());
-            menuTree.put("menuType", menu.getMenuType());
-            menuTree.put("icon", menu.getIcon());
-            menuTree.put("visible", menu.getVisible());
-            menuTree.put("status", menu.getStatus());
+            tree.putExtra("menuType", menu.getMenuType());
+            tree.putExtra("icon", menu.getIcon());
+            tree.putExtra("visible", menu.getVisible());
+            tree.putExtra("status", menu.getStatus());
         });
     }
 
-    /**
-     * 根据菜单ID查询信息
-     *
-     * @param menuId 菜单ID
-     * @return 菜单信息
-     */
     @Override
     public SysMenuVo selectMenuById(Long menuId) {
         return BeanMapper.map(menuMapper.selectById(menuId), SysMenuVo.class);
     }
 
-    /**
-     * 是否存在菜单子节点
-     *
-     * @param menuId 菜单ID
-     * @return 结果
-     */
     @Override
     public boolean hasChildByMenuId(Long menuId) {
         return menuMapper.exists(QueryBuilder.lambda(SysMenu.class).eq(SysMenu::getParentId, menuId).build());
     }
 
-    /**
-     * 是否存在菜单子节点
-     *
-     * @param menuIds 菜单ID列表
-     * @return 结果
-     */
     @Override
     public boolean hasChildByMenuId(Collection<Long> menuIds) {
         return menuMapper.exists(QueryBuilder.lambda(SysMenu.class)
@@ -306,46 +194,23 @@ public class SysMenuServiceImpl implements ISysMenuService {
             .build());
     }
 
-    /**
-     * 查询菜单使用数量
-     *
-     * @param menuId 菜单ID
-     * @return 结果
-     */
     @Override
     public boolean checkMenuExistRole(Long menuId) {
         return roleMenuMapper.exists(QueryBuilder.lambda(SysRoleMenu.class).eq(SysRoleMenu::getMenuId, menuId).build());
     }
 
-    /**
-     * 新增保存菜单信息
-     *
-     * @param bo 菜单信息
-     */
     @Override
     public void insertMenu(SysMenuBo bo) {
-        SysMenu menu = BeanMapper.map(bo, SysMenu.class);
-        menuMapper.insert(menu);
+        menuMapper.insert(BeanMapper.map(bo, SysMenu.class));
     }
 
-    /**
-     * 修改保存菜单信息
-     *
-     * @param bo 菜单信息
-     */
     @Override
     public void updateMenu(SysMenuBo bo) {
-        SysMenu menu = BeanMapper.map(bo, SysMenu.class);
-        if (menuMapper.updateById(menu) == 0) {
+        if (menuMapper.updateById(BeanMapper.map(bo, SysMenu.class)) == 0) {
             throw new ServiceException("修改菜单'{}'失败，菜单不存在", bo.getMenuName());
         }
     }
 
-    /**
-     * 删除菜单管理信息
-     *
-     * @param menuId 菜单ID
-     */
     @Override
     public void deleteMenuById(Long menuId) {
         if (menuMapper.deleteById(menuId) == 0) {
@@ -353,11 +218,6 @@ public class SysMenuServiceImpl implements ISysMenuService {
         }
     }
 
-    /**
-     * 批量删除菜单管理信息
-     *
-     * @param menuIds 菜单ID串
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteMenuById(Collection<Long> menuIds) {
@@ -365,65 +225,126 @@ public class SysMenuServiceImpl implements ISysMenuService {
         roleMenuMapper.deleteByMenuIds(menuIds);
     }
 
-    /**
-     * 校验菜单名称是否唯一
-     *
-     * @param menu 菜单信息
-     * @return 结果
-     */
     @Override
     public boolean checkMenuNameUnique(SysMenuBo menu) {
-        boolean exist = menuMapper.exists(QueryBuilder.lambda(SysMenu.class)
+        return !menuMapper.exists(QueryBuilder.lambda(SysMenu.class)
             .eq(SysMenu::getMenuName, menu.getMenuName())
             .eq(SysMenu::getParentId, menu.getParentId())
             .neIfPresent(SysMenu::getMenuId, menu.getMenuId())
             .build());
-        return !exist;
     }
 
-    /**
-     * 校验路由组合是否唯一
-     *
-     * @param menuBo 菜单信息
-     * @return 结果
-     */
     @Override
-    public boolean checkRouteConfigUnique(SysMenuBo menuBo) {
-        SysMenu menu = BeanMapper.map(menuBo, SysMenu.class);
+    public boolean checkRouteConfigUnique(SysMenuBo menu) {
         if (SystemConstants.TYPE_BUTTON.equals(menu.getMenuType())) {
             return true;
         }
-        long menuId = ObjectUtil.isNull(menu.getMenuId()) ? -1L : menu.getMenuId();
-        Long parentId = menu.getParentId();
+        long id = menu.getMenuId() == null ? -1L : menu.getMenuId();
         String path = menu.getPath();
-        String routeName = StringUtils.isEmpty(menu.getRouteName()) ? path : menu.getRouteName();
-        List<SysMenu> sysMenuList = menuMapper.selectList(QueryBuilder.lambda(SysMenu.class)
+        String routeName = routeNameOf(BeanMapper.map(menu, SysMenu.class));
+        LambdaQueryWrapper<SysMenu> query = QueryBuilder.lambda(SysMenu.class)
             .in(SysMenu::getMenuType, SystemConstants.TYPE_DIR, SystemConstants.TYPE_MENU)
-            .and(w ->
-                w.eq(SysMenu::getPath, path).or().eq(SysMenu::getPath, routeName)
-            )
-            .build());
-        for (SysMenu sysMenu : sysMenuList) {
-            if (!sysMenu.getMenuId().equals(menuId)) {
-                Long dbParentId = sysMenu.getParentId();
-                String dbPath = sysMenu.getPath();
-                String dbRouteName = StringUtils.isEmpty(sysMenu.getRouteName()) ? dbPath : sysMenu.getRouteName();
-                if (StringUtils.equalsAnyIgnoreCase(path, dbPath) && parentId.equals(dbParentId)) {
-                    log.warn("[同级路由冲突] 同级下已存在相同路由路径 '{}'，冲突菜单：{}", dbPath, sysMenu.getMenuName());
-                    return false;
-                } else if (StringUtils.equalsAnyIgnoreCase(path, dbPath)
-                    && Constants.TOP_PARENT_ID.equals(parentId)
-                    && Constants.TOP_PARENT_ID.equals(dbParentId)) {
-                    log.warn("[根目录路由冲突] 根目录下路由 '{}' 必须唯一，已被菜单 '{}' 占用", path, sysMenu.getMenuName());
-                    return false;
-                } else if (StringUtils.equalsAnyIgnoreCase(routeName, dbRouteName)
-                    && sysMenu.getMenuType().equals(menu.getMenuType())) {
-                    log.warn("[路由名称冲突] 路由名称 '{}' 需全局唯一，已被菜单 '{}' 使用", routeName, sysMenu.getMenuName());
-                    return false;
-                }
+            .and(w -> w.eq(SysMenu::getPath, path).or().eq(SysMenu::getPath, routeName))
+            .build();
+        for (SysMenu existing : menuMapper.selectList(query)) {
+            if (existing.getMenuId() != null && existing.getMenuId() == id) {
+                continue;
+            }
+            boolean samePath = StringUtils.equalsIgnoreCase(path, existing.getPath());
+            if (samePath && Objects.equals(menu.getParentId(), existing.getParentId())) {
+                log.warn("同级路由冲突：{} 与菜单 {} 的地址相同", path, existing.getMenuId());
+                return false;
+            }
+            if (samePath && Constants.TOP_PARENT_ID.equals(menu.getParentId())
+                && Constants.TOP_PARENT_ID.equals(existing.getParentId())) {
+                log.warn("根目录路由冲突：{} 与菜单 {} 的地址相同", path, existing.getMenuId());
+                return false;
+            }
+            if (StringUtils.equalsIgnoreCase(routeName, routeNameOf(existing))
+                && Objects.equals(menu.getMenuType(), existing.getMenuType())) {
+                log.warn("路由名称冲突：{} 与菜单 {} 的路由名称相同", routeName, existing.getMenuId());
+                return false;
             }
         }
         return true;
+    }
+
+    /**
+     * 菜单的路由名称；为空（一级菜单）时取地址
+     */
+    private static String routeNameOf(SysMenu menu) {
+        String routeName = menu.getRouteName();
+        return StringUtils.isEmpty(routeName) ? menu.getPath() : routeName;
+    }
+
+    /**
+     * 一个菜单的路由（目录递归生成子路由）
+     */
+    private RouterVo buildRouter(SysMenu menu) {
+        RouterVo router = new RouterVo();
+        router.setHidden(SystemConstants.DISABLE.equals(menu.getVisible()));
+        router.setName(menu.getRouteName() + menu.getMenuId());
+        router.setPath(menu.getRouterPath());
+        router.setComponent(menu.getComponentInfo());
+        router.setQuery(menu.getQueryParam());
+        router.setExt(menu.getExt());
+        router.setMeta(meta(menu));
+        List<SysMenu> children = menu.getChildren();
+        if (children != null && !children.isEmpty() && SystemConstants.TYPE_DIR.equals(menu.getMenuType())) {
+            router.setAlwaysShow(true);
+            router.setRedirect(NO_REDIRECT);
+            router.setChildren(buildMenus(children));
+        } else if (menu.isMenuFrame()) {
+            router.setMeta(null);
+            RouterVo child = new RouterVo();
+            child.setPath(menu.getPath());
+            child.setComponent(menu.getComponent());
+            child.setName(StringUtils.capitalize(menu.getPath()) + menu.getMenuId());
+            child.setMeta(meta(menu));
+            child.setQuery(menu.getQueryParam());
+            child.setExt(menu.getExt());
+            router.setChildren(new ArrayList<>(List.of(child)));
+        } else if (Constants.TOP_PARENT_ID.equals(menu.getParentId()) && menu.isInnerLink()) {
+            router.setMeta(new MetaVo(menu.getMenuName(), menu.getIcon()));
+            router.setPath("/");
+            RouterVo child = new RouterVo();
+            String routerPath = SysMenu.innerLinkReplaceEach(menu.getPath());
+            child.setPath(routerPath);
+            child.setComponent(SystemConstants.INNER_LINK);
+            child.setName(StringUtils.capitalize(routerPath) + menu.getMenuId());
+            child.setMeta(new MetaVo(menu.getMenuName(), menu.getIcon(), menu.getPath()));
+            child.setExt(menu.getExt());
+            router.setChildren(new ArrayList<>(List.of(child)));
+        }
+        return router;
+    }
+
+    private static MetaVo meta(SysMenu menu) {
+        return new MetaVo(menu.getMenuName(), menu.getIcon(), SystemConstants.NO.equals(menu.getIsCache()),
+            menu.getPath(), menu.getActiveMenu());
+    }
+
+    /**
+     * 按租户筛选：去掉当前环境下不可见的菜单；查询的用户不是超级管理员且租户有套餐限制时，只保留套餐中的菜单
+     *
+     * @return 新的可修改列表，保持原顺序
+     */
+    private <T> List<T> filterByTenant(List<T> menus, Long userId, Function<T, Long> id, Function<T, String> perms) {
+        List<T> result = new ArrayList<>();
+        if (menus == null || menus.isEmpty()) {
+            return result;
+        }
+        Set<Long> allowed = UserContext.isSuperAdmin(userId) ? null : tenantMenuScope.allowedMenuIds().orElse(null);
+        for (T menu : menus) {
+            if (!tenantMenuScope.visible(perms.apply(menu))) {
+                continue;
+            }
+            if (allowed != null && !allowed.contains(id.apply(menu))) {
+                continue;
+            }
+            result.add(menu);
+        }
+        return result;
     }
 
 }

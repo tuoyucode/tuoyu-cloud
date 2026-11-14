@@ -1,0 +1,19 @@
+{
+  "title": "Biz item",
+  "list": "Biz item list",
+  "create": "New biz item",
+  "edit": "Edit biz item",
+  "delete": "Delete biz item",
+  "exportFileName": "item",
+  "itemId": "Item id",
+  "itemName": "Item name",
+  "coverImage": "Cover image",
+  "price": "Price",
+  "weight": "Weight",
+  "itemType": "Item type",
+  "enabled": "Enabled",
+  "startDate": "Start date",
+  "delFlag": "Del flag",
+  "version": "Version",
+  "itemCodeX": "Item code x"
+}

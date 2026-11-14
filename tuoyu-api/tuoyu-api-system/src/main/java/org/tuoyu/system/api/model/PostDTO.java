@@ -7,9 +7,9 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * 岗位
+ * 登录用户的岗位（保存在会话中）
  *
- * @author AprilWind
+ * @author tuoyu
  */
 @Data
 @NoArgsConstructor
@@ -19,12 +19,12 @@ public class PostDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 岗位ID
+     * 岗位 ID
      */
     private Long postId;
 
     /**
-     * 部门id
+     * 所属部门 ID
      */
     private Long deptId;
 

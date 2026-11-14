@@ -221,8 +221,6 @@ class ClientIpResolverTest {
             request.addHeader("WL-Proxy-Client-IP", "1.1.1.1");
             request.addHeader("HTTP_CLIENT_IP", "1.1.1.1");
             assertEquals("10.0.0.2", ServletUtils.getClientIP(request));
-            assertEquals("10.0.0.2", ServletUtils.getClientIP(request, "Proxy-Client-IP"));
-            assertEquals("10.0.0.2", ServletUtils.getClientIPByHeader(request, "Proxy-Client-IP"));
 
             request.addHeader(ClientIpResolver.X_FORWARDED_FOR, "1.1.1.1, 203.0.113.9");
             assertEquals("203.0.113.9", ServletUtils.getClientIP(request));

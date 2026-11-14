@@ -10,7 +10,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 用户信息
+ * 登录用户：登录时由系统模块组装，保存在 Sa-Token 会话中（Redis），并经跨模块调用传递。
+ * <p>
+ * 会话与跨服务传递都按字段序列化，字段名、类型与顺序是对外契约。
  *
  * @author tuoyu
  */
@@ -22,23 +24,22 @@ public class LoginUser implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 登录标识分隔符，用于拼接 userType 与 userId
-     * <p>不使用冒号：Sa-Token 1.46.0 起默认禁止 loginId 包含冒号；历史冒号格式仅为兼容旧 token 保留解析
+     * 登录标识中用户类型与用户 ID 之间的分隔符
      */
     public static final String LOGIN_ID_SEPARATOR = "-";
 
     /**
-     * 用户ID
+     * 用户 ID
      */
     private Long userId;
 
     /**
-     * 所属租户（未开启多租户时为默认租户）
+     * 租户编号
      */
     private String tenantId;
 
     /**
-     * 部门ID
+     * 部门 ID
      */
     private Long deptId;
 
@@ -48,12 +49,12 @@ public class LoginUser implements Serializable {
     private String deptCategory;
 
     /**
-     * 部门名
+     * 部门名称
      */
     private String deptName;
 
     /**
-     * 用户唯一标识
+     * 令牌
      */
     private String token;
 
@@ -63,17 +64,17 @@ public class LoginUser implements Serializable {
     private String userType;
 
     /**
-     * 登录时间
+     * 登录时间（毫秒）
      */
     private Long loginTime;
 
     /**
-     * 过期时间
+     * 过期时间（毫秒）
      */
     private Long expireTime;
 
     /**
-     * 登录IP地址
+     * 登录 IP
      */
     private String ipaddr;
 
@@ -83,7 +84,7 @@ public class LoginUser implements Serializable {
     private String loginLocation;
 
     /**
-     * 浏览器类型
+     * 浏览器
      */
     private String browser;
 
@@ -93,52 +94,52 @@ public class LoginUser implements Serializable {
     private String os;
 
     /**
-     * 菜单权限
+     * 权限码
      */
     private Set<String> menuPermission;
 
     /**
-     * 角色权限
+     * 角色标识
      */
     private Set<String> rolePermission;
 
     /**
-     * 用户名
+     * 账号
      */
     private String username;
 
     /**
-     * 用户昵称
+     * 昵称
      */
     private String nickname;
 
     /**
-     * 密码
+     * 口令哈希：只在口令登录时带出，用于校验口令
      */
     private String password;
 
     /**
-     * 角色对象
+     * 正常状态的角色
      */
     private List<RoleDTO> roles;
 
     /**
-     * 数据权限角色映射 key 为权限码 value 为可参与数据权限计算的角色ID列表
+     * 权限码 → 授予它的角色 ID（数据权限按接口的访问要求选取角色）
      */
     private Map<String, List<Long>> dataScopeRoleMap;
 
     /**
-     * 岗位对象
+     * 岗位
      */
     private List<PostDTO> posts;
 
     /**
-     * 数据权限 当前角色ID
+     * 当前使用的角色 ID
      */
     private Long roleId;
 
     /**
-     * 客户端
+     * 客户端标识
      */
     private String clientKey;
 
@@ -148,7 +149,10 @@ public class LoginUser implements Serializable {
     private String deviceType;
 
     /**
-     * 获取 Sa-Token 使用的登录标识（userType-userId）
+     * 登录标识：用户类型与用户 ID 用 {@value #LOGIN_ID_SEPARATOR} 连接
+     *
+     * @return 登录标识
+     * @throws IllegalArgumentException 用户类型或用户 ID 为空时
      */
     public String getLoginId() {
         if (userType == null) {

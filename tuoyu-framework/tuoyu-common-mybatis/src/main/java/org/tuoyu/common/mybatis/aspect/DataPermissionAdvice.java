@@ -5,61 +5,38 @@ import org.aopalliance.intercept.MethodInvocation;
 import org.tuoyu.common.mybatis.annotation.DataPermission;
 import org.tuoyu.common.mybatis.helper.DataPermissionHelper;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-
 /**
- * 数据权限注解Advice
+ * 数据权限通知：调用期间把本次调用的 {@link DataPermission} 注解设为当前注解，结束后（包括抛出异常时）恢复上一层。
+ * <p>
+ * 注解先取方法上的，没有时取目标对象的类上的（JDK 动态代理取它实现的第一个标注了的接口）；都没有时调用期间没有注解，
+ * 这样外层方法的注解不会作用到内层未标注的方法。返回值与异常原样传出。
  *
- * @author 秋辞未寒
+ * @author tuoyu
  */
-public class DataPermissionAdvice implements MethodInterceptor {
+class DataPermissionAdvice implements MethodInterceptor {
 
     @Override
     public Object invoke(MethodInvocation invocation) throws Throwable {
-        Object target = invocation.getThis();
-        Method method = invocation.getMethod();
-        DataPermission previousPermission = DataPermissionHelper.getPermission();
-        // 设置权限注解
-        DataPermissionHelper.setPermission(getDataPermissionAnnotation(target, method));
+        DataPermission previous = DataPermissionHelper.getPermission();
+        DataPermissionHelper.setPermission(resolve(invocation));
         try {
-            // 执行代理方法
             return invocation.proceed();
         } finally {
-            // 恢复上一层权限上下文，兼容嵌套 Mapper 调用
-            if (previousPermission == null) {
+            if (previous == null) {
                 DataPermissionHelper.removePermission();
             } else {
-                DataPermissionHelper.setPermission(previousPermission);
+                DataPermissionHelper.setPermission(previous);
             }
         }
     }
 
-    /**
-     * 获取数据权限注解
-     */
-    private DataPermission getDataPermissionAnnotation(Object target, Method method) {
-        DataPermission dataPermission = method.getAnnotation(DataPermission.class);
-        // 优先获取方法上的注解
-        if (dataPermission != null) {
-            return dataPermission;
+    private static DataPermission resolve(MethodInvocation invocation) {
+        DataPermission permission = invocation.getMethod().getAnnotation(DataPermission.class);
+        if (permission != null) {
+            return permission;
         }
-        // 方法上没有注解，则获取类上的注解
-        Class<?> targetClass = target.getClass();
-        // 如果是 JDK 动态代理，则获取真实的Class实例
-        if (Proxy.isProxyClass(targetClass)) {
-            return getProxyClassDataPermission(targetClass);
-        }
-        return targetClass.getAnnotation(DataPermission.class);
+        Object target = invocation.getThis();
+        return target == null ? null : DataPermissionPointcut.findTypeAnnotation(target.getClass());
     }
 
-    private DataPermission getProxyClassDataPermission(Class<?> targetClass) {
-        for (Class<?> interfaceClass : targetClass.getInterfaces()) {
-            DataPermission dataPermission = interfaceClass.getAnnotation(DataPermission.class);
-            if (dataPermission != null) {
-                return dataPermission;
-            }
-        }
-        return null;
-    }
 }

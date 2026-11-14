@@ -11,75 +11,63 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 自定义枚举校验注解实现
+ * {@link EnumPattern} 的校验器。
+ * <p>
+ * 初始化时读取枚举每个常量的属性值（取值为 null 的跳过），第一个非 null 取值的类作为比较时的值类型；
+ * 校验时把输入转换为该类型后在取值中查找。初始化后只读，线程安全。
  *
- * @author 秋辞未寒
- * @date 2024-12-09
+ * @author tuoyu
  */
 public class EnumPatternValidator implements ConstraintValidator<EnumPattern, Object> {
 
-    /**
-     * 枚举允许值集合。
-     */
-    private final Set<Object> values = new HashSet<>();
+    private Set<Object> allowedValues = Set.of();
 
     /**
-     * 枚举字段值类型。
+     * 比较时的值类型；没有收集到任何取值时为 null
      */
     private Class<?> valueType;
 
-    /**
-     * 初始化枚举允许值集合。
-     *
-     * @param annotation 枚举校验注解
-     */
     @Override
     public void initialize(EnumPattern annotation) {
-        ConstraintValidator.super.initialize(annotation);
+        Set<Object> values = new HashSet<>();
+        Class<?> type = null;
         String fieldName = annotation.fieldName();
-        if (StringUtils.isBlank(fieldName)) {
-            return;
-        }
-        for (Object e : annotation.type().getEnumConstants()) {
-            Object fieldValue = ReflectUtils.invokeGetter(e, fieldName);
-            if (fieldValue != null) {
-                if (valueType == null) {
-                    valueType = fieldValue.getClass();
+        if (StringUtils.isNotBlank(fieldName)) {
+            for (Enum<?> constant : annotation.type().getEnumConstants()) {
+                Object value = ReflectUtils.invokeGetter(constant, fieldName);
+                if (value == null) {
+                    continue;
                 }
-                values.add(fieldValue);
+                if (type == null) {
+                    type = value.getClass();
+                }
+                values.add(value);
             }
         }
+        this.allowedValues = values;
+        this.valueType = type;
     }
 
-    /**
-     * 校验值是否在枚举允许值集合内。
-     *
-     * <p>以枚举字段的实际类型转换输入值后进行比较，可兼容字符串、数字、布尔值等字段类型，
-     * 同时避免将无法转换的值视为合法值。字符串类型的空白值按未填写处理，其他类型仅 null
-     * 按未填写处理。</p>
-     *
-     * @param value                      待校验值
-     * @param constraintValidatorContext 校验上下文
-     * @return true 校验通过 false 校验失败
-     */
     @Override
-    public boolean isValid(Object value, ConstraintValidatorContext constraintValidatorContext) {
+    public boolean isValid(Object value, ConstraintValidatorContext context) {
         if (value == null) {
             return true;
         }
         if (valueType == null) {
             return false;
         }
-        if (value instanceof CharSequence && StringUtils.isBlank(value.toString())
-            && CharSequence.class.isAssignableFrom(valueType)) {
-            return true;
+        if (value instanceof CharSequence text) {
+            if (StringUtils.isBlank(text)) {
+                // 字符串属性的空白按未填写处理；其他类型的属性不接受空白
+                return CharSequence.class.isAssignableFrom(valueType);
+            }
+            if (valueType == Boolean.class && BooleanUtil.toBooleanObject(text.toString()) == null) {
+                // 转换为布尔值时不认识的文本会得到 false，先排除
+                return false;
+            }
         }
-        if ((valueType == Boolean.class || valueType == boolean.class) && value instanceof CharSequence
-            && BooleanUtil.toBooleanObject(value.toString()) == null) {
-            return false;
-        }
-        Object convertedValue = Convert.convertWithCheck(valueType, value, null, true);
-        return convertedValue != null && values.contains(convertedValue);
+        Object converted = Convert.convertWithCheck(valueType, value, null, true);
+        return converted != null && allowedValues.contains(converted);
     }
 
 }

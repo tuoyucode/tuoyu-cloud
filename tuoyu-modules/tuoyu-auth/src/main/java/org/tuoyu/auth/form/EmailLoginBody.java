@@ -1,31 +1,20 @@
 package org.tuoyu.auth.form;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.tuoyu.common.core.domain.model.LoginBody;
 
 /**
- * 邮件登录对象
+ * 邮箱验证码登录
  *
- * @author Lion Li
+ * @param email     邮箱
+ * @param emailCode 邮箱验证码
+ * @author tuoyu
  */
-@Data
-@EqualsAndHashCode(callSuper = true)
-public class EmailLoginBody extends LoginBody {
-
-    /**
-     * 邮箱
-     */
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record EmailLoginBody(
     @NotBlank(message = "{user.email.not.blank}")
-    @Email(message = "{user.email.not.valid}")
-    private String email;
-
-    /**
-     * 邮箱code
-     */
-    @NotBlank(message = "{email.code.not.blank}")
-    private String emailCode;
+    @Email(message = "{user.email.not.valid}") String email,
+    @NotBlank(message = "{email.code.not.blank}") String emailCode) {
 
 }

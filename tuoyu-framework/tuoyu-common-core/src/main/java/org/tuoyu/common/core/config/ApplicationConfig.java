@@ -5,9 +5,11 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
- * 程序注解配置
+ * 启用 AspectJ 自动代理与异步方法。
+ * <p>
+ * 有 {@code @Async} 方法的 Bean 用类代理（即使它实现了接口），按实现类注入时也能取到代理对象。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @AutoConfiguration
 @EnableAspectJAutoProxy

@@ -3,35 +3,37 @@ package org.tuoyu.common.core.utils;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Validator;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 
 import java.util.Set;
 
 /**
- * Validator 校验框架工具
+ * 在代码中手动执行参数校验。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class ValidatorUtils {
+public final class ValidatorUtils {
 
-    private static final Validator VALID = SpringUtils.getBean(Validator.class);
+    private ValidatorUtils() {
+    }
 
     /**
-     * 对给定对象进行参数校验，并根据指定的校验组进行校验
+     * 用容器中的校验器按分组校验对象。
      *
-     * @param object 要进行校验的对象
-     * @param groups 校验组
-     * @throws ConstraintViolationException 如果校验不通过，则抛出参数校验异常
+     * @param object 要校验的对象
+     * @param groups 校验分组
+     * @param <T>    对象类型
+     * @throws RuntimeException             对象为 null 时
+     * @throws ConstraintViolationException 有违反的约束时
      */
     public static <T> void validate(T object, Class<?>... groups) {
         if (object == null) {
+            // 全局异常处理按类型决定状态码，这里抛出的就是 RuntimeException
             throw new RuntimeException("请求参数不能为空");
         }
-        Set<ConstraintViolation<T>> validate = VALID.validate(object, groups);
-        if (!validate.isEmpty()) {
-            throw new ConstraintViolationException("参数校验异常", validate);
+        Validator validator = SpringUtils.getBean(Validator.class);
+        Set<ConstraintViolation<T>> violations = validator.validate(object, groups);
+        if (!violations.isEmpty()) {
+            throw new ConstraintViolationException("参数校验异常", violations);
         }
     }
 

@@ -7,9 +7,9 @@ import lombok.NoArgsConstructor;
 import java.io.Serial;
 
 /**
- * 小程序登录用户身份权限
+ * 小程序登录用户：在登录用户之外带上小程序的 openid
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -20,7 +20,7 @@ public class XcxLoginUser extends LoginUser {
     private static final long serialVersionUID = 1L;
 
     /**
-     * openid
+     * 小程序用户的 openid
      */
     private String openid;
 

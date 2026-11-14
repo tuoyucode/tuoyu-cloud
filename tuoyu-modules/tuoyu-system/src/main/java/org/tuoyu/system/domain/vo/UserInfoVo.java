@@ -7,9 +7,9 @@ import java.io.Serializable;
 import java.util.Set;
 
 /**
- * 登录用户信息
+ * 当前登录用户的信息：用户、权限码与角色标识
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 public class UserInfoVo implements Serializable {
@@ -18,17 +18,17 @@ public class UserInfoVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户基本信息
+     * 用户
      */
     private SysUserVo user;
 
     /**
-     * 菜单权限
+     * 权限码
      */
     private Set<String> permissions;
 
     /**
-     * 角色权限
+     * 角色标识
      */
     private Set<String> roles;
 

@@ -5,14 +5,14 @@ import org.tuoyu.common.core.utils.StringUtils;
 import java.util.Map;
 
 /**
- * 字典服务服务
+ * 字典数据。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface DictService {
 
     /**
-     * 根据字典类型和字典值获取字典标签
+     * 按字典值取标签，多个值用逗号分隔。
      *
      * @param dictType  字典类型
      * @param dictValue 字典值
@@ -23,41 +23,29 @@ public interface DictService {
     }
 
     /**
-     * 根据字典类型和字典标签获取字典值
+     * 按字典值取标签。
      *
      * @param dictType  字典类型
-     * @param dictLabel 字典标签
-     * @return 字典值
-     */
-    default String getDictValue(String dictType, String dictLabel) {
-        return getDictValue(dictType, dictLabel, StringUtils.SEPARATOR);
-    }
-
-    /**
-     * 根据字典类型和字典值获取字典标签
-     *
-     * @param dictType  字典类型
-     * @param dictValue 字典值
+     * @param dictValue 字典值，多个值用分隔符连接
      * @param separator 分隔符
-     * @return 字典标签
+     * @return 字典标签，多个标签用分隔符连接
      */
     String getDictLabel(String dictType, String dictValue, String separator);
 
     /**
-     * 根据字典类型和字典标签获取字典值
+     * 按字典标签取值。
      *
      * @param dictType  字典类型
-     * @param dictLabel 字典标签
+     * @param dictLabel 字典标签，多个标签用分隔符连接
      * @param separator 分隔符
-     * @return 字典值
+     * @return 字典值，多个值用分隔符连接
      */
     String getDictValue(String dictType, String dictLabel, String separator);
 
     /**
-     * 获取字典下所有的字典值与标签
-     *
      * @param dictType 字典类型
-     * @return dictValue为key，dictLabel为值组成的Map
+     * @return 该类型的全部字典，键为字典值、值为标签
      */
     Map<String, String> getAllDictByDictType(String dictType);
+
 }

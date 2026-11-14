@@ -1,49 +1,51 @@
 package org.tuoyu.common.core.constant;
 
 /**
- * 全局的key常量 (业务无关的key)
+ * 全局 Redis 键的前缀。
+ * <p>
+ * 带 {@link #GLOBAL_REDIS_KEY} 前缀的键不区分租户，全部租户共用。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface GlobalConstants {
 
     /**
-     * 全局 redis key (业务无关的key)
+     * 全局键的前缀
      */
     String GLOBAL_REDIS_KEY = "global:";
 
     /**
-     * 验证码 redis key
+     * 图形验证码
      */
     String CAPTCHA_CODE_KEY = GLOBAL_REDIS_KEY + "captcha_codes:";
 
     /**
-     * 短信、邮箱等验证码 redis key（后接场景与接收方）
+     * 短信、邮箱验证码
      */
     String VERIFY_CODE_KEY = GLOBAL_REDIS_KEY + "verify_codes:";
 
     /**
-     * 短信、邮箱等验证码的已尝试次数 redis key（后接场景与接收方）
+     * 验证码的尝试次数
      */
     String VERIFY_ATTEMPT_KEY = GLOBAL_REDIS_KEY + "verify_attempts:";
 
     /**
-     * 按来源 IP 统计的登录失败次数 redis key（按账号统计的见 {@link CacheNames#PWD_ERR_CNT_KEY}）
+     * 按来源 IP 统计的登录失败次数
      */
     String LOGIN_FAIL_IP_KEY = GLOBAL_REDIS_KEY + "login_fail_ip:";
 
     /**
-     * 防重提交 redis key
+     * 防重复提交
      */
     String REPEAT_SUBMIT_KEY = GLOBAL_REDIS_KEY + "repeat_submit:";
 
     /**
-     * 限流 redis key
+     * 限流
      */
     String RATE_LIMIT_KEY = GLOBAL_REDIS_KEY + "rate_limit:";
 
     /**
-     * 三方认证 redis key
+     * 第三方登录的一次性授权码
      */
     String SOCIAL_AUTH_CODE_KEY = GLOBAL_REDIS_KEY + "social_auth_codes:";
 

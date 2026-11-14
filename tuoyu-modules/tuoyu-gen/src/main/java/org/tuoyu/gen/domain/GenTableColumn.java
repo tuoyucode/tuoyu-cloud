@@ -10,17 +10,50 @@ import lombok.EqualsAndHashCode;
 import org.apache.ibatis.type.JdbcType;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.mybatis.core.domain.BaseEntity;
-import org.tuoyu.gen.constant.GenConstants;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * 代码生成业务字段表 gen_table_column
+ * 业务字段（gen_table_column）：业务表中的一列与它的代码生成配置。
+ * <p>
+ * “是否”类的配置（主键、自增、必填、新增、修改、列表、查询）以字符串保存，{@code "1"} 表示是。
+ * 派生属性（无参的 {@code get*}、{@code is*} 方法）供模板与前端编辑页读取，没有 setter，
+ * 前端原样提交时反序列化会忽略它们。
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("gen_table_column")
 public class GenTableColumn extends BaseEntity {
+
+    private static final String YES = "1";
+
+    private static final String LABEL_OPEN = "（";
+
+    private static final String LABEL_CLOSE = "）";
+
+    private static final String HTML_DATETIME = "datetime";
+
+    private static final String QUERY_BETWEEN = "BETWEEN";
+
+    private static final String[] NUMBER_TYPES = {"Integer", "Long", "Double", "Float", "BigDecimal"};
+
+    private static final String[] TS_NUMBER_TYPES = {"Long", "Integer", "Double", "Float", "BigDecimal"};
+
+    private static final String[] DICT_HTML_TYPES = {"select", "radio", "checkbox", "switch"};
+
+    /**
+     * 生成页面时不作为普通表单项处理的字段：审计、租户与树表的上级字段
+     */
+    private static final String[] SUPER_FIELDS = {"createDept", "createBy", "createTime", "updateBy", "updateTime",
+        "tenantId", "parentName", "parentId"};
+
+    /**
+     * 属于 {@link #SUPER_FIELDS} 但页面仍需保留的字段
+     */
+    private static final String[] USABLE_FIELDS = {"parentId", "orderNum", "remark"};
 
     /**
      * 编号
@@ -45,70 +78,70 @@ public class GenTableColumn extends BaseEntity {
     private String columnComment;
 
     /**
-     * 列类型
+     * 列类型（小写，带长度，例如 varchar(64)）
      */
     private String columnType;
 
     /**
-     * JAVA类型
+     * Java 类型
      */
     private String javaType;
 
     /**
-     * JAVA字段名
+     * Java 属性名
      */
     @NotBlank(message = "Java属性不能为空")
     private String javaField;
 
     /**
-     * 是否主键（1是）
+     * 是否主键
      */
     @TableField(updateStrategy = FieldStrategy.ALWAYS, jdbcType = JdbcType.VARCHAR)
     private String isPk;
 
     /**
-     * 是否自增（1是）
+     * 是否自增
      */
     @TableField(updateStrategy = FieldStrategy.ALWAYS, jdbcType = JdbcType.VARCHAR)
     private String isIncrement;
 
     /**
-     * 是否必填（1是）
+     * 是否必填
      */
     @TableField(updateStrategy = FieldStrategy.ALWAYS, jdbcType = JdbcType.VARCHAR)
     private String isRequired;
 
     /**
-     * 是否为插入字段（1是）
+     * 是否为新增字段
      */
     @TableField(updateStrategy = FieldStrategy.ALWAYS, jdbcType = JdbcType.VARCHAR)
     private String isInsert;
 
     /**
-     * 是否编辑字段（1是）
+     * 是否为修改字段
      */
     @TableField(updateStrategy = FieldStrategy.ALWAYS, jdbcType = JdbcType.VARCHAR)
     private String isEdit;
 
     /**
-     * 是否列表字段（1是）
+     * 是否为列表字段
      */
     @TableField(updateStrategy = FieldStrategy.ALWAYS, jdbcType = JdbcType.VARCHAR)
     private String isList;
 
     /**
-     * 是否查询字段（1是）
+     * 是否为查询字段
      */
     @TableField(updateStrategy = FieldStrategy.ALWAYS, jdbcType = JdbcType.VARCHAR)
     private String isQuery;
 
     /**
-     * 查询方式（EQ等于、NE不等于、GT大于、LT小于、LIKE模糊、BETWEEN范围）
+     * 查询方式：EQ、NE、GT、GE、LT、LE、LIKE、BETWEEN
      */
     private String queryType;
 
     /**
-     * 显示类型（input文本框、textarea文本域、select下拉框、checkbox复选框、radio单选框、datetime日期控件、image图片上传控件、upload文件上传控件、editor富文本控件）
+     * 显示类型：input、textarea、inputNumber、select、radio、checkbox、switch、datetime、imageUpload、fileUpload、editor
      */
     private String htmlType;
 
@@ -119,326 +152,156 @@ public class GenTableColumn extends BaseEntity {
     private String dictType;
 
     /**
-     * 排序
+     * 排序号
      */
     private Integer sort;
 
     /**
-     * 获取首字母大写后的 Java 字段名。
-     *
-     * @return 首字母大写的 Java 字段名
+     * @return 首字母大写的 Java 属性名（用于 getter、setter 的名称）
      */
     public String getCapJavaField() {
         return StringUtils.capitalize(javaField);
     }
 
     /**
-     * 获取适合界面展示的字段注释，去除括号内的枚举说明。
-     *
-     * @return 字段展示名称
+     * @return 显示用的名称：注释中全角左括号之前的部分（{@code 状态（0正常 1停用）} → {@code 状态}）
      */
     public String getColumnLabel() {
-        int index = StringUtils.indexOf(this.columnComment, "（");
-        if (index != StringUtils.INDEX_NOT_FOUND) {
-            return StringUtils.substring(this.columnComment, 0, index);
+        if (columnComment == null) {
+            return null;
         }
-        return this.columnComment;
+        int open = columnComment.indexOf(LABEL_OPEN);
+        return open < 0 ? columnComment : columnComment.substring(0, open);
     }
 
     /**
-     * 获取 TypeScript 字段类型。
+     * 注释中全角括号内的取值说明转换为 Excel 的读取表达式：{@code 状态（0正常 1停用）} → {@code 0=正常,1=停用}
      *
-     * @return TypeScript 类型
+     * @return 读取表达式；括号之间为空或没有括号时为注释本身
+     */
+    public String readConverterExp() {
+        if (columnComment == null) {
+            return null;
+        }
+        int open = columnComment.indexOf(LABEL_OPEN);
+        int close = open < 0 ? -1 : columnComment.indexOf(LABEL_CLOSE, open + 1);
+        if (close < 0) {
+            return columnComment;
+        }
+        String inner = columnComment.substring(open + 1, close);
+        List<String> items = new ArrayList<>();
+        for (String item : inner.split(" ")) {
+            if (!item.isEmpty()) {
+                items.add(item.charAt(0) + "=" + item.substring(1));
+            }
+        }
+        return items.isEmpty() ? columnComment : String.join(",", items);
+    }
+
+    /**
+     * @return 前端的 TypeScript 类型：编号类字段可能是超出 JavaScript 精度的长整数，按字符串或数字处理
      */
     public String getTsType() {
-        if (StringUtils.containsAny(this.javaField, "id", "Id")) {
+        if (StringUtils.contains(javaField, "id") || StringUtils.contains(javaField, "Id")) {
             return "string | number";
         }
-        if (StringUtils.equalsAny(this.javaType,
-            GenConstants.TYPE_LONG, GenConstants.TYPE_INTEGER, GenConstants.TYPE_DOUBLE,
-            GenConstants.TYPE_FLOAT, GenConstants.TYPE_BIGDECIMAL)) {
+        if (StringUtils.equalsAny(javaType, TS_NUMBER_TYPES)) {
             return "number";
         }
-        if (StringUtils.equals(this.javaType, GenConstants.TYPE_BOOLEAN)) {
+        if ("Boolean".equals(javaType)) {
             return "boolean";
         }
         return "string";
     }
 
     /**
-     * 获取开关启用值的前端字面量。
-     *
-     * @return 前端字面量
+     * @return 开关打开时的值（前端字面量）
      */
     public String getSwitchActiveValue() {
-        if (StringUtils.equals(this.javaType, GenConstants.TYPE_BOOLEAN)) {
+        if ("Boolean".equals(javaType)) {
             return "true";
         }
-        if (isNumberType()) {
-            return "0";
-        }
-        return "'0'";
+        return isNumberType() ? "0" : "'0'";
     }
 
     /**
-     * 获取开关停用值的前端字面量。
-     *
-     * @return 前端字面量
+     * @return 开关关闭时的值（前端字面量）
      */
     public String getSwitchInactiveValue() {
-        if (StringUtils.equals(this.javaType, GenConstants.TYPE_BOOLEAN)) {
+        if ("Boolean".equals(javaType)) {
             return "false";
         }
-        if (isNumberType()) {
-            return "1";
-        }
-        return "'1'";
+        return isNumberType() ? "1" : "'1'";
     }
 
     /**
-     * 判断当前字段是否为数值类型。
-     *
-     * @return 数值类型返回 {@code true}
+     * @return Java 类型是否为数值
      */
     public boolean isNumberType() {
-        return StringUtils.equalsAny(this.javaType,
-            GenConstants.TYPE_INTEGER, GenConstants.TYPE_LONG, GenConstants.TYPE_DOUBLE,
-            GenConstants.TYPE_FLOAT, GenConstants.TYPE_BIGDECIMAL);
+        return StringUtils.equalsAny(javaType, NUMBER_TYPES);
     }
 
     /**
-     * 是否为日期范围查询字段。
-     *
-     * @return 日期范围查询字段返回 {@code true}
+     * @return 是否为日期区间查询（勾选查询、显示类型为日期时间、查询方式为 BETWEEN）
      */
     public boolean isDateRangeQuery() {
-        return isQuery()
-            && StringUtils.equals(this.htmlType, GenConstants.HTML_DATETIME)
-            && StringUtils.equals(this.queryType, GenConstants.QUERY_BETWEEN);
+        return isQuery() && HTML_DATETIME.equals(htmlType) && QUERY_BETWEEN.equals(queryType);
     }
 
-    /**
-     * 判断当前列是否为主键列。
-     *
-     * @return 主键列返回 {@code true}
-     */
     public boolean isPk() {
-        return isPk(this.isPk);
+        return YES.equals(isPk);
     }
 
-    /**
-     * 根据标识判断是否为主键列。
-     *
-     * @param isPk 主键标识
-     * @return 主键列返回 {@code true}
-     */
-    public boolean isPk(String isPk) {
-        return isPk != null && StringUtils.equals("1", isPk);
-    }
-
-    /**
-     * 判断当前列是否为自增列。
-     *
-     * @return 自增列返回 {@code true}
-     */
     public boolean isIncrement() {
-        return isIncrement(this.isIncrement);
+        return YES.equals(isIncrement);
     }
 
-    /**
-     * 根据标识判断是否为自增列。
-     *
-     * @param isIncrement 自增标识
-     * @return 自增列返回 {@code true}
-     */
-    public boolean isIncrement(String isIncrement) {
-        return isIncrement != null && StringUtils.equals("1", isIncrement);
-    }
-
-    /**
-     * 判断当前列是否必填。
-     *
-     * @return 必填返回 {@code true}
-     */
     public boolean isRequired() {
-        return isRequired(this.isRequired);
+        return YES.equals(isRequired);
     }
 
-    /**
-     * 根据标识判断当前列是否必填。
-     *
-     * @param isRequired 必填标识
-     * @return 必填返回 {@code true}
-     */
-    public boolean isRequired(String isRequired) {
-        return isRequired != null && StringUtils.equals("1", isRequired);
-    }
-
-    /**
-     * 判断当前列是否参与新增。
-     *
-     * @return 参与新增返回 {@code true}
-     */
     public boolean isInsert() {
-        return isInsert(this.isInsert);
+        return YES.equals(isInsert);
     }
 
-    /**
-     * 根据标识判断当前列是否参与新增。
-     *
-     * @param isInsert 新增标识
-     * @return 参与新增返回 {@code true}
-     */
-    public boolean isInsert(String isInsert) {
-        return isInsert != null && StringUtils.equals("1", isInsert);
-    }
-
-    /**
-     * 判断当前列是否参与编辑。
-     *
-     * @return 参与编辑返回 {@code true}
-     */
     public boolean isEdit() {
-        return isEdit(this.isEdit);
+        return YES.equals(isEdit);
     }
 
-    /**
-     * 根据标识判断当前列是否参与编辑。
-     *
-     * @param isEdit 编辑标识
-     * @return 参与编辑返回 {@code true}
-     */
-    public boolean isEdit(String isEdit) {
-        return isEdit != null && StringUtils.equals("1", isEdit);
-    }
-
-    /**
-     * 判断当前列是否参与列表展示。
-     *
-     * @return 参与列表展示返回 {@code true}
-     */
     public boolean isList() {
-        return isList(this.isList);
+        return YES.equals(isList);
     }
 
-    /**
-     * 根据标识判断当前列是否参与列表展示。
-     *
-     * @param isList 列表展示标识
-     * @return 参与列表展示返回 {@code true}
-     */
-    public boolean isList(String isList) {
-        return isList != null && StringUtils.equals("1", isList);
-    }
-
-    /**
-     * 判断当前列是否参与查询条件。
-     *
-     * @return 参与查询返回 {@code true}
-     */
     public boolean isQuery() {
-        return isQuery(this.isQuery);
+        return YES.equals(isQuery);
     }
 
     /**
-     * 根据标识判断当前列是否参与查询条件。
-     *
-     * @param isQuery 查询标识
-     * @return 参与查询返回 {@code true}
-     */
-    public boolean isQuery(String isQuery) {
-        return isQuery != null && StringUtils.equals("1", isQuery);
-    }
-
-    /**
-     * 判断当前列是否为基类公共字段。
-     *
-     * @return 基类公共字段返回 {@code true}
+     * @return 是否为页面中不作为普通表单项处理的字段（审计、租户与树表的上级字段，忽略大小写）
      */
     public boolean isSuperColumn() {
-        return isSuperColumn(this.javaField);
+        return StringUtils.equalsAnyIgnoreCase(javaField, SUPER_FIELDS);
     }
 
     /**
-     * 根据字段名判断是否为基类公共字段。
-     *
-     * @param javaField Java 字段名
-     * @return 基类公共字段返回 {@code true}
-     */
-    public static boolean isSuperColumn(String javaField) {
-        return StringUtils.equalsAnyIgnoreCase(javaField,
-            // BaseEntity
-            "createDept", "createBy", "createTime", "updateBy", "updateTime",
-            // TenantEntity
-            GenConstants.TENANT_FIELD,
-            // TreeEntity
-            "parentName", "parentId");
-    }
-
-    /**
-     * 判断当前列是否属于生成页面需要保留的白名单字段。
-     *
-     * @return 白名单字段返回 {@code true}
+     * @return 是否为页面需要保留的字段（上级编号、显示顺序、备注，忽略大小写）
      */
     public boolean isUsableColumn() {
-        return isUsableColumn(javaField);
+        return StringUtils.equalsAnyIgnoreCase(javaField, USABLE_FIELDS);
     }
 
     /**
-     * 根据字段名判断是否属于生成页面需要保留的白名单字段。
-     *
-     * @param javaField Java 字段名
-     * @return 白名单字段返回 {@code true}
-     */
-    public static boolean isUsableColumn(String javaField) {
-        // isSuperColumn()中的名单用于避免生成多余Domain属性，若某些属性在生成页面时需要用到不能忽略，则放在此处白名单
-        return StringUtils.equalsAnyIgnoreCase(javaField, "parentId", "orderNum", "remark");
-    }
-
-    /**
-     * 判断当前列是否需要显式声明 MP 字段映射。
-     *
-     * @return 字段名与下划线列名不一致时返回 {@code true}
+     * @return 列名与 Java 属性名的下划线形式不对应（忽略大小写），实体中需要用 {@code @TableField} 写明列名
      */
     public boolean isNeedTableField() {
-        if (StringUtils.isAnyBlank(this.columnName, this.javaField)) {
-            return false;
-        }
-        return !StringUtils.equalsIgnoreCase(this.columnName, StringUtils.toUnderScoreCase(this.javaField));
+        return StringUtils.isNotBlank(columnName) && StringUtils.isNotBlank(javaField)
+            && !columnName.equalsIgnoreCase(StringUtils.toUnderScoreCase(javaField));
     }
 
     /**
-     * 判断当前列是否属于字典控件列。
-     *
-     * @return 仅当已配置字典类型且显示类型支持字典时返回 {@code true}
+     * @return 是否使用字典：设置了字典类型，且显示类型可以选择字典（下拉、单选、多选、开关）
      */
     public boolean isDictColumn() {
-        return StringUtils.isNotBlank(this.dictType) && StringUtils.equalsAny(this.htmlType,
-            GenConstants.HTML_SELECT,
-            GenConstants.HTML_RADIO,
-            GenConstants.HTML_CHECKBOX,
-            GenConstants.HTML_SWITCH);
-    }
-
-    /**
-     * 从字段注释中解析字典读转换表达式。
-     *
-     * @return 形如 `0=男,1=女` 的转换表达式，无法解析时返回原始注释
-     */
-    public String readConverterExp() {
-        String remarks = StringUtils.substringBetween(this.columnComment, "（", "）");
-        StringBuilder sb = new StringBuilder();
-        if (StringUtils.isNotEmpty(remarks)) {
-            for (String value : remarks.split(" ")) {
-                if (StringUtils.isNotEmpty(value)) {
-                    Object startStr = value.subSequence(0, 1);
-                    String endStr = value.substring(1);
-                    sb.append(StringUtils.EMPTY).append(startStr).append("=").append(endStr).append(StringUtils.SEPARATOR);
-                }
-            }
-            return sb.deleteCharAt(sb.length() - 1).toString();
-        } else {
-            return this.columnComment;
-        }
+        return StringUtils.isNotBlank(dictType) && StringUtils.equalsAny(htmlType, DICT_HTML_TYPES);
     }
 }

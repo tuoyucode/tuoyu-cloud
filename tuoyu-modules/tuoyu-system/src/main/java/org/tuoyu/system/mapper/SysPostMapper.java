@@ -1,12 +1,12 @@
 package org.tuoyu.system.mapper;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.yulichang.base.MPJBaseMapper;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.mybatis.annotation.DataColumn;
 import org.tuoyu.common.mybatis.annotation.DataPermission;
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysPost;
 import org.tuoyu.system.domain.SysUserPost;
@@ -16,18 +16,18 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * 岗位信息 数据层
+ * 岗位数据层。数据权限按岗位所属部门与创建人（经 Spring 代理调用标注的方法时生效）
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface SysPostMapper extends BaseMapper<SysPost>, MPJBaseMapper<SysPost> {
 
     /**
-     * 分页查询岗位列表
+     * 分页查询岗位
      *
-     * @param page         分页对象
-     * @param queryWrapper 查询条件
-     * @return 包含岗位信息的分页结果
+     * @param page         分页
+     * @param queryWrapper 条件
+     * @return 分页结果
      */
     @DataPermission({
         @DataColumn(key = "deptName", value = "dept_id"),
@@ -40,8 +40,8 @@ public interface SysPostMapper extends BaseMapper<SysPost>, MPJBaseMapper<SysPos
     /**
      * 查询岗位列表
      *
-     * @param queryWrapper 查询条件
-     * @return 岗位信息列表
+     * @param queryWrapper 条件
+     * @return 岗位
      */
     @DataPermission({
         @DataColumn(key = "deptName", value = "dept_id"),
@@ -52,10 +52,10 @@ public interface SysPostMapper extends BaseMapper<SysPost>, MPJBaseMapper<SysPos
     }
 
     /**
-     * 根据岗位ID集合查询岗位数量
+     * 数据权限内这些岗位的个数
      *
-     * @param postIds 岗位ID列表
-     * @return 匹配的岗位数量
+     * @param postIds 岗位 ID
+     * @return 个数
      */
     @DataPermission({
         @DataColumn(key = "deptName", value = "dept_id"),
@@ -66,10 +66,10 @@ public interface SysPostMapper extends BaseMapper<SysPost>, MPJBaseMapper<SysPos
     }
 
     /**
-     * 按岗位ID查询正常状态的岗位（下拉选项用，只返回编号、名称、编码）
+     * 正常状态的岗位（下拉选项，只取识别列）
      *
-     * @param postIds 岗位ID列表，为空时不按ID过滤
-     * @return 岗位列表
+     * @param postIds 只查这些岗位，为空时不限
+     * @return 岗位
      */
     @DataPermission({
         @DataColumn(key = "deptName", value = "dept_id"),
@@ -84,10 +84,24 @@ public interface SysPostMapper extends BaseMapper<SysPost>, MPJBaseMapper<SysPos
     }
 
     /**
-     * 根据用户ID查询其关联的岗位列表
+     * 按 ID 查询数据权限内的岗位
      *
-     * @param userId 用户ID
-     * @return 岗位信息列表
+     * @param postId 岗位 ID
+     * @return 岗位；不存在或不在数据权限内时为 null
+     */
+    @DataPermission({
+        @DataColumn(key = "deptName", value = "dept_id"),
+        @DataColumn(key = "userName", value = "create_by")
+    })
+    default SysPost selectPostById(Long postId) {
+        return this.selectById(postId);
+    }
+
+    /**
+     * 用户的岗位
+     *
+     * @param userId 用户 ID
+     * @return 岗位
      */
     default List<SysPostVo> selectPostsByUserId(Long userId) {
         return this.selectJoinList(SysPostVo.class, QueryBuilder.lambdaJoin("p", SysPost.class)

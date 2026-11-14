@@ -1,44 +1,25 @@
 package org.tuoyu.common.core.enums;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-
 /**
- * 登录类型
+ * 登录方式。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@Getter
-@AllArgsConstructor
 public enum LoginType {
 
     /**
-     * 密码登录
+     * 账号密码
      */
-    PASSWORD("user.password.retry.limit.exceed", "user.password.retry.limit.count"),
+    PASSWORD,
 
     /**
-     * 短信登录
+     * 短信验证码
      */
-    SMS("sms.code.retry.limit.exceed", "sms.code.retry.limit.count"),
+    SMS,
 
     /**
-     * 邮箱登录
+     * 邮箱验证码
      */
-    EMAIL("email.code.retry.limit.exceed", "email.code.retry.limit.count"),
+    EMAIL
 
-    /**
-     * 小程序登录
-     */
-    XCX("", "");
-
-    /**
-     * 登录重试超出限制提示
-     */
-    final String retryLimitExceed;
-
-    /**
-     * 登录重试限制计数提示
-     */
-    final String retryLimitCount;
 }

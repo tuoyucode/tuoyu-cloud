@@ -72,6 +72,28 @@ class RequestAuthenticatorTest {
     }
 
     @Test
+    @DisplayName("不是规范写法的路径不匹配白名单：借 ..、路径参数、编码字符拼出的白名单路径仍要登录")
+    void whitelistRequiresCanonicalPath() {
+        for (String path : new String[]{"/auth/login/../../system/user/list", "/resource/sse/../../system/user/list",
+            "/auth/login;x", "/auth/%6Cogin", "/auth//login", "/auth/./login", "/auth/login/.."}) {
+            assertThat(authenticator.isWhitelisted(path)).as(path).isFalse();
+            assertThatThrownBy(() -> authenticator.authenticate(request, path)).as(path).isInstanceOf(NotLoginException.class);
+        }
+    }
+
+    @Test
+    @DisplayName("规范写法的判断")
+    void canonicalPath() {
+        assertThat(RequestAuthenticator.isCanonicalPath("/system/user/list")).isTrue();
+        assertThat(RequestAuthenticator.isCanonicalPath("/")).isTrue();
+        assertThat(RequestAuthenticator.isCanonicalPath("/.well-known/x")).isTrue();
+        assertThat(RequestAuthenticator.isCanonicalPath("/a/b.json")).isTrue();
+        for (String path : new String[]{null, "", "system/user", "/a/../b", "/a/./b", "/a/..", "/a//b", "/a;b", "/a%2Fb", "/a" + (char) 92 + "b"}) {
+            assertThat(RequestAuthenticator.isCanonicalPath(path)).as(String.valueOf(path)).isFalse();
+        }
+    }
+
+    @Test
     @DisplayName("不在白名单中且未登录时拒绝")
     void requiresLogin() {
         assertThatThrownBy(() -> authenticator.authenticate(request, "/system/user/list"))
@@ -114,6 +136,9 @@ class RequestAuthenticatorTest {
         assertThatThrownBy(() -> authenticator.authenticate(request, "/resource/oss/list"))
             .isInstanceOf(NotPermissionException.class)
             .hasMessageContaining("未授权访问该接口路径");
+        // 借 .. 先匹配可访问路径、再由 Web 容器解析到其他接口的写法同样拒绝
+        assertThatThrownBy(() -> authenticator.authenticate(request, "/system/../resource/oss/list"))
+            .isInstanceOf(NotPermissionException.class);
     }
 
     @Test

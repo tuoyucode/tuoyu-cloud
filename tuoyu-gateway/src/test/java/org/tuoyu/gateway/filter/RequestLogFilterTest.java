@@ -128,10 +128,11 @@ class RequestLogFilterTest {
     }
 
     @Test
-    @DisplayName("JSON 解析失败时原样记录；加密请求只记录类型，不记录请求体")
+    @DisplayName("JSON 解析失败时不记录原文（无法去掉其中的口令）；加密请求只记录类型，不记录请求体")
     void invalidAndEncryptedJson() throws Exception {
-        filter(true).doFilter(jsonRequest("not-json"), new MockHttpServletResponse(), new MockFilterChain());
-        assertThat(messages().get(0)).isEqualTo("[网关]收到请求 POST /auth/login，JSON 参数：not-json");
+        filter(true).doFilter(jsonRequest("{\"password\":\"P@ss-2\""), new MockHttpServletResponse(), new MockFilterChain());
+        assertThat(messages().get(0)).isEqualTo("[网关]收到请求 POST /auth/login，JSON 无法解析，不记录参数");
+        assertThat(String.join("\n", messages())).doesNotContain("P@ss-2");
 
         appender.list.clear();
         MockHttpServletRequest encrypted = jsonRequest("{\"password\":\"cipher-text\"}");

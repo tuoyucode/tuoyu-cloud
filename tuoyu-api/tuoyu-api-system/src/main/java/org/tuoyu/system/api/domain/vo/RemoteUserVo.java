@@ -7,11 +7,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-
 /**
- * 用户
+ * 跨模块传递的用户（不含口令）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @NoArgsConstructor
@@ -21,47 +20,47 @@ public class RemoteUserVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户ID
+     * 用户 ID
      */
     private Long userId;
 
     /**
-     * 部门ID
+     * 部门 ID
      */
     private Long deptId;
 
     /**
-     * 用户账号
+     * 账号
      */
     private String userName;
 
     /**
-     * 用户昵称
+     * 昵称
      */
     private String nickName;
 
     /**
-     * 用户类型（sys_user系统用户）
+     * 用户类型
      */
     private String userType;
 
     /**
-     * 用户邮箱
+     * 邮箱
      */
     private String email;
 
     /**
-     * 手机号码
+     * 手机号
      */
     private String phoneNumber;
 
     /**
-     * 用户性别（0男 1女 2未知）
+     * 性别
      */
     private String gender;
 
     /**
-     * 账号状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     private String status;
 

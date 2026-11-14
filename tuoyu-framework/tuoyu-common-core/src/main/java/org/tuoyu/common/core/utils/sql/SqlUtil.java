@@ -1,67 +1,52 @@
 package org.tuoyu.common.core.utils.sql;
 
 import cn.hutool.core.exceptions.UtilException;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-import org.tuoyu.common.core.utils.StringUtils;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
- * sql操作工具类
+ * 检查要拼进 SQL 的值。
+ * <p>
+ * 黑名单式检查：值中含单引号，或规范化（连续空白合并为一个空格、转为小写）后含任一关键字（子串）时拒绝。
+ * 会误伤含这些子串的正常文本（例如 {@code brand new} 含 {@code and }），只用于不应出现这类文本的值（列名、ID 等）。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class SqlUtil {
+public final class SqlUtil {
 
     /**
-     * 定义常用的 sql关键字
+     * 连续的空白：含不换行空格等 Unicode 分隔符、制表符与换行
      */
-    public static final String SQL_REGEX = "\u000B|%0A|and |extractvalue|updatexml|sleep|information_schema|exec |insert |select |delete |update |drop |count |chr |mid |master |truncate |char |declare |or |union |like |+|/*|user()";
+    private static final Pattern WHITESPACE = Pattern.compile("[\\p{Z}\\s]+");
 
     /**
-     * 仅支持字母、数字、下划线、空格、逗号、小数点（支持多个字段排序）
+     * 关键字，按顺序检查；多数带一个尾随空格
      */
-    public static final String SQL_PATTERN = "[a-zA-Z0-9_\\ \\,\\.]+";
+    private static final List<String> KEYWORDS = List.of(
+        "and ", "extractvalue", "updatexml", "sleep", "information_schema", "exec ", "insert ", "select ",
+        "delete ", "update ", "drop ", "count ", "chr ", "mid ", "master ", "truncate ", "char ", "declare ",
+        "or ", "union ", "like ", "+", "/*", "user()");
 
-    /**
-     * 检查字符，防止注入绕过
-     */
-    public static String escapeOrderBySql(String value) {
-        if (StringUtils.isNotEmpty(value) && !isValidOrderBySql(value)) {
-            throw new IllegalArgumentException("参数不符合规范，不能进行查询");
-        }
-        return value;
+    private SqlUtil() {
     }
 
     /**
-     * 验证 order by 语法是否符合规范
-     */
-    public static boolean isValidOrderBySql(String value) {
-        return value.matches(SQL_PATTERN);
-    }
-
-    /**
-     * SQL关键字检查
+     * @param value 要检查的值；null 或空串时直接通过
+     * @throws UtilException 含单引号或敏感关键字时
      */
     public static void filterKeyword(String value) {
-        if (StringUtils.isEmpty(value)) {
+        if (value == null || value.isEmpty()) {
             return;
         }
-
-        // ==================== 核心增强：自动转义单引号 ====================
-        // 不抛异常、不破坏业务、不改变原方法行为、自动防注入
-        if (value.contains("'")) {
+        if (value.indexOf('\'') >= 0) {
             throw new UtilException("请求参数包含非法字符【'】，已禁止执行");
         }
-
-        // ==================== 原有逻辑不变 ====================
-        String normalizedValue = value.replaceAll("[\\p{Z}\\s]+", " ").toLowerCase(Locale.ROOT);
-        String[] sqlKeywords = StringUtils.split(SQL_REGEX, "\\|");
-        for (String sqlKeyword : sqlKeywords) {
-            if (StringUtils.indexOf(normalizedValue, sqlKeyword) > -1) {
-                throw new UtilException("请求参数包含敏感关键词'" + sqlKeyword + "'，可能存在安全风险");
+        String normalized = WHITESPACE.matcher(value).replaceAll(" ").toLowerCase(Locale.ROOT);
+        for (String keyword : KEYWORDS) {
+            if (normalized.contains(keyword)) {
+                throw new UtilException("请求参数包含敏感关键词'" + keyword + "'，可能存在安全风险");
             }
         }
     }

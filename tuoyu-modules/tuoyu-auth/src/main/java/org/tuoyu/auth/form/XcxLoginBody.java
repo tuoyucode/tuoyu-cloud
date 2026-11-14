@@ -1,28 +1,18 @@
 package org.tuoyu.auth.form;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.tuoyu.common.core.domain.model.LoginBody;
 
 /**
- * 三方登录对象
+ * 小程序登录
  *
- * @author Lion Li
+ * @param appid   小程序 appid，必须在 {@code tuoyu.auth.mini-program.apps} 中登记
+ * @param xcxCode 小程序端 {@code wx.login} 取得的 code
+ * @author tuoyu
  */
-@Data
-@EqualsAndHashCode(callSuper = true)
-public class XcxLoginBody extends LoginBody {
-
-    /**
-     * 小程序id(多个小程序时使用)
-     */
-    private String appid;
-
-    /**
-     * 小程序code
-     */
-    @NotBlank(message = "{xcx.code.not.blank}")
-    private String xcxCode;
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record XcxLoginBody(
+    String appid,
+    @NotBlank(message = "{xcx.code.not.blank}") String xcxCode) {
 
 }

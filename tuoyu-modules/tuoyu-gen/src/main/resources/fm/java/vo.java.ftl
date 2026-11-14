@@ -1,27 +1,31 @@
-package ${packageName}.domain.vo;
+<#-- 视图对象：列表字段（带 Excel 注解）与修改时需要回填的字段 -->
+package ${gen.packageName}.domain.vo;
 
-<#list importList as import>
-import ${import};
+<#list gen.voImports as name>
+import ${name};
 </#list>
-import ${packageName}.domain.${ClassName};
+import ${gen.packageName}.domain.${ClassName};
 import org.apache.fesod.sheet.annotation.ExcelIgnoreUnannotated;
 import org.apache.fesod.sheet.annotation.ExcelProperty;
+<#if gen.voDict>
 import org.tuoyu.common.excel.annotation.ExcelDictFormat;
 import org.tuoyu.common.excel.convert.ExcelDictConvert;
+</#if>
+<#if gen.voTranslation>
 import org.tuoyu.common.translation.annotation.Translation;
 import org.tuoyu.common.translation.constant.TransConstant;
+</#if>
 import io.github.linpeilie.annotations.AutoMapper;
 import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.time.LocalDateTime;
 
 /**
- * ${functionName}视图对象 ${tableName}
+ * ${functionName}视图对象 ${gen.tableName}
  *
- * @author ${author}
- * @date ${datetime}
+ * @author ${gen.author}
+ * @date ${gen.datetime}
  */
 @Data
 @ExcelIgnoreUnannotated
@@ -31,33 +35,30 @@ public class ${ClassName}Vo implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-<#list columns as column>
-<#-- 修改时抽屉从详情接口读取原值，可修改但不在列表中显示的字段也要返回；只有列表中的字段参与导出 -->
-<#if column.list || (column.edit && !column.pk && !table.isSuperColumn(column.javaField))>
+<#list gen.voColumns as column>
     /**
      * ${column.columnComment}
      */
-<#assign parentheseIndex = column.columnComment?index_of("（")>
-<#if !column.list>
-<#elseif column.dictType?has_content>
+<#if column.list>
+<#if column.dictType?has_content>
     @ExcelProperty(value = "${column.columnLabel}", converter = ExcelDictConvert.class)
     @ExcelDictFormat(dictType = "${column.dictType}")
-<#elseif parentheseIndex != -1>
+<#elseif column.columnComment?contains("（")>
     @ExcelProperty(value = "${column.columnLabel}", converter = ExcelDictConvert.class)
     @ExcelDictFormat(readConverterExp = "${column.readConverterExp()}")
 <#else>
     @ExcelProperty(value = "${column.columnLabel}")
 </#if>
+</#if>
     private ${column.javaType} ${column.javaField};
 
-<#if column.htmlType == "imageUpload">
+<#if (column.htmlType!'') == 'imageUpload'>
     /**
      * ${column.columnComment}Url
      */
     @Translation(type = TransConstant.OSS_ID_TO_URL, mapper = "${column.javaField}")
     private String ${column.javaField}Url;
-</#if>
+
 </#if>
 </#list>
-
 }

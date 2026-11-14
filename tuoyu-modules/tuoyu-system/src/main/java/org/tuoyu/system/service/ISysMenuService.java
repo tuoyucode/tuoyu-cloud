@@ -12,158 +12,142 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 菜单 业务层
+ * 菜单服务
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface ISysMenuService {
 
     /**
-     * 根据用户查询系统菜单列表
+     * 用户可用的全部菜单（含按钮，已按租户套餐筛选）
      *
-     * @param userId 用户ID
-     * @return 菜单列表
+     * @param userId 用户 ID
+     * @return 菜单
      */
     List<SysMenuVo> selectMenuList(Long userId);
 
     /**
-     * 根据用户查询系统菜单列表
+     * 用户可用的菜单，按条件过滤（已按租户套餐筛选）
      *
-     * @param menu   菜单信息
-     * @param userId 用户ID
-     * @return 菜单列表
+     * @param menu   条件
+     * @param userId 用户 ID
+     * @return 菜单
      */
     List<SysMenuVo> selectMenuList(SysMenuBo menu, Long userId);
 
     /**
-     * 根据用户ID查询权限
+     * 用户的权限码（租户内只保留套餐菜单中的）
      *
-     * @param userId 用户ID
-     * @return 权限列表
+     * @param userId 用户 ID
+     * @return 权限码
      */
     Set<String> selectMenuPermsByUserId(Long userId);
 
     /**
-     * 根据角色ID查询权限
-     *
-     * @param roleId 角色ID
-     * @return 权限列表
+     * @param roleId 角色 ID
+     * @return 正常状态的角色授予的权限码
      */
     Set<String> selectMenuPermsByRoleId(Long roleId);
 
     /**
-     * 根据角色ID列表批量查询权限
-     *
-     * @param roleIds 角色ID列表
-     * @return 角色权限映射
+     * @param roleIds 角色 ID
+     * @return 角色 ID → 正常状态的角色授予的权限码
      */
     Map<Long, Set<String>> selectMenuPermsByRoleIds(Collection<Long> roleIds);
 
     /**
-     * 根据用户ID查询菜单树信息
+     * 用户的路由菜单树（目录与菜单）
      *
-     * @param userId 用户ID
-     * @return 菜单列表
+     * @param userId 用户 ID
+     * @return 一级菜单（子菜单在 children 中）
      */
     List<SysMenu> selectMenuTreeByUserId(Long userId);
 
     /**
-     * 根据角色ID查询菜单树信息
+     * 角色已选的菜单（回显）
      *
-     * @param roleId 角色ID
-     * @return 选中菜单列表
+     * @param roleId 角色 ID
+     * @return 菜单 ID
      */
     List<Long> selectMenuListByRoleId(Long roleId);
 
     /**
-     * 构建前端路由所需要的菜单
+     * 把菜单树转换为前端路由
      *
-     * @param menus 菜单列表
-     * @return 路由列表
+     * @param menus 菜单树
+     * @return 路由
      */
     List<RouterVo> buildMenus(List<SysMenu> menus);
 
     /**
-     * 构建前端所需要下拉树结构
+     * 把菜单转换为下拉树
      *
-     * @param menus 菜单列表
-     * @return 下拉树结构列表
+     * @param menus 菜单
+     * @return 树
      */
     List<Tree<Long>> buildMenuTreeSelect(List<SysMenuVo> menus);
 
     /**
-     * 根据菜单ID查询信息
-     *
-     * @param menuId 菜单ID
-     * @return 菜单信息
+     * @param menuId 菜单 ID
+     * @return 菜单；不存在时为 null
      */
     SysMenuVo selectMenuById(Long menuId);
 
     /**
-     * 是否存在菜单子节点
-     *
-     * @param menuId 菜单ID
-     * @return 结果 true 存在 false 不存在
+     * @param menuId 菜单 ID
+     * @return 是否有子菜单
      */
     boolean hasChildByMenuId(Long menuId);
 
     /**
-     * 是否存在菜单子节点
-     *
-     * @param menuIds 菜单ID列表
-     * @return 结果 true 存在 false 不存在
+     * @param menuIds 菜单 ID
+     * @return 是否有不在集合中的子菜单
      */
     boolean hasChildByMenuId(Collection<Long> menuIds);
 
     /**
-     * 查询菜单是否存在角色
-     *
-     * @param menuId 菜单ID
-     * @return 结果 true 存在 false 不存在
+     * @param menuId 菜单 ID
+     * @return 是否已分配给角色
      */
     boolean checkMenuExistRole(Long menuId);
 
     /**
-     * 新增保存菜单信息
+     * 新增菜单
      *
-     * @param bo 菜单信息
+     * @param bo 菜单
      */
     void insertMenu(SysMenuBo bo);
 
     /**
-     * 修改保存菜单信息
+     * 修改菜单
      *
-     * @param bo 菜单信息
+     * @param bo 菜单
      */
     void updateMenu(SysMenuBo bo);
 
     /**
-     * 删除菜单管理信息
+     * 删除菜单
      *
-     * @param menuId 菜单ID
+     * @param menuId 菜单 ID
      */
     void deleteMenuById(Long menuId);
 
     /**
-     * 批量删除菜单管理信息
+     * 批量删除菜单及其角色关联
      *
-     * @param menuIds 菜单ID列表
+     * @param menuIds 菜单 ID
      */
     void deleteMenuById(Collection<Long> menuIds);
 
     /**
-     * 校验菜单名称是否唯一
-     *
-     * @param menu 菜单信息
-     * @return 结果
+     * @param menu 菜单（修改时排除自己）
+     * @return 同一上级下是否没有其他同名菜单
      */
     boolean checkMenuNameUnique(SysMenuBo menu);
 
     /**
-     * 校验路由组合是否唯一
-     *
-     * @param menu 菜单信息
-     * @return 结果
+     * @param menu 菜单（修改时排除自己）
+     * @return 路由地址与路由名称是否不与其他目录、菜单冲突
      */
     boolean checkRouteConfigUnique(SysMenuBo menu);
 

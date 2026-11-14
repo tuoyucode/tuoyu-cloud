@@ -1,13 +1,13 @@
 package org.tuoyu.system.mapper;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Constants;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.github.yulichang.base.MPJBaseMapper;
 import org.apache.ibatis.annotations.Param;
 import org.tuoyu.common.mybatis.annotation.DataColumn;
 import org.tuoyu.common.mybatis.annotation.DataPermission;
-import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysRole;
 import org.tuoyu.system.domain.SysUserRole;
@@ -17,32 +17,33 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * 角色表 数据层
+ * 角色数据层。数据权限按角色的创建部门与创建人（经 Spring 代理调用标注的方法时生效）
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface SysRoleMapper extends BaseMapper<SysRole>, MPJBaseMapper<SysRole> {
 
     /**
-     * 分页查询角色列表
+     * 分页查询角色
      *
-     * @param page         分页对象
-     * @param queryWrapper 查询条件
-     * @return 包含角色信息的分页结果
+     * @param page         分页
+     * @param queryWrapper 条件
+     * @return 分页结果
      */
     @DataPermission({
         @DataColumn(key = "deptName", value = "create_dept"),
         @DataColumn(key = "userName", value = "create_by")
     })
-    default Page<SysRole> selectPageRoleList(@Param("page") Page<SysRole> page, @Param(Constants.WRAPPER) Wrapper<SysRole> queryWrapper) {
+    default Page<SysRole> selectPageRoleList(@Param("page") Page<SysRole> page,
+                                             @Param(Constants.WRAPPER) Wrapper<SysRole> queryWrapper) {
         return this.selectPage(page, queryWrapper);
     }
 
     /**
-     * 根据条件查询角色数据
+     * 查询角色列表
      *
-     * @param queryWrapper 查询条件
-     * @return 角色数据集合信息
+     * @param queryWrapper 条件
+     * @return 角色
      */
     @DataPermission({
         @DataColumn(key = "deptName", value = "create_dept"),
@@ -53,10 +54,10 @@ public interface SysRoleMapper extends BaseMapper<SysRole>, MPJBaseMapper<SysRol
     }
 
     /**
-     * 根据角色ID集合查询角色数量
+     * 数据权限内这些角色的个数
      *
-     * @param roleIds 角色ID列表
-     * @return 匹配的角色数量
+     * @param roleIds 角色 ID
+     * @return 个数
      */
     @DataPermission({
         @DataColumn(key = "deptName", value = "create_dept"),
@@ -67,10 +68,10 @@ public interface SysRoleMapper extends BaseMapper<SysRole>, MPJBaseMapper<SysRol
     }
 
     /**
-     * 根据角色ID查询角色信息
+     * 按 ID 查询数据权限内的角色
      *
-     * @param roleId 角色ID
-     * @return 对应的角色信息
+     * @param roleId 角色 ID
+     * @return 角色；不存在或不在数据权限内时为 null
      */
     @DataPermission({
         @DataColumn(key = "deptName", value = "create_dept"),
@@ -81,15 +82,15 @@ public interface SysRoleMapper extends BaseMapper<SysRole>, MPJBaseMapper<SysRol
     }
 
     /**
-     * 根据用户ID查询角色
+     * 用户的全部角色（含停用的角色，用于回显；需要只取正常角色时由调用方过滤）
      *
-     * @param userId 用户ID
-     * @return 角色列表
+     * @param userId 用户 ID
+     * @return 角色
      */
     default List<SysRoleVo> selectRolesByUserId(Long userId) {
         return this.selectJoinList(SysRoleVo.class, QueryBuilder.lambdaJoin("r", SysRole.class)
-            .select(SysRole::getRoleId, SysRole::getRoleName, SysRole::getRoleKey,
-                SysRole::getRoleSort, SysRole::getDataScope, SysRole::getStatus)
+            .select(SysRole::getRoleId, SysRole::getRoleName, SysRole::getRoleKey, SysRole::getRoleSort,
+                SysRole::getDataScope, SysRole::getStatus)
             .leftJoin(SysUserRole.class, "sur", SysUserRole::getRoleId, SysRole::getRoleId)
             .eq("sur", SysUserRole::getUserId, userId)
             .build());

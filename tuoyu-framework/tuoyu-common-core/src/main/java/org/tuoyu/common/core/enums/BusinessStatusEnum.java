@@ -1,21 +1,19 @@
 package org.tuoyu.common.core.enums;
 
-import cn.hutool.core.util.StrUtil;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.apache.commons.lang3.StringUtils;
 import org.tuoyu.common.core.exception.ServiceException;
-import org.tuoyu.common.core.utils.StringUtils;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
- * 业务状态枚举
+ * 流程单据的业务状态。
+ * <p>
+ * 校验方法的提示会返回给前端；状态比较区分大小写。
  *
- * @author may
+ * @author tuoyu
  */
 @Getter
 @AllArgsConstructor
@@ -57,7 +55,7 @@ public enum BusinessStatusEnum {
     TERMINATION("termination", "已终止");
 
     /**
-     * 状态
+     * 状态码
      */
     private final String status;
 
@@ -66,149 +64,144 @@ public enum BusinessStatusEnum {
      */
     private final String desc;
 
-    private static final Map<String, BusinessStatusEnum> STATUS_MAP = Arrays.stream(BusinessStatusEnum.values())
-        .collect(Collectors.toConcurrentMap(BusinessStatusEnum::getStatus, Function.identity()));
-
     /**
-     * 根据状态获取对应的 BusinessStatusEnum 枚举
+     * 按状态码查找。
      *
-     * @param status 业务状态码
-     * @return 对应的 BusinessStatusEnum 枚举，如果找不到则返回 null
+     * @param status 状态码
+     * @return 对应的状态；找不到或参数为 null 时返回 null
      */
     public static BusinessStatusEnum getByStatus(String status) {
-        // 使用 STATUS_MAP 获取对应的枚举，若找不到则返回 null
-        return STATUS_MAP.get(status);
-    }
-
-    /**
-     * 根据状态获取对应的业务状态描述信息
-     *
-     * @param status 业务状态码
-     * @return 返回业务状态描述，若状态码为空或未找到对应的枚举，返回空字符串
-     */
-    public static String findByStatus(String status) {
-        if (StringUtils.isBlank(status)) {
-            return StrUtil.EMPTY;
+        if (status == null) {
+            return null;
         }
-        BusinessStatusEnum statusEnum = STATUS_MAP.get(status);
-        return (statusEnum != null) ? statusEnum.getDesc() : StrUtil.EMPTY;
+        for (BusinessStatusEnum value : values()) {
+            if (value.status.equals(status)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     /**
-     * 判断是否为指定的状态之一：草稿、已撤销或已退回
-     *
-     * @param status 要检查的状态
-     * @return 如果状态为草稿、已撤销或已退回之一，则返回 true；否则返回 false
+     * @param status 状态码
+     * @return 是否为草稿、已撤销或已退回
      */
     public static boolean isDraftOrCancelOrBack(String status) {
-        return DRAFT.status.equals(status) || CANCEL.status.equals(status) || BACK.status.equals(status);
+        return is(status, DRAFT, CANCEL, BACK);
     }
 
     /**
-     * 判断是否为撤销，退回，作废，终止
-     *
-     * @param status status
-     * @return 结果
+     * @param status 状态码
+     * @return 是否为可以重新发起的状态：已撤销、已退回、已作废、已终止
      */
     public static boolean initialState(String status) {
-        return CANCEL.status.equals(status) || BACK.status.equals(status) || INVALID.status.equals(status) || TERMINATION.status.equals(status);
+        return is(status, CANCEL, BACK, INVALID, TERMINATION);
     }
 
     /**
-     * 获取运行中的实例状态列表
-     *
-     * @return 包含运行中实例状态的不可变列表
-     * （包含 DRAFT、WAITING、BACK 和 CANCEL 状态）
+     * @return 运行中的状态码（草稿、待审核、已退回、已撤销），每次返回新的列表
      */
     public static List<String> runningStatus() {
         return Arrays.asList(DRAFT.status, WAITING.status, BACK.status, CANCEL.status);
     }
 
     /**
-     * 获取结束实例的状态列表
-     *
-     * @return 包含结束实例状态的不可变列表
-     * （包含 FINISH、INVALID 和 TERMINATION 状态）
+     * @return 已结束的状态码（已完成、已作废、已终止），每次返回新的列表
      */
     public static List<String> finishStatus() {
         return Arrays.asList(FINISH.status, INVALID.status, TERMINATION.status);
     }
 
     /**
-     * 启动流程校验
+     * 发起流程前校验：待审核、已完成、已作废、已终止的单据不能再发起。
      *
-     * @param status 状态
+     * @param status 状态码
+     * @throws ServiceException 状态不允许发起时
      */
     public static void checkStartStatus(String status) {
-        if (WAITING.getStatus().equals(status)) {
+        BusinessStatusEnum current = require(status);
+        if (current == WAITING) {
             throw new ServiceException("该单据已提交过申请,正在审批中！");
-        } else if (FINISH.getStatus().equals(status)) {
-            throw new ServiceException("该单据已完成申请！");
-        } else if (INVALID.getStatus().equals(status)) {
-            throw new ServiceException("该单据已作废！");
-        } else if (TERMINATION.getStatus().equals(status)) {
-            throw new ServiceException("该单据已终止！");
-        } else if (StringUtils.isBlank(status)) {
-            throw new ServiceException("流程状态为空！");
         }
+        checkNotEnded(current);
     }
 
     /**
-     * 撤销流程校验
+     * 撤销前校验：已撤销、已完成、已作废、已终止、已退回的单据不能撤销。
      *
-     * @param status 状态
+     * @param status 状态码
+     * @throws ServiceException 状态不允许撤销时
      */
     public static void checkCancelStatus(String status) {
-        if (CANCEL.getStatus().equals(status)) {
+        BusinessStatusEnum current = require(status);
+        if (current == CANCEL) {
             throw new ServiceException("该单据已撤销！");
-        } else if (FINISH.getStatus().equals(status)) {
-            throw new ServiceException("该单据已完成申请！");
-        } else if (INVALID.getStatus().equals(status)) {
-            throw new ServiceException("该单据已作废！");
-        } else if (TERMINATION.getStatus().equals(status)) {
-            throw new ServiceException("该单据已终止！");
-        } else if (BACK.getStatus().equals(status)) {
+        }
+        checkNotEnded(current);
+        if (current == BACK) {
             throw new ServiceException("该单据已退回！");
-        } else if (StringUtils.isBlank(status)) {
-            throw new ServiceException("流程状态为空！");
         }
     }
 
     /**
-     * 驳回流程校验
+     * 退回前校验：已退回、已完成、已作废、已终止、已撤销的单据不能退回。
      *
-     * @param status 状态
+     * @param status 状态码
+     * @throws ServiceException 状态不允许退回时
      */
     public static void checkBackStatus(String status) {
-        if (BACK.getStatus().equals(status)) {
+        BusinessStatusEnum current = require(status);
+        if (current == BACK) {
             throw new ServiceException("该单据已退回！");
-        } else if (FINISH.getStatus().equals(status)) {
-            throw new ServiceException("该单据已完成申请！");
-        } else if (INVALID.getStatus().equals(status)) {
-            throw new ServiceException("该单据已作废！");
-        } else if (TERMINATION.getStatus().equals(status)) {
-            throw new ServiceException("该单据已终止！");
-        } else if (CANCEL.getStatus().equals(status)) {
+        }
+        checkNotEnded(current);
+        if (current == CANCEL) {
             throw new ServiceException("该单据已撤销！");
-        } else if (StringUtils.isBlank(status)) {
-            throw new ServiceException("流程状态为空！");
         }
     }
 
     /**
-     * 作废,终止流程校验
+     * 作废、终止前校验：已完成、已作废、已终止的单据不能再作废或终止。
      *
-     * @param status 状态
+     * @param status 状态码
+     * @throws ServiceException 状态不允许时
      */
     public static void checkInvalidStatus(String status) {
-        if (FINISH.getStatus().equals(status)) {
-            throw new ServiceException("该单据已完成申请！");
-        } else if (INVALID.getStatus().equals(status)) {
-            throw new ServiceException("该单据已作废！");
-        } else if (TERMINATION.getStatus().equals(status)) {
-            throw new ServiceException("该单据已终止！");
-        } else if (StringUtils.isBlank(status)) {
+        checkNotEnded(require(status));
+    }
+
+    private static boolean is(String status, BusinessStatusEnum... candidates) {
+        BusinessStatusEnum current = getByStatus(status);
+        if (current == null) {
+            return false;
+        }
+        for (BusinessStatusEnum candidate : candidates) {
+            if (candidate == current) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @return 对应的状态；不认识的状态码为 null（校验方法对它不做限制）
+     */
+    private static BusinessStatusEnum require(String status) {
+        if (StringUtils.isBlank(status)) {
             throw new ServiceException("流程状态为空！");
+        }
+        return getByStatus(status);
+    }
+
+    private static void checkNotEnded(BusinessStatusEnum current) {
+        if (current == FINISH) {
+            throw new ServiceException("该单据已完成申请！");
+        }
+        if (current == INVALID) {
+            throw new ServiceException("该单据已作废！");
+        }
+        if (current == TERMINATION) {
+            throw new ServiceException("该单据已终止！");
         }
     }
 

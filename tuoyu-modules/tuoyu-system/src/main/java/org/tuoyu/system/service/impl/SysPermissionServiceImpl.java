@@ -1,79 +1,84 @@
 package org.tuoyu.system.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
-import org.tuoyu.common.core.context.UserContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 import org.tuoyu.common.core.constant.SystemConstants;
-import org.tuoyu.common.core.utils.StreamUtils;
+import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.system.api.model.RoleDTO;
 import org.tuoyu.system.service.ISysMenuService;
 import org.tuoyu.system.service.ISysPermissionService;
 import org.tuoyu.system.service.ISysRoleService;
-import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
- * 用户权限处理
+ * 权限计算实现。超级管理员的角色标识与权限码固定，不查库
  *
  * @author tuoyu
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class SysPermissionServiceImpl implements ISysPermissionService {
+
+    /**
+     * 超级管理员的权限码：匹配全部权限
+     */
+    private static final String ALL_PERMISSION = "*:*:*";
 
     private final ISysRoleService roleService;
     private final ISysMenuService menuService;
 
-    /**
-     * 获取角色数据权限
-     *
-     * @param userId 用户id
-     * @return 角色权限信息
-     */
     @Override
     public Set<String> getRolePermission(Long userId) {
-        Set<String> roles = new HashSet<>();
-        // 管理员拥有所有权限
         if (UserContext.isSuperAdmin(userId)) {
-            roles.add(SystemConstants.SUPER_ADMIN_ROLE_KEY);
-        } else {
-            roles.addAll(roleService.selectRolePermissionByUserId(userId));
+            return new HashSet<>(Set.of(SystemConstants.SUPER_ADMIN_ROLE_KEY));
         }
-        return roles;
+        Set<String> keys = roleService.selectRolePermissionByUserId(userId);
+        return keys == null ? new HashSet<>() : new HashSet<>(keys);
     }
 
-    /**
-     * 获取菜单数据权限
-     *
-     * @param userId 用户id
-     * @return 菜单权限信息
-     */
     @Override
     public Set<String> getMenuPermission(Long userId) {
-        Set<String> perms = new HashSet<>();
-        // 管理员拥有所有权限
         if (UserContext.isSuperAdmin(userId)) {
-            perms.add("*:*:*");
-        } else {
-            perms.addAll(menuService.selectMenuPermsByUserId(userId));
+            return new HashSet<>(Set.of(ALL_PERMISSION));
         }
-        return perms;
+        Set<String> perms = menuService.selectMenuPermsByUserId(userId);
+        return perms == null ? new HashSet<>() : new HashSet<>(perms);
     }
 
     @Override
     public Map<String, List<Long>> getDataScopeRoleMap(List<RoleDTO> roles) {
-        if (CollUtil.isEmpty(roles)) {
-            return Map.of();
+        Map<String, List<Long>> result = new LinkedHashMap<>();
+        if (roles == null || roles.isEmpty()) {
+            return result;
         }
-        List<Long> roleIds = StreamUtils.toList(roles, RoleDTO::getRoleId);
-        Map<Long, Set<String>> permsRoleIds = menuService.selectMenuPermsByRoleIds(roleIds);
-        Map<String, List<Long>> rolePermsMap = new LinkedHashMap<>();
-        permsRoleIds.forEach((roleId, perms) ->
-            perms.forEach(perm ->
-                rolePermsMap.computeIfAbsent(perm, key -> new ArrayList<>()).add(roleId)
-            )
-        );
-        return rolePermsMap;
+        Set<Long> roleIds = new LinkedHashSet<>();
+        for (RoleDTO role : roles) {
+            if (role != null && role.getRoleId() != null) {
+                roleIds.add(role.getRoleId());
+            }
+        }
+        if (roleIds.isEmpty()) {
+            return result;
+        }
+        Map<Long, Set<String>> permsByRole = menuService.selectMenuPermsByRoleIds(new ArrayList<>(roleIds));
+        if (permsByRole == null) {
+            return result;
+        }
+        permsByRole.forEach((roleId, perms) -> {
+            if (perms != null) {
+                for (String perm : perms) {
+                    result.computeIfAbsent(perm, key -> new ArrayList<>()).add(roleId);
+                }
+            }
+        });
+        return result;
     }
+
 }

@@ -1,7 +1,6 @@
 package org.tuoyu.system.domain.vo;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import io.github.linpeilie.annotations.AutoMapper;
 import lombok.Data;
 import org.tuoyu.common.sensitive.annotation.Sensitive;
@@ -15,11 +14,10 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.List;
 
-
 /**
- * 用户信息视图对象 sys_user
+ * 用户视图（用户管理）。联系方式按“修改用户”权限脱敏；口令哈希不参与 JSON
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @AutoMapper(target = SysUser.class)
@@ -29,54 +27,54 @@ public class SysUserVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 用户ID
+     * 用户 ID
      */
     private Long userId;
 
     /**
-     * 所属租户
+     * 租户编号
      */
     private String tenantId;
 
     /**
-     * 部门ID
+     * 部门 ID
      */
     private Long deptId;
 
     /**
-     * 用户账号
+     * 账号
      */
     private String userName;
 
     /**
-     * 用户昵称
+     * 昵称
      */
     private String nickName;
 
     /**
-     * 用户类型（sys_user系统用户）
+     * 用户类型
      */
     private String userType;
 
     /**
-     * 用户邮箱
+     * 邮箱
      */
     @Sensitive(strategy = SensitiveStrategy.EMAIL, perms = "system:user:edit")
     private String email;
 
     /**
-     * 手机号码
+     * 手机号
      */
     @Sensitive(strategy = SensitiveStrategy.PHONE, perms = "system:user:edit")
     private String phoneNumber;
 
     /**
-     * 用户性别（0男 1女 2未知）
+     * 性别
      */
     private String gender;
 
     /**
-     * 头像 OSS ID
+     * 头像（对象存储 ID）
      */
     private Long avatar;
 
@@ -87,19 +85,18 @@ public class SysUserVo implements Serializable {
     private String avatarUrl;
 
     /**
-     * 密码
+     * 口令哈希：只在服务内部校验口令时使用，既不输出也不从请求读取
      */
     @JsonIgnore
-    @JsonProperty
     private String password;
 
     /**
-     * 账号状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     private String status;
 
     /**
-     * 最后登录IP
+     * 最后登录 IP
      */
     private String loginIp;
 
@@ -124,28 +121,28 @@ public class SysUserVo implements Serializable {
     private LocalDateTime updateTime;
 
     /**
-     * 部门名
+     * 部门名称
      */
     @Translation(type = TransConstant.DEPT_ID_TO_NAME, mapper = "deptId")
     private String deptName;
 
     /**
-     * 角色对象
+     * 角色
      */
     private List<SysRoleVo> roles;
 
     /**
-     * 角色组
+     * 角色 ID
      */
     private Long[] roleIds;
 
     /**
-     * 岗位组
+     * 岗位 ID
      */
     private Long[] postIds;
 
     /**
-     * 数据权限 当前角色ID
+     * 当前角色 ID
      */
     private Long roleId;
 

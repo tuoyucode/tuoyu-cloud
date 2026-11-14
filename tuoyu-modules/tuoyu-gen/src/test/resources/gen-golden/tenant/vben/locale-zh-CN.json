@@ -1,0 +1,21 @@
+{
+  "title": "验证示例",
+  "list": "验证示例列表",
+  "create": "新增验证示例",
+  "edit": "编辑验证示例",
+  "delete": "删除验证示例",
+  "exportFileName": "验证示例",
+  "demoId": "主键",
+  "tenantId": "租户编号",
+  "demoCode": "示例编码",
+  "demoName": "示例名称",
+  "amount": "金额",
+  "demoSort": "显示顺序",
+  "status": "状态",
+  "remark": "备注",
+  "createDept": "创建部门",
+  "createBy": "创建者",
+  "createTime": "创建时间",
+  "updateBy": "更新者",
+  "updateTime": "更新时间"
+}

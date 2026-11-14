@@ -5,24 +5,29 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-/**
- * 用户和角色关联 sys_user_role
- *
- * @author Lion Li
- */
+import java.io.Serial;
+import java.io.Serializable;
 
+/**
+ * 用户与角色关联 sys_user_role（也是取消授权接口的请求体）
+ *
+ * @author tuoyu
+ */
 @Data
 @TableName("sys_user_role")
-public class SysUserRole {
+public class SysUserRole implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
 
     /**
-     * 用户ID
+     * 用户 ID
      */
     @TableId(type = IdType.INPUT)
     private Long userId;
 
     /**
-     * 角色ID
+     * 角色 ID
      */
     private Long roleId;
 

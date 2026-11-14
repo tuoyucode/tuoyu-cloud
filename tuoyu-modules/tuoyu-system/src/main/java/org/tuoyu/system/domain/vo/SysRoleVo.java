@@ -14,9 +14,9 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 
 /**
- * 角色信息视图对象 sys_role
+ * 角色视图（列表、详情与导出）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @ExcelIgnoreUnannotated
@@ -27,7 +27,7 @@ public class SysRoleVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 角色ID
+     * 角色 ID
      */
     @ExcelProperty(value = "角色序号")
     private Long roleId;
@@ -39,7 +39,7 @@ public class SysRoleVo implements Serializable {
     private String roleName;
 
     /**
-     * 角色权限字符串
+     * 角色标识
      */
     @ExcelProperty(value = "角色权限")
     private String roleKey;
@@ -51,26 +51,26 @@ public class SysRoleVo implements Serializable {
     private Integer roleSort;
 
     /**
-     * 数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限 5：仅本人数据权限 6：部门及以下或本人数据权限）
+     * 数据范围
      */
     @ExcelProperty(value = "数据范围", converter = ExcelDictConvert.class)
     @ExcelDictFormat(readConverterExp = "1=全部数据权限,2=自定义数据权限,3=本部门数据权限,4=本部门及以下数据权限,5=仅本人数据权限,6=部门及以下或本人数据权限")
     private String dataScope;
 
     /**
-     * 菜单树选择项是否关联显示
+     * 菜单树选择项是否父子联动
      */
     @ExcelProperty(value = "菜单树选择项是否关联显示")
     private Boolean menuCheckStrictly;
 
     /**
-     * 部门树选择项是否关联显示
+     * 部门树选择项是否父子联动
      */
     @ExcelProperty(value = "部门树选择项是否关联显示")
     private Boolean deptCheckStrictly;
 
     /**
-     * 角色状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     @ExcelProperty(value = "角色状态", converter = ExcelDictConvert.class)
     @ExcelDictFormat(dictType = "sys_normal_disable")
@@ -89,14 +89,14 @@ public class SysRoleVo implements Serializable {
     private LocalDateTime createTime;
 
     /**
-     * 用户是否存在此角色标识 默认不存在
+     * 用户是否拥有该角色（授权页回显）
      */
     private boolean flag = false;
 
     /**
-     * 判断当前角色是否为超级管理员角色。
+     * 是否超级管理员角色：JSON 输出为 superAdmin，前端据此禁用该行的操作
      *
-     * @return true 是超级管理员角色 false 不是超级管理员角色
+     * @return 是否超级管理员角色
      */
     public boolean isSuperAdmin() {
         return SystemConstants.SUPER_ADMIN_ROLE_ID.equals(this.roleId);

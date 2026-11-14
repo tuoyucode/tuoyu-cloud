@@ -1,87 +1,42 @@
 package org.tuoyu.common.mybatis.enums;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import org.tuoyu.common.core.utils.StringUtils;
-
 /**
- * 数据库类型
+ * 数据库类型。
+ * <p>
+ * 框架支持 MySQL 与 PostgreSQL；Oracle 的全新安装脚本仍按手工维护，所以保留它的方言分支。
+ * 其他数据库（包括 SQL Server）不在支持范围内，一律按 MySQL 处理。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@Getter
-@AllArgsConstructor
 public enum DataBaseType {
 
     /**
-     * MySQL
+     * MySQL，也是无法识别的数据库的默认类型
      */
-    MY_SQL("MySQL"),
+    MY_SQL,
 
     /**
      * Oracle
      */
-    ORACLE("Oracle"),
+    ORACLE,
 
     /**
      * PostgreSQL
      */
-    POSTGRE_SQL("PostgreSQL"),
+    POSTGRE_SQL;
 
     /**
-     * SQL Server
-     */
-    SQL_SERVER("Microsoft SQL Server");
-
-    /**
-     * 数据库类型
-     */
-    private final String type;
-
-    /**
-     * 根据数据库产品名称查找对应的数据库类型
-     *
-     * @param databaseProductName 数据库产品名称
-     * @return 对应的数据库类型枚举值
-     */
-    public static DataBaseType find(String databaseProductName) {
-        if (StringUtils.isBlank(databaseProductName)) {
-            return MY_SQL;
-        }
-        for (DataBaseType type : values()) {
-            if (type.getType().equals(databaseProductName)) {
-                return type;
-            }
-        }
-        return MY_SQL;
-    }
-
-    /**
-     * 判断是否为 MySQL 类型
-     */
-    public boolean isMySql() {
-        return this == MY_SQL;
-    }
-
-    /**
-     * 判断是否为 Oracle 类型
+     * @return 是否为 Oracle
      */
     public boolean isOracle() {
         return this == ORACLE;
     }
 
     /**
-     * 判断是否为 PostgreSQL 类型
+     * @return 是否为 PostgreSQL
      */
     public boolean isPostgreSql() {
         return this == POSTGRE_SQL;
-    }
-
-    /**
-     * 判断是否为 SQL Server 类型
-     */
-    public boolean isSqlServer() {
-        return this == SQL_SERVER;
     }
 
 }

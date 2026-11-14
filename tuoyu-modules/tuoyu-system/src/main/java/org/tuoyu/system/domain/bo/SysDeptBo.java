@@ -14,11 +14,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 部门业务对象 sys_dept
+ * 部门请求对象（新增、修改、列表条件）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
-
 @Data
 @AutoMapper(target = SysDept.class, reverseConvertGenerate = false)
 public class SysDeptBo implements Serializable {
@@ -27,12 +26,12 @@ public class SysDeptBo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 部门id
+     * 部门 ID
      */
     private Long deptId;
 
     /**
-     * 父部门ID
+     * 上级部门 ID
      */
     private Long parentId;
 
@@ -56,7 +55,7 @@ public class SysDeptBo implements Serializable {
     private Integer orderNum;
 
     /**
-     * 负责人
+     * 负责人（用户 ID）
      */
     private Long leader;
 
@@ -74,17 +73,17 @@ public class SysDeptBo implements Serializable {
     private String email;
 
     /**
-     * 部门状态（0正常 1停用）
+     * 状态（0 正常 1 停用）
      */
     private String status;
 
     /**
-     * 归属部门id（部门树）
+     * 所属部门（按该部门及其下级搜索）
      */
     private Long belongDeptId;
 
     /**
-     * 请求参数
+     * 请求参数（创建时间区间 beginTime、endTime）
      */
     private Map<String, Object> params = new HashMap<>();
 

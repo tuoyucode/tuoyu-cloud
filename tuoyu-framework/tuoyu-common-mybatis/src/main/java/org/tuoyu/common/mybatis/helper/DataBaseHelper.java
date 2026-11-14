@@ -1,115 +1,118 @@
 package org.tuoyu.common.mybatis.helper;
 
 import cn.hutool.core.convert.Convert;
+import cn.hutool.core.exceptions.UtilException;
 import com.baomidou.dynamic.datasource.DynamicRoutingDataSource;
 import com.baomidou.dynamic.datasource.toolkit.DynamicDataSourceContextHolder;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.SpringUtils;
 import org.tuoyu.common.core.utils.sql.SqlUtil;
 import org.tuoyu.common.mybatis.enums.DataBaseType;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
-import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
- * 数据库助手
+ * 数据库助手：识别数据源的数据库类型、生成各数据库的 FIND_IN_SET 条件、列出数据源名称。
+ * <p>
+ * 动态数据源每次调用时从容器取，不在类加载时访问容器。数据库类型按数据源名称缓存在进程内，
+ * 同一数据源只打开一次连接读取产品名。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class DataBaseHelper {
-
-    private static final DynamicRoutingDataSource DS = SpringUtils.getBean(DynamicRoutingDataSource.class);
-    private static final Map<String, DataBaseType> DB_TYPE_CACHE = new ConcurrentHashMap<>();
+public final class DataBaseHelper {
 
     /**
-     * 获取当前数据源对应的数据库类型
-     * <p>
-     * 通过 DynamicRoutingDataSource 获取当前线程绑定的数据源，
-     * 然后从数据源获取数据库连接，利用连接的元数据获取数据库产品名称，
-     * 最后调用 DataBaseType.find 方法将数据库名称转换为对应的枚举类型
-     *
-     * @return 当前数据库对应的 DataBaseType 枚举，找不到时默认返回 MY_SQL
-     * @throws ServiceException 当获取数据库连接或元数据出现异常时抛出业务异常
+     * 线程上没有指定数据源时使用的主数据源名称
      */
-    public static DataBaseType getDataBaseType() {
-        DataSource dataSource = DS.determineDataSource();
-        String dsKey = DynamicDataSourceContextHolder.peek();
-        final String key = dsKey != null ? dsKey : "primary";
-        return DB_TYPE_CACHE.computeIfAbsent(key, k -> {
-            try (Connection conn = dataSource.getConnection()) {
-                DatabaseMetaData metaData = conn.getMetaData();
-                String databaseProductName = metaData.getDatabaseProductName();
-                return DataBaseType.find(databaseProductName);
-            } catch (SQLException e) {
-                throw new RuntimeException("获取数据库类型失败", e);
-            }
-        });
+    private static final String PRIMARY = "primary";
+
+    private static final Map<String, DataBaseType> TYPE_CACHE = new ConcurrentHashMap<>();
+
+    private DataBaseHelper() {
     }
 
     /**
-     * 获取指定数据源对应的数据库类型
+     * 识别指定数据源的数据库类型：Oracle、PostgreSQL 按产品名识别，其他（包括 SQL Server）按 MySQL 处理
      *
      * @param dsName 数据源名称
-     * @return 指定数据库对应的 DataBaseType 枚举，找不到时默认返回 MY_SQL
-     * @throws ServiceException 当获取数据库连接或元数据出现异常时抛出业务异常
+     * @return 数据库类型
+     * @throws RuntimeException 读取数据库元数据失败时（失败的结果不缓存，下次重新读取）
      */
     public static DataBaseType getDataBaseType(String dsName) {
-        DataSource dataSource = DS.getDataSource(dsName);
-        return DB_TYPE_CACHE.computeIfAbsent(dsName, k -> {
-            try (Connection conn = dataSource.getConnection()) {
-                DatabaseMetaData metaData = conn.getMetaData();
-                String databaseProductName = metaData.getDatabaseProductName();
-                return DataBaseType.find(databaseProductName);
-            } catch (SQLException e) {
-                throw new RuntimeException("获取数据库类型失败", e);
-            }
-        });
+        return resolve(dsName, () -> dynamicDataSource().getDataSource(dsName));
     }
 
     /**
-     * 根据当前数据库类型，生成兼容的 FIND_IN_SET 语句片段
+     * 判断逗号分隔的列中是否包含某个值，按当前数据源的数据库类型生成完整的条件片段。
      * <p>
-     * 用于判断指定值是否存在于逗号分隔的字符串列中，SQL写法根据不同数据库方言自动切换：
-     * - Oracle 使用 instr 函数
-     * - PostgreSQL 使用 strpos 函数
-     * - SQL Server 使用 charindex 函数
-     * - 其他默认使用 MySQL 的 find_in_set 函数
+     * 值与列名直接拼进 SQL，所以先拒绝含单引号、SQL 关键字的输入；值还不能含反斜杠
+     * （MySQL 默认把反斜杠当作转义符，会转义后面的引号）。
      *
-     * @param var1 要查找的值（支持任意类型，内部会转换成字符串）
-     * @param var2 存储逗号分隔值的数据库列名
-     * @return 适用于当前数据库的 SQL 条件字符串，通常用于 where 或 apply 中拼接
+     * @param value  要查找的值
+     * @param column 列名（可带表别名）
+     * @return 条件片段，例如 MySQL 下的 {@code find_in_set('100' , ancestors) <> 0}
+     * @throws UtilException 值或列名含非法字符、关键字时
      */
-    public static String findInSet(Object var1, String var2) {
-        String var = Convert.toStr(var1);
-        SqlUtil.filterKeyword(var);
-        SqlUtil.filterKeyword(var2);
-        return switch (getDataBaseType()) {
-            // instr(',0,100,101,' , ',100,') <> 0
-            case ORACLE -> "instr(','||%s||',' , ',%s,') <> 0".formatted(var2, var);
-            // (select strpos(',0,100,101,' , ',100,')) <> 0
-            case POSTGRE_SQL -> "(select strpos(','||%s||',' , ',%s,')) <> 0".formatted(var2, var);
-            // charindex(',100,' , ',0,100,101,') <> 0
-            case SQL_SERVER -> "charindex(',%s,' , ','+%s+',') <> 0".formatted(var, var2);
-            // find_in_set(100 , '0,100,101')
-            default -> "find_in_set('%s' , %s) <> 0".formatted(var, var2);
-        };
+    public static String findInSet(Object value, String column) {
+        String text = Convert.toStr(value);
+        SqlUtil.filterKeyword(text);
+        SqlUtil.filterKeyword(column);
+        if (text != null && text.indexOf('\\') >= 0) {
+            throw new UtilException("请求参数包含非法字符【\\】，已禁止执行");
+        }
+        DataBaseType type = currentDataBaseType();
+        if (type.isOracle()) {
+            return "instr(','||" + column + "||',' , '," + text + ",') <> 0";
+        }
+        if (type.isPostgreSql()) {
+            return "(select strpos(','||" + column + "||',' , '," + text + ",')) <> 0";
+        }
+        return "find_in_set('" + text + "' , " + column + ") <> 0";
     }
 
     /**
-     * 获取当前注册的数据源名称列表。
-     *
-     * @return 数据源名称列表
+     * @return 全部数据源的名称（新的可修改列表，修改它不影响动态数据源）
      */
     public static List<String> getDataSourceNameList() {
-        return new ArrayList<>(DS.getDataSources().keySet());
+        return new ArrayList<>(dynamicDataSource().getDataSources().keySet());
     }
+
+    /**
+     * 当前线程所用数据源的数据库类型；线程上没有指定数据源时为主数据源
+     */
+    private static DataBaseType currentDataBaseType() {
+        String key = DynamicDataSourceContextHolder.peek();
+        return resolve(key == null ? PRIMARY : key, () -> dynamicDataSource().determineDataSource());
+    }
+
+    private static DataBaseType resolve(String name, Supplier<DataSource> dataSource) {
+        // 映射函数抛出异常时不写入缓存
+        return TYPE_CACHE.computeIfAbsent(name, key -> detect(dataSource.get()));
+    }
+
+    private static DataBaseType detect(DataSource dataSource) {
+        try (Connection connection = dataSource.getConnection()) {
+            String productName = connection.getMetaData().getDatabaseProductName();
+            if ("Oracle".equals(productName)) {
+                return DataBaseType.ORACLE;
+            }
+            if ("PostgreSQL".equals(productName)) {
+                return DataBaseType.POSTGRE_SQL;
+            }
+            return DataBaseType.MY_SQL;
+        } catch (SQLException e) {
+            throw new RuntimeException("获取数据库类型失败", e);
+        }
+    }
+
+    private static DynamicRoutingDataSource dynamicDataSource() {
+        return SpringUtils.getBean(DynamicRoutingDataSource.class);
+    }
+
 }
