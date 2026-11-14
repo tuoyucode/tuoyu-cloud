@@ -8,14 +8,14 @@ import org.tuoyu.system.domain.vo.SysDictDataVo;
 import java.util.List;
 
 /**
- * 字典 业务层
+ * 字典数据服务。写入后按类型编码更新或清除字典数据的缓存
  *
- * @author Lion Li
+ * @author tuoyu
  */
 public interface ISysDictDataService {
 
     /**
-     * 分页查询字典数据列表
+     * 分页查询字典数据
      *
      * @param dictData  查询条件
      * @param pageParam 分页参数
@@ -24,67 +24,58 @@ public interface ISysDictDataService {
     PageResult<SysDictDataVo> selectPageDictDataList(SysDictDataBo dictData, PageParam pageParam);
 
     /**
-     * 根据条件分页查询字典数据
+     * 查询字典数据列表（导出用）
      *
-     * @param dictData 字典数据信息
-     * @return 字典数据集合信息
+     * @param dictData 查询条件
+     * @return 字典数据列表
      */
     List<SysDictDataVo> selectDictDataList(SysDictDataBo dictData);
 
     /**
      * 统计符合条件的字典数据数量（导出前先统计，查询条件与列表一致）
      *
-     * @param dictData 字典数据信息
+     * @param dictData 查询条件
      * @return 行数
      */
     long countDictDataList(SysDictDataBo dictData);
 
     /**
-     * 根据字典类型和字典键值查询字典数据信息
+     * 按编码查询字典数据
      *
-     * @param dictType  字典类型
-     * @param dictValue 字典键值
-     * @return 字典标签
-     */
-    String selectDictLabel(String dictType, String dictValue);
-
-    /**
-     * 根据字典数据ID查询信息
-     *
-     * @param dictCode 字典数据ID
-     * @return 字典数据
+     * @param dictCode 字典编码
+     * @return 字典数据；不存在时为 null
      */
     SysDictDataVo selectDictDataById(Long dictCode);
 
     /**
-     * 批量删除字典数据信息
+     * 批量删除字典数据
      *
-     * @param dictCodes 需要删除的字典数据ID
+     * @param dictCodes 字典编码
      */
     void deleteDictDataByIds(List<Long> dictCodes);
 
     /**
-     * 新增保存字典数据信息
+     * 新增字典数据
      *
-     * @param bo 字典数据信息
-     * @return 结果
+     * @param bo 字典数据
+     * @return 该类型的全部字典数据（放入缓存）
      */
     List<SysDictDataVo> insertDictData(SysDictDataBo bo);
 
     /**
-     * 修改保存字典数据信息
+     * 修改字典数据
      *
-     * @param bo 字典数据信息
-     * @return 结果
+     * @param bo 字典数据
+     * @return 新类型的全部字典数据（放入缓存）
      */
     List<SysDictDataVo> updateDictData(SysDictDataBo bo);
 
     /**
-     * 校验字典键值是否唯一
+     * 同一类型中键值是否唯一（修改时排除自己）
      *
-     * @param dict 字典数据
-     * @return 结果
+     * @param dictData 字典数据
+     * @return 没有其他同类型同键值的数据时为 true
      */
-    boolean checkDictDataUnique(SysDictDataBo dict);
+    boolean checkDictDataUnique(SysDictDataBo dictData);
 
 }

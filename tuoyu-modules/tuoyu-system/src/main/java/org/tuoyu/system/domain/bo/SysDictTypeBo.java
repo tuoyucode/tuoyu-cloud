@@ -14,11 +14,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 字典类型业务对象 sys_dict_type
+ * 字典类型请求对象（新增、修改、列表条件）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
-
 @Data
 @AutoMapper(target = SysDictType.class, reverseConvertGenerate = false)
 public class SysDictTypeBo implements Serializable {
@@ -39,7 +38,7 @@ public class SysDictTypeBo implements Serializable {
     private String dictName;
 
     /**
-     * 字典类型
+     * 字典类型编码：小写字母开头，只含小写字母、数字、下划线
      */
     @NotBlank(message = "字典类型不能为空")
     @Size(min = 0, max = 100, message = "字典类型类型长度不能超过{max}个字符")
@@ -52,9 +51,8 @@ public class SysDictTypeBo implements Serializable {
     private String remark;
 
     /**
-     * 请求参数
+     * 请求参数（创建时间区间 beginTime、endTime）
      */
     private Map<String, Object> params = new HashMap<>();
-
 
 }

@@ -6,11 +6,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-
 /**
- * 字典数据视图对象 sys_dict_data
+ * 字典数据（跨模块使用的字段）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 public class RemoteDictDataVo implements Serializable {
@@ -24,7 +23,7 @@ public class RemoteDictDataVo implements Serializable {
     private Long dictCode;
 
     /**
-     * 字典排序
+     * 排序
      */
     private Integer dictSort;
 
@@ -44,7 +43,7 @@ public class RemoteDictDataVo implements Serializable {
     private String dictType;
 
     /**
-     * 样式属性（其他样式扩展）
+     * 样式属性
      */
     private String cssClass;
 
@@ -54,12 +53,12 @@ public class RemoteDictDataVo implements Serializable {
     private String listClass;
 
     /**
-     * 是否默认（Y是 N否）
+     * 是否默认（Y 是 N 否）
      */
     private String isDefault;
 
     /**
-     * 状态（0正常 1停用）
+     * 状态。字典数据表没有对应的列，始终为空；保留字段使跨模块传递的结构不变
      */
     private String status;
 

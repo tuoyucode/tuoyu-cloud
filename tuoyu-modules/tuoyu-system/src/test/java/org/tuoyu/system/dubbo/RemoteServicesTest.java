@@ -9,14 +9,8 @@ import org.tuoyu.system.api.domain.bo.RemoteSocialBo;
 import org.tuoyu.system.domain.bo.SysLoginInfoBo;
 import org.tuoyu.system.domain.bo.SysOperLogBo;
 import org.tuoyu.system.domain.bo.SysSocialBo;
-import org.tuoyu.system.domain.vo.SysClientVo;
-import org.tuoyu.system.domain.vo.SysDictDataVo;
-import org.tuoyu.system.domain.vo.SysDictTypeVo;
 import org.tuoyu.system.domain.vo.SysSocialVo;
 import org.tuoyu.system.domain.vo.SysTenantVo;
-import org.tuoyu.system.service.ISysClientService;
-import org.tuoyu.system.service.ISysConfigService;
-import org.tuoyu.system.service.ISysDictTypeService;
 import org.tuoyu.system.service.ISysLoginInfoService;
 import org.tuoyu.system.service.ISysOperLogService;
 import org.tuoyu.system.service.ISysPermissionService;
@@ -26,12 +20,10 @@ import org.tuoyu.system.support.SystemTestSupport;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -45,42 +37,10 @@ class RemoteServicesTest {
     }
 
     private final ISysPermissionService permissionService = mock(ISysPermissionService.class);
-    private final ISysConfigService configService = mock(ISysConfigService.class);
 
     @Test
-    @DisplayName("参数：按键读取并解析为 Map、对象与数组")
-    void config() {
-        RemoteConfigServiceImpl remoteConfig = new RemoteConfigServiceImpl(configService);
-        when(configService.selectRegisterEnabled()).thenReturn(true);
-        assertTrue(remoteConfig.selectRegisterEnabled());
-        when(configService.selectConfigByKey("obj")).thenReturn("{\"name\":\"tuoyu\"}");
-        when(configService.selectConfigByKey("arr")).thenReturn("[{\"name\":\"a\"},{\"name\":\"b\"}]");
-        assertEquals("tuoyu", remoteConfig.getConfigMap("obj").get("name"));
-        assertEquals(2, remoteConfig.getConfigArrayMap("arr").size());
-        assertEquals("tuoyu", remoteConfig.getConfigObject("obj", Map.class).get("name"));
-        assertEquals(2, remoteConfig.getConfigArray("arr", Map.class).size());
-    }
-
-    @Test
-    @DisplayName("客户端、字典、权限、租户、社交账号、日志：转换后转发")
+    @DisplayName("权限、租户、社交账号、日志：转换后转发")
     void simpleDelegates() {
-        ISysClientService clientService = mock(ISysClientService.class);
-        SysClientVo client = new SysClientVo();
-        client.setClientId("cid");
-        when(clientService.queryByClientId("cid")).thenReturn(client);
-        assertEquals("cid", new RemoteClientServiceImpl(clientService).queryByClientId("cid").getClientId());
-
-        ISysDictTypeService dictService = mock(ISysDictTypeService.class);
-        SysDictTypeVo type = new SysDictTypeVo();
-        type.setDictType("sys_yes_no");
-        when(dictService.selectDictTypeByType("sys_yes_no")).thenReturn(type);
-        SysDictDataVo data = new SysDictDataVo();
-        data.setDictValue("Y");
-        when(dictService.selectDictDataByType("sys_yes_no")).thenReturn(List.of(data));
-        RemoteDictServiceImpl remoteDict = new RemoteDictServiceImpl(dictService);
-        assertEquals("sys_yes_no", remoteDict.selectDictTypeByType("sys_yes_no").getDictType());
-        assertEquals("Y", remoteDict.selectDictDataByType("sys_yes_no").get(0).getDictValue());
-
         when(permissionService.getRolePermission(1L)).thenReturn(Set.of("r"));
         when(permissionService.getMenuPermission(1L)).thenReturn(Set.of("m"));
         RemotePermissionServiceImpl remotePermission = new RemotePermissionServiceImpl(permissionService);

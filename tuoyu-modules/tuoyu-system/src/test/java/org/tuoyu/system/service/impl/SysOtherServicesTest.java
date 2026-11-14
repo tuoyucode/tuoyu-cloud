@@ -13,7 +13,6 @@ import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.system.support.CurrentUserStub;
 import org.tuoyu.system.api.model.RoleDTO;
-import org.tuoyu.system.domain.SysClient;
 import org.tuoyu.system.domain.SysLoginInfo;
 import org.tuoyu.system.domain.SysNotice;
 import org.tuoyu.system.domain.SysOperLog;
@@ -21,15 +20,12 @@ import org.tuoyu.system.domain.SysSocial;
 import org.tuoyu.system.domain.SysTenantPackage;
 import org.tuoyu.system.domain.SysTenantPackageMenu;
 import org.tuoyu.system.domain.SysUser;
-import org.tuoyu.system.domain.bo.SysClientBo;
 import org.tuoyu.system.domain.bo.SysLoginInfoBo;
 import org.tuoyu.system.domain.bo.SysNoticeBo;
 import org.tuoyu.system.domain.bo.SysOperLogBo;
 import org.tuoyu.system.domain.bo.SysSocialBo;
 import org.tuoyu.system.domain.bo.SysTenantPackageBo;
-import org.tuoyu.system.domain.vo.SysClientVo;
 import org.tuoyu.system.domain.vo.SysTenantPackageVo;
-import org.tuoyu.system.mapper.SysClientMapper;
 import org.tuoyu.system.mapper.SysLoginInfoMapper;
 import org.tuoyu.system.mapper.SysNoticeMapper;
 import org.tuoyu.system.mapper.SysOperLogMapper;
@@ -65,97 +61,11 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@DisplayName("客户端、套餐、日志、通知、社交账号、权限：业务规则")
+@DisplayName("套餐、日志、通知、社交账号、权限：业务规则")
 class SysOtherServicesTest {
 
     static {
         SystemTestSupport.init();
-    }
-
-    @Nested
-    @DisplayName("客户端")
-    class Clients {
-
-        private final SysClientMapper mapper = SystemTestSupport.mapper(SysClientMapper.class);
-        private final SysClientServiceImpl service = new SysClientServiceImpl(mapper);
-
-        @Test
-        @DisplayName("新增：客户端 ID 由 key 与 secret 生成；访问路径补全斜杠，* 视为全部路径")
-        void insert() {
-            when(mapper.insert(any(SysClient.class))).thenAnswer(inv -> {
-                inv.<SysClient>getArgument(0).setId(5L);
-                return 1;
-            });
-            SysClientBo bo = new SysClientBo();
-            bo.setClientKey("pc");
-            bo.setClientSecret("secret");
-            bo.setGrantTypeList(List.of("password", "sms"));
-            bo.setAccessPath("system/**, *\n/monitor/**");
-            bo.setIpWhitelistList(List.of("10.0.0.1", " "));
-
-            assertDoesNotThrow(() -> service.insertByBo(bo));
-
-            ArgumentCaptor<SysClient> saved = ArgumentCaptor.forClass(SysClient.class);
-            verify(mapper).insert(saved.capture());
-            assertEquals("password,sms", saved.getValue().getGrantType());
-            assertEquals("/system/**,/**,/monitor/**", saved.getValue().getAccessPath());
-            assertEquals("10.0.0.1", saved.getValue().getIpWhitelist());
-            assertEquals(cn.hutool.crypto.SecureUtil.md5("pcsecret"), saved.getValue().getClientId());
-            assertEquals(5L, bo.getId());
-        }
-
-        @Test
-        @DisplayName("修改：密钥为空表示不修改；访问路径清空时保存为空串")
-        void updateKeepsSecret() {
-            when(mapper.updateById(any(SysClient.class))).thenReturn(1);
-            SysClientBo bo = new SysClientBo();
-            bo.setId(5L);
-            bo.setClientSecret("  ");
-            bo.setGrantTypeList(List.of("password"));
-            bo.setAccessPathList(List.of());
-
-            assertDoesNotThrow(() -> service.updateByBo(bo));
-
-            ArgumentCaptor<SysClient> updated = ArgumentCaptor.forClass(SysClient.class);
-            verify(mapper).updateById(updated.capture());
-            assertNull(updated.getValue().getClientSecret());
-            assertEquals("", updated.getValue().getAccessPath());
-            assertNull(updated.getValue().getIpWhitelist());
-        }
-
-        @Test
-        @DisplayName("按客户端 ID 查询（登录用）保留密钥并拆分规则；列表不下发密钥")
-        void queries() {
-            SysClient client = new SysClient();
-            client.setClientId("cid");
-            client.setClientSecret("secret");
-            client.setGrantType("password");
-            client.setAccessPath("/system/**;/monitor/**");
-            client.setIpWhitelist("10.0.0.1");
-            when(mapper.selectOne(any(), anyBoolean())).thenReturn(client);
-            SysClientVo vo = service.queryByClientId("cid");
-            assertEquals("secret", vo.getClientSecret());
-            assertEquals(List.of("/system/**", "/monitor/**"), vo.getAccessPathList());
-            assertEquals(List.of("10.0.0.1"), vo.getIpWhitelistList());
-
-            when(mapper.selectList(any(Wrapper.class))).thenReturn(List.of(client));
-            List<SysClientVo> list = service.queryList(new SysClientBo());
-            assertNull(list.get(0).getClientSecret());
-            service.countList(new SysClientBo());
-        }
-
-        @Test
-        @DisplayName("修改状态、删除、key 唯一性")
-        void others() {
-            when(mapper.update(any(Wrapper.class))).thenReturn(1);
-            assertDoesNotThrow(() -> service.updateClientStatus("cid", "1"));
-            when(mapper.deleteByIds(any())).thenReturn(1);
-            assertDoesNotThrow(() -> service.deleteWithValidByIds(List.of(5L), true));
-            when(mapper.exists(any())).thenReturn(true);
-            SysClientBo bo = new SysClientBo();
-            bo.setClientKey("pc");
-            assertFalse(service.checkClickKeyUnique(bo));
-        }
     }
 
     @Nested

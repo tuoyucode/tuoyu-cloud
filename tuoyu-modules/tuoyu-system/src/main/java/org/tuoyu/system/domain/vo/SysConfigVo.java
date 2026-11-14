@@ -12,11 +12,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-
 /**
- * 参数配置视图对象 sys_config
+ * 参数配置视图
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @ExcelIgnoreUnannotated
@@ -51,7 +50,7 @@ public class SysConfigVo implements Serializable {
     private String configValue;
 
     /**
-     * 系统内置（Y是 N否）
+     * 是否系统内置（Y 是 N 否）
      */
     @ExcelProperty(value = "系统内置", converter = ExcelDictConvert.class)
     @ExcelDictFormat(dictType = "sys_yes_no")

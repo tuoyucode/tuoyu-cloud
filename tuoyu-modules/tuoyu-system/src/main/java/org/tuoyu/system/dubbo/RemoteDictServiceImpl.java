@@ -1,52 +1,34 @@
 package org.tuoyu.system.dubbo;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 import org.tuoyu.common.core.utils.BeanMapper;
 import org.tuoyu.system.api.RemoteDictService;
 import org.tuoyu.system.api.domain.vo.RemoteDictDataVo;
 import org.tuoyu.system.api.domain.vo.RemoteDictTypeVo;
-import org.tuoyu.system.domain.vo.SysDictDataVo;
-import org.tuoyu.system.domain.vo.SysDictTypeVo;
 import org.tuoyu.system.service.ISysDictTypeService;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 /**
- * 字典服务
+ * 字典服务的跨模块实现。经字典类型服务读取（带缓存），转换为跨模块对象
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class RemoteDictServiceImpl implements RemoteDictService {
 
-    private final ISysDictTypeService sysDictTypeService;
+    private final ISysDictTypeService dictTypeService;
 
-    /**
-     * remote根据字典类型查询字典
-     *
-     * @param dictType 字典类型
-     * @return RemoteDictTypeVo
-     * @see org.tuoyu.system.domain.convert.SysDictTypeVoConvert
-     */
     @Override
     public RemoteDictTypeVo selectDictTypeByType(String dictType) {
-        SysDictTypeVo vo = sysDictTypeService.selectDictTypeByType(dictType);
-        return BeanMapper.map(vo, RemoteDictTypeVo.class);
+        return BeanMapper.map(dictTypeService.selectDictTypeByType(dictType), RemoteDictTypeVo.class);
     }
 
-    /**
-     * remote根据字典类型查询字典数据
-     *
-     * @param dictType 字典类型
-     * @return 字典数据集合信息
-     * @see org.tuoyu.system.domain.convert.SysDictDataVoConvert
-     */
     @Override
     public List<RemoteDictDataVo> selectDictDataByType(String dictType) {
-        List<SysDictDataVo> list = sysDictTypeService.selectDictDataByType(dictType);
-        return BeanMapper.mapList(list, RemoteDictDataVo.class);
+        return BeanMapper.mapList(dictTypeService.selectDictDataByType(dictType), RemoteDictDataVo.class);
     }
 
 }

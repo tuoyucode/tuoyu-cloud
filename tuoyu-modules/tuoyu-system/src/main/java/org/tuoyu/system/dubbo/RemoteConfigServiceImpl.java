@@ -2,27 +2,32 @@ package org.tuoyu.system.dubbo;
 
 import cn.hutool.core.lang.Dict;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.json.utils.JsonUtils;
 import org.tuoyu.system.api.RemoteConfigService;
 import org.tuoyu.system.service.ISysConfigService;
-import org.springframework.stereotype.Service;
+import tools.jackson.core.JacksonException;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
- * 配置服务
+ * 参数配置服务的跨模块实现。参数值经参数服务的缓存读取；按 JSON 解析时，空值与无法解析的值得到空结果，
+ * 解析失败只记录参数键名（参数值可能含敏感内容）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
-@RequiredArgsConstructor
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class RemoteConfigServiceImpl implements RemoteConfigService {
 
     private final ISysConfigService configService;
 
-    /**
-     * 获取注册开关
-     */
     @Override
     public boolean selectRegisterEnabled() {
         return configService.selectRegisterEnabled();
@@ -33,55 +38,46 @@ public class RemoteConfigServiceImpl implements RemoteConfigService {
         return configService.selectConfigByKey(configKey);
     }
 
-    /**
-     * 根据参数 key 获取 Map 类型的配置
-     *
-     * @param configKey 参数 key
-     * @return Dict 对象，如果配置为空或无法解析，返回空 Dict
-     */
     @Override
     public Dict getConfigMap(String configKey) {
-        String configValue = getConfigValue(configKey);
-        return JsonUtils.parseMap(configValue);
+        return parse(configKey, JsonUtils::parseMap, Dict::new);
     }
 
-    /**
-     * 根据参数 key 获取 Map 类型的配置列表
-     *
-     * @param configKey 参数 key
-     * @return Dict 列表，如果配置为空或无法解析，返回空列表
-     */
     @Override
     public List<Dict> getConfigArrayMap(String configKey) {
-        String configValue = getConfigValue(configKey);
-        return JsonUtils.parseArrayMap(configValue);
+        return parse(configKey, JsonUtils::parseArrayMap, ArrayList::new);
     }
 
-    /**
-     * 根据参数 key 获取指定类型的配置对象
-     *
-     * @param configKey 参数 key
-     * @param clazz     目标对象类型
-     * @return 对象实例，如果配置为空或无法解析，返回 null
-     */
     @Override
     public <T> T getConfigObject(String configKey, Class<T> clazz) {
-        String configValue = getConfigValue(configKey);
-        return JsonUtils.parseObject(configValue, clazz);
+        return parse(configKey, value -> JsonUtils.parseObject(value, clazz), () -> null);
+    }
+
+    @Override
+    public <T> List<T> getConfigArray(String configKey, Class<T> clazz) {
+        return parse(configKey, value -> JsonUtils.parseArray(value, clazz), ArrayList::new);
     }
 
     /**
-     * 根据参数 key 获取指定类型的配置列表=
+     * 读取参数值并解析；值为空白、解析失败或解析结果为 null 时返回空结果
      *
-     * @param configKey 参数 key
-     * @param clazz     目标元素类型
-     * @return 指定类型列表，如果配置为空或无法解析，返回空列表
+     * @param configKey 参数键名
+     * @param parser    解析方法
+     * @param empty     空结果
+     * @return 解析结果
      */
-    @Override
-    public <T> List<T> getConfigArray(String configKey, Class<T> clazz) {
-        String configValue = getConfigValue(configKey);
-        return JsonUtils.parseArray(configValue, clazz);
+    private <R> R parse(String configKey, Function<String, R> parser, Supplier<R> empty) {
+        String value = configService.selectConfigByKey(configKey);
+        if (StringUtils.isBlank(value)) {
+            return empty.get();
+        }
+        try {
+            R result = parser.apply(value);
+            return result == null ? empty.get() : result;
+        } catch (JacksonException e) {
+            log.warn("参数 {} 的值不能按 JSON 解析，按空结果处理", configKey);
+            return empty.get();
+        }
     }
-
 
 }

@@ -41,7 +41,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 字典类型与字典数据服务的行为契约（规格 S2 第 5、6 节）
+ * 字典类型与字典数据服务的行为契约
  */
 @DisplayName("字典服务契约")
 class SysDictServiceContractTest {
@@ -183,7 +183,6 @@ class SysDictServiceContractTest {
         @Test
         @DisplayName("修改：同时清除新旧两个类型的字典类型缓存")
         void updateEvictsTypeCache() {
-            // 现有实现不满足：只清除旧类型的字典数据缓存，字典类型缓存（按类型查询）新旧两个键都不清
             when(typeMapper.selectById(1L)).thenReturn(type(1L, "sys_old"));
             when(typeMapper.updateById(any(SysDictType.class))).thenReturn(1);
             SysDictTypeBo bo = new SysDictTypeBo();
@@ -198,7 +197,6 @@ class SysDictServiceContractTest {
         @Test
         @DisplayName("修改不存在的字典类型：提示不存在，不改动字典数据")
         void updateMissing() {
-            // 现有实现不满足：读取原类型为 null 时空指针（500）
             SysDictTypeBo bo = new SysDictTypeBo();
             bo.setDictId(9L);
             bo.setDictName("字典");
@@ -275,7 +273,6 @@ class SysDictServiceContractTest {
         @Test
         @DisplayName("修改时改了类型：清除原类型的缓存")
         void updateMovesType() {
-            // 现有实现不满足：只更新新类型的缓存，原类型的缓存中仍有这条数据
             when(dataMapper.selectById(1L)).thenReturn(data(1L, "t_old", "v"));
             when(dataMapper.updateById(any(SysDictData.class))).thenReturn(1);
             service.updateDictData(bo(1L, "t_new", "v"));
@@ -285,7 +282,6 @@ class SysDictServiceContractTest {
         @Test
         @DisplayName("请求中的创建部门不写入（审计字段由框架填充）")
         void createDeptIgnored() {
-            // 现有实现不满足：Bo 中的 createDept 原样写入实体
             when(dataMapper.insert(any(SysDictData.class))).thenReturn(1);
             SysDictDataBo bo = bo(null, "t", "v");
             bo.setCreateDept(5L);

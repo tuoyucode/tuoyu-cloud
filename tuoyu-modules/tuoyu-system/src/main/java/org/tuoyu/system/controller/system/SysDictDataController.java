@@ -2,9 +2,11 @@ package org.tuoyu.system.controller.system;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaCheckRole;
 import cn.hutool.core.util.ObjectUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
@@ -26,6 +28,9 @@ import java.util.List;
 
 /**
  * 数据字典信息
+ * <p>
+ * 字典全平台共享：写接口除权限码外还要求超级管理员角色，租户管理员不能改动；以后新增的写接口同样标注
+ * {@code @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)}
  *
  * @author Lion Li
  */
@@ -89,6 +94,7 @@ public class SysDictDataController {
      * 新增字典数据
      */
     @SaCheckPermission("system:dict:add")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "字典数据", action = AuditAction.CREATE)
     @PreventResubmit
     @PostMapping
@@ -104,6 +110,7 @@ public class SysDictDataController {
      * 修改保存字典数据
      */
     @SaCheckPermission("system:dict:edit")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "字典数据", action = AuditAction.UPDATE)
     @PreventResubmit
     @PutMapping
@@ -121,6 +128,7 @@ public class SysDictDataController {
      * @param dictCodes 字典code串
      */
     @SaCheckPermission("system:dict:remove")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "字典数据", action = AuditAction.DELETE)
     @DeleteMapping("/{dictCodes}")
     public ApiResult<Void> remove(@PathVariable Long[] dictCodes) {

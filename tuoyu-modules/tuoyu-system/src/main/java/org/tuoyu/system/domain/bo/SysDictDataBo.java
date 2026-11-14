@@ -12,11 +12,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 字典数据业务对象 sys_dict_data
+ * 字典数据请求对象（新增、修改、列表条件）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
-
 @Data
 @AutoMapper(target = SysDictData.class, reverseConvertGenerate = false)
 public class SysDictDataBo implements Serializable {
@@ -30,7 +29,7 @@ public class SysDictDataBo implements Serializable {
     private Long dictCode;
 
     /**
-     * 字典排序
+     * 排序
      */
     private Integer dictSort;
 
@@ -49,14 +48,14 @@ public class SysDictDataBo implements Serializable {
     private String dictValue;
 
     /**
-     * 字典类型
+     * 字典类型编码
      */
     @NotBlank(message = "字典类型不能为空")
     @Size(min = 0, max = 100, message = "字典类型长度不能超过{max}个字符")
     private String dictType;
 
     /**
-     * 样式属性（其他样式扩展）
+     * 样式属性
      */
     @Size(min = 0, max = 100, message = "样式属性长度不能超过{max}个字符")
     private String cssClass;
@@ -67,12 +66,12 @@ public class SysDictDataBo implements Serializable {
     private String listClass;
 
     /**
-     * 是否默认（Y是 N否）
+     * 是否默认（Y 是 N 否）
      */
     private String isDefault;
 
     /**
-     * 创建部门
+     * 创建部门。请求中可能出现，服务不写入（由审计填充决定）
      */
     private Long createDept;
 

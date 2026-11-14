@@ -4,28 +4,31 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.mybatis.core.domain.BaseEntity;
 
-/**
- * 字典数据表 sys_dict_data
- *
- * @author Lion Li
- */
+import java.io.Serial;
 
+/**
+ * 字典数据 sys_dict_data。全平台共享（表中没有租户列）
+ *
+ * @author tuoyu
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("sys_dict_data")
 public class SysDictData extends BaseEntity {
 
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     /**
      * 字典编码
      */
-    @TableId(value = "dict_code")
+    @TableId("dict_code")
     private Long dictCode;
 
     /**
-     * 字典排序
+     * 排序
      */
     private Integer dictSort;
 
@@ -40,22 +43,22 @@ public class SysDictData extends BaseEntity {
     private String dictValue;
 
     /**
-     * 字典类型
+     * 字典类型编码
      */
     private String dictType;
 
     /**
-     * 样式属性（其他样式扩展）
+     * 样式属性
      */
     private String cssClass;
 
     /**
-     * 表格字典样式
+     * 表格回显样式
      */
     private String listClass;
 
     /**
-     * 是否默认（Y是 N否）
+     * 是否默认（Y 是 N 否）
      */
     private String isDefault;
 
@@ -63,9 +66,5 @@ public class SysDictData extends BaseEntity {
      * 备注
      */
     private String remark;
-
-    public boolean getDefault() {
-        return SystemConstants.YES.equals(this.isDefault);
-    }
 
 }

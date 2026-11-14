@@ -12,11 +12,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 参数配置业务对象 sys_config
+ * 参数配置请求对象（新增、修改、按键修改、列表条件）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
-
 @Data
 @AutoMapper(target = SysConfig.class, reverseConvertGenerate = false)
 public class SysConfigBo implements Serializable {
@@ -51,7 +50,7 @@ public class SysConfigBo implements Serializable {
     private String configValue;
 
     /**
-     * 系统内置（Y是 N否）
+     * 是否系统内置（Y 是 N 否）
      */
     private String configType;
 
@@ -61,9 +60,8 @@ public class SysConfigBo implements Serializable {
     private String remark;
 
     /**
-     * 请求参数
+     * 请求参数（创建时间区间 beginTime、endTime）
      */
     private Map<String, Object> params = new HashMap<>();
-
 
 }

@@ -21,7 +21,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 字典、参数、客户端是平台共享的数据：写接口只允许超级管理员（规格 S2 第 2 节）。
+ * 字典、参数、客户端是平台共享的数据：写接口只允许超级管理员。
  * 读取接口（列表、详情、导出、按键或类型读取、下拉）不限制角色
  */
 @DisplayName("字典、参数、客户端的写接口只允许超级管理员")
@@ -77,28 +77,24 @@ class DictConfigWriteAccessContractTest {
     @Test
     @DisplayName("参数：新增、修改、按键修改、删除、刷新缓存")
     void config() {
-        // 现有实现不满足：写接口只检查权限码，租户管理员也能改动全平台的参数
         check(SysConfigController.class, Set.of("add", "edit", "updateByKey", "remove", "refreshCache"));
     }
 
     @Test
     @DisplayName("字典类型：新增、修改、删除、刷新缓存")
     void dictType() {
-        // 现有实现不满足：写接口只检查权限码，租户管理员也能改动全平台的字典
         check(SysDictTypeController.class, Set.of("add", "edit", "remove", "refreshCache"));
     }
 
     @Test
     @DisplayName("字典数据：新增、修改、删除")
     void dictData() {
-        // 现有实现不满足：写接口只检查权限码，租户管理员也能改动全平台的字典
         check(SysDictDataController.class, Set.of("add", "edit", "remove"));
     }
 
     @Test
     @DisplayName("客户端：新增、修改、启用与停用、删除")
     void client() {
-        // 现有实现不满足：写接口只检查权限码，租户管理员也能改动所有租户共用的客户端
         check(SysClientController.class, Set.of("add", "edit", "changeStatus", "remove"));
     }
 }

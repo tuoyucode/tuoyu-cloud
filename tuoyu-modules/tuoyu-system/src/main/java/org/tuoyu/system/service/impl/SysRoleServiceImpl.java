@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.core.constant.HttpStatus;
 import org.tuoyu.common.core.constant.SystemConstants;
+import org.tuoyu.common.core.context.CurrentUser;
 import org.tuoyu.common.core.context.UserContext;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
@@ -21,6 +22,7 @@ import org.tuoyu.common.core.utils.StreamUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.page.PageResults;
+import org.tuoyu.common.mybatis.enums.DataScopeType;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.common.satoken.utils.LoginSessions;
 import org.tuoyu.system.api.model.LoginUser;
@@ -57,7 +59,8 @@ import java.util.function.Predicate;
  * 角色服务实现。
  * <p>
  * 授权相关的写操作先做全部检查、再改数据：非超级管理员只能分配自己拥有的菜单与自己数据权限内的部门，
- * 只能给数据权限内的用户授权或取消授权；任一检查不通过时整个请求拒绝。
+ * 只能给数据权限内的用户授权或取消授权，只能把菜单不超过自己的角色授予用户，只有超级管理员或拥有全部数据权限的人
+ * 才能把角色的数据范围设为全部数据；任一检查不通过时整个请求拒绝。
  *
  * @author tuoyu
  */
@@ -65,6 +68,8 @@ import java.util.function.Predicate;
 @Service
 @RequiredArgsConstructor
 public class SysRoleServiceImpl implements ISysRoleService {
+
+    private static final String ALL_DATA_SCOPE_DENIED = "没有全部数据权限，不能把角色的数据范围设为全部数据";
 
     private final SysRoleMapper roleMapper;
     private final SysRoleMenuMapper roleMenuMapper;
@@ -207,7 +212,9 @@ public class SysRoleServiceImpl implements ISysRoleService {
     @Transactional(rollbackFor = Exception.class)
     public void insertRole(SysRoleBo bo) {
         checkMenus(bo.getMenuIds());
+        String dataScope = newRoleDataScope(bo.getDataScope());
         SysRole role = BeanMapper.map(bo, SysRole.class);
+        role.setDataScope(dataScope);
         roleMapper.insert(role);
         bo.setRoleId(role.getRoleId());
         insertRoleMenus(role.getRoleId(), bo.getMenuIds());
@@ -236,6 +243,7 @@ public class SysRoleServiceImpl implements ISysRoleService {
         }
         checkMenus(bo.getMenuIds());
         checkDepts(bo.getDeptIds());
+        checkChangeToAllDataScope(bo.getRoleId(), bo.getDataScope());
         SysRole role = new SysRole();
         role.setRoleId(bo.getRoleId());
         role.setDataScope(bo.getDataScope());
@@ -324,6 +332,7 @@ public class SysRoleServiceImpl implements ISysRoleService {
     public void insertAuthUsers(Long roleId, Long[] userIds) {
         List<Long> users = toList(userIds);
         checkAuthUsers(roleId, users, true);
+        checkRoleMenusWithinOwn(roleId);
         Set<Long> existing = new HashSet<>(userRoleMapper.selectUserIdsByRoleId(roleId));
         List<SysUserRole> rows = new ArrayList<>();
         for (Long userId : new LinkedHashSet<>(users)) {
@@ -442,6 +451,77 @@ public class SysRoleServiceImpl implements ISysRoleService {
             if (!own.containsAll(requested)) {
                 throw new ServiceException("只能分配自己拥有的菜单");
             }
+        }
+    }
+
+    /**
+     * 新角色的数据范围。明确提交全部数据时，操作者必须是超级管理员或拥有全部数据权限；
+     * 没有提交时（表的默认值是全部数据），能授予全部数据的操作者得到全部数据，其他操作者得到仅本人
+     *
+     * @param requested 提交的数据范围
+     * @return 写入的数据范围
+     */
+    private String newRoleDataScope(String requested) {
+        String all = DataScopeType.ALL.getCode();
+        if (StringUtils.isBlank(requested)) {
+            return canGrantAllDataScope() ? all : DataScopeType.SELF.getCode();
+        }
+        if (all.equals(requested) && !canGrantAllDataScope()) {
+            throw new ServiceException(ALL_DATA_SCOPE_DENIED);
+        }
+        return requested;
+    }
+
+    /**
+     * 修改权限时把数据范围设为全部数据（角色当前不是全部数据）：操作者必须是超级管理员或拥有全部数据权限。
+     * 角色当前已是全部数据时原样提交照常保存；没有提交数据范围表示不修改，不检查
+     *
+     * @param roleId    角色 ID
+     * @param requested 提交的数据范围
+     */
+    private void checkChangeToAllDataScope(Long roleId, String requested) {
+        String all = DataScopeType.ALL.getCode();
+        if (!all.equals(requested) || canGrantAllDataScope()) {
+            return;
+        }
+        // 调用方已检查角色的数据权限，这里只读当前的数据范围
+        SysRole current = roleId == null ? null : roleMapper.selectById(roleId);
+        if (current == null || !all.equals(current.getDataScope())) {
+            throw new ServiceException(ALL_DATA_SCOPE_DENIED);
+        }
+    }
+
+    /**
+     * 操作者能否授予全部数据范围：超级管理员，或当前会话的角色（登录时只含正常角色）中有全部数据范围的
+     */
+    private static boolean canGrantAllDataScope() {
+        if (UserContext.isSuperAdmin()) {
+            return true;
+        }
+        String all = DataScopeType.ALL.getCode();
+        return UserContext.current()
+            .map(CurrentUser::getRoles)
+            .map(roles -> roles.stream().anyMatch(role -> role != null && all.equals(role.getDataScope())))
+            .orElse(false);
+    }
+
+    /**
+     * 授权用户前的检查：非超级管理员只能授予菜单不超过自己的角色（角色的全部菜单都在操作者拥有的菜单内）
+     *
+     * @param roleId 角色 ID
+     */
+    private void checkRoleMenusWithinOwn(Long roleId) {
+        if (UserContext.isSuperAdmin() || roleId == null) {
+            return;
+        }
+        Set<Long> roleMenus = roleMapper.selectMenuIdsByRoleIds(List.of(roleId));
+        if (roleMenus.isEmpty()) {
+            return;
+        }
+        Set<Long> own = new HashSet<>(StreamUtils.toList(menuService.selectMenuList(UserContext.userId()),
+            SysMenuVo::getMenuId));
+        if (!own.containsAll(roleMenus)) {
+            throw new ServiceException("只能分配菜单权限不超过自己的角色");
         }
     }
 

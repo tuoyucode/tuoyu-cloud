@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * S1 补充规则 3（用户侧）与规则 4：给用户分配的角色，菜单不能超出操作者的菜单；
- * 角色的已分配、未分配用户列表先检查角色的数据权限（规格 S1b 第 4、5 节）
+ * 角色的已分配、未分配用户列表先检查角色的数据权限
  */
 @DisplayName("S1 补充：用户的角色分配与角色的用户列表")
 class SysUserServiceS1bContractTest {
@@ -93,7 +93,7 @@ class SysUserServiceS1bContractTest {
         }
 
         /**
-         * 角色的菜单：SysRoleMapper#selectMenuIdsByRoleIds（规格 S1b 2.1 新增的 Mapper 方法，现有代码中还没有，用反射取得）
+         * 角色的菜单：SysRoleMapper#selectMenuIdsByRoleIds（按角色打桩，用反射取得方法）
          */
         private void roleMenus(Map<Long, Set<Long>> menusByRole) throws Exception {
             Method method = SysRoleMapper.class.getMethod("selectMenuIdsByRoleIds", Collection.class);
@@ -120,7 +120,6 @@ class SysUserServiceS1bContractTest {
         @Test
         @DisplayName("新增用户、修改用户、分配角色：有一个角色的菜单超出操作者的菜单就整体拒绝，原有角色不动")
         void rejectRolesWithMoreMenus() {
-            // 现有实现不满足：分配角色只检查角色的数据权限，不检查角色的菜单是否超出操作者
             String message = "只能分配菜单权限不超过自己的角色";
             assertThatThrownBy(() -> service.insertUser(user(6L, 5L))).isInstanceOf(ServiceException.class).hasMessage(message);
             assertThatThrownBy(() -> service.updateUser(user(6L, 5L))).hasMessage(message);
@@ -132,7 +131,6 @@ class SysUserServiceS1bContractTest {
         @Test
         @DisplayName("角色的菜单都在操作者的菜单内时照常分配；超级管理员不检查")
         void allowRolesWithinMenus() {
-            // 现有实现不满足：需要按规格新增 SysRoleMapper#selectMenuIdsByRoleIds
             service.insertUserAuth(100L, new Long[]{6L});
             login.userId(SystemConstants.SUPER_ADMIN_USER_ID);
             service.insertUserAuth(100L, new Long[]{5L});
@@ -153,7 +151,6 @@ class SysUserServiceS1bContractTest {
         @Test
         @DisplayName("角色不在操作者的数据权限内时拒绝，不查询用户")
         void rejectRoleOutOfScope() {
-            // 现有实现不满足：两个列表不检查角色的数据权限，可以查看范围外角色的成员
             login.userId(OPERATOR);
             when(roleMapper.selectCount(any())).thenReturn(0L);
             assertThatThrownBy(() -> service.selectAllocatedList(query(), new PageParam())).hasMessage("没有权限访问部分角色数据！");

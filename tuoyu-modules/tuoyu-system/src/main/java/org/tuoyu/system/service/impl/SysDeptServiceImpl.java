@@ -172,6 +172,8 @@ public class SysDeptServiceImpl implements ISysDeptService {
     @Override
     @CacheEvict(cacheNames = CacheNames.SYS_DEPT_AND_CHILD, allEntries = true)
     public void insertDept(SysDeptBo bo) {
+        // 先检查数据权限：范围外与不存在的上级得到同一个提示，不能借提示判断范围外的部门是否存在
+        checkDeptDataScope(bo.getParentId());
         SysDept parent = deptMapper.selectById(bo.getParentId());
         if (parent == null) {
             throw new ServiceException("父部门不存在");

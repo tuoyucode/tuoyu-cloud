@@ -38,7 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 客户端服务的行为契约（规格 S2 第 7 节）
+ * 客户端服务的行为契约
  */
 @DisplayName("客户端服务契约")
 class SysClientServiceContractTest {
@@ -148,7 +148,6 @@ class SysClientServiceContractTest {
     @Test
     @DisplayName("修改：客户端 ID 不能改；按数据库中的客户端 ID 清除缓存")
     void updateKeepsClientIdAndEvictsStored() {
-        // 现有实现不满足：请求中的 clientId 原样写入，并且只按请求中的 clientId 清缓存（请求没带时缓存 30 天不更新）
         when(mapper.selectById(1L)).thenReturn(client(1L, "stored-cid"));
         when(mapper.updateById(any(SysClient.class))).thenReturn(1);
         SysClientBo bo = new SysClientBo();
@@ -192,7 +191,6 @@ class SysClientServiceContractTest {
     @Test
     @DisplayName("列表条件不含客户端密钥")
     void noSecretFilter() {
-        // 现有实现不满足：列表可以按 clientSecret 精确过滤，成了猜测密钥的判定器
         SysClientBo query = new SysClientBo();
         query.setClientId("cid");
         query.setClientKey("pc");

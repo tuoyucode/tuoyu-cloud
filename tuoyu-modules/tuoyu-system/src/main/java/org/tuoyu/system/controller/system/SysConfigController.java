@@ -1,8 +1,10 @@
 package org.tuoyu.system.controller.system;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaCheckRole;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
@@ -20,6 +22,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Arrays;
 /**
  * 参数配置 信息操作处理
+ * <p>
+ * 参数全平台共享：写接口除权限码外还要求超级管理员角色，租户管理员不能改动；以后新增的写接口同样标注
+ * {@code @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)}
  *
  * @author Lion Li
  */
@@ -77,6 +82,7 @@ public class SysConfigController {
      * 新增参数配置
      */
     @SaCheckPermission("system:config:add")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "参数管理", action = AuditAction.CREATE)
     @PreventResubmit
     @PostMapping
@@ -92,6 +98,7 @@ public class SysConfigController {
      * 修改参数配置
      */
     @SaCheckPermission("system:config:edit")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "参数管理", action = AuditAction.UPDATE)
     @PreventResubmit
     @PutMapping
@@ -107,6 +114,7 @@ public class SysConfigController {
      * 根据参数键名修改参数配置
      */
     @SaCheckPermission("system:config:edit")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "参数管理", action = AuditAction.UPDATE)
     @PreventResubmit
     @PutMapping("/updateByKey")
@@ -121,6 +129,7 @@ public class SysConfigController {
      * @param configIds 参数ID串
      */
     @SaCheckPermission("system:config:remove")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "参数管理", action = AuditAction.DELETE)
     @DeleteMapping("/{configIds}")
     public ApiResult<Void> remove(@PathVariable Long[] configIds) {
@@ -132,6 +141,7 @@ public class SysConfigController {
      * 刷新参数缓存
      */
     @SaCheckPermission("system:config:remove")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "参数管理", action = AuditAction.CLEAN)
     @DeleteMapping("/refreshCache")
     public ApiResult<Void> refreshCache() {

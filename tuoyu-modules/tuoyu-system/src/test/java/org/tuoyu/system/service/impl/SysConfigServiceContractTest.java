@@ -37,7 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 参数服务的行为契约（规格 S2 第 4 节）
+ * 参数服务的行为契约
  */
 @DisplayName("参数服务契约")
 class SysConfigServiceContractTest {
@@ -168,7 +168,6 @@ class SysConfigServiceContractTest {
     @Test
     @DisplayName("修改后清除该键的缓存，而不是把请求中的值写入缓存（按键修改时可能只提交部分字段）")
     void updateEvictsInsteadOfPut() throws Exception {
-        // 现有实现不满足：修改用 @CachePut 写入请求中的值，按键修改且没有提交参数值时缓存为 null，之后按键读取得到 null
         Method update = SysConfigServiceImpl.class.getMethod("updateConfig", SysConfigBo.class);
         assertNull(update.getAnnotation(CachePut.class));
         CacheEvict evict = update.getAnnotation(CacheEvict.class);

@@ -22,7 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * S1 补充规则 1：新增部门时上级部门必须在操作者的数据权限内（规格 S1b 第 2 节）
+ * S1 补充规则 1：新增部门时上级部门必须在操作者的数据权限内
  */
 @DisplayName("S1 补充：新增部门的上级部门数据权限")
 class SysDeptServiceS1bContractTest {
@@ -63,7 +63,6 @@ class SysDeptServiceS1bContractTest {
     @Test
     @DisplayName("上级部门不在数据权限内：拒绝，不写入（不论上级是否存在，都不透露）")
     void parentOutOfScope() {
-        // 现有实现不满足：新增部门只检查上级存在且正常，不检查数据权限，可以在范围外的部门下建部门
         login.userId(2L);
         when(deptMapper.selectById(7L)).thenReturn(dept(7L));
         when(deptMapper.selectCount(any())).thenReturn(0L);
@@ -93,7 +92,6 @@ class SysDeptServiceS1bContractTest {
     @Test
     @DisplayName("上级部门的检查经带数据权限的部门计数")
     void parentCheckUnderDataScope() {
-        // 现有实现不满足：新增部门时没有数据权限检查
 
         DataScopeProbe<SysDeptMapper> probe = DataScopeProbe.of(SysDeptMapper.class)
             .answer("selectCount", a -> 1L)

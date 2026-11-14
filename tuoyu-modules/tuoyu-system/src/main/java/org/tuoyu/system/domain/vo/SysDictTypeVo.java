@@ -1,24 +1,28 @@
 package org.tuoyu.system.domain.vo;
 
 import io.github.linpeilie.annotations.AutoMapper;
+import io.github.linpeilie.annotations.AutoMappers;
 import lombok.Data;
 import org.apache.fesod.sheet.annotation.ExcelIgnoreUnannotated;
 import org.apache.fesod.sheet.annotation.ExcelProperty;
+import org.tuoyu.system.api.domain.vo.RemoteDictTypeVo;
 import org.tuoyu.system.domain.SysDictType;
 
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-
 /**
- * 字典类型视图对象 sys_dict_type
+ * 字典类型视图（同时生成到跨模块对象的转换）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @ExcelIgnoreUnannotated
-@AutoMapper(target = SysDictType.class)
+@AutoMappers({
+    @AutoMapper(target = SysDictType.class),
+    @AutoMapper(target = RemoteDictTypeVo.class, reverseConvertGenerate = false)
+})
 public class SysDictTypeVo implements Serializable {
 
     @Serial
@@ -37,7 +41,7 @@ public class SysDictTypeVo implements Serializable {
     private String dictName;
 
     /**
-     * 字典类型
+     * 字典类型编码
      */
     @ExcelProperty(value = "字典类型")
     private String dictType;

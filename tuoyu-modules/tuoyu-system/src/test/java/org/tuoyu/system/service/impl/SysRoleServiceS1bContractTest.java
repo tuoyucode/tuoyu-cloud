@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * S1 补充规则 2、3（角色侧）：全部数据范围只能由拥有全部数据权限的人设置；
- * 授权用户时角色的菜单不能超出操作者的菜单（规格 S1b 第 3、4 节）
+ * 授权用户时角色的菜单不能超出操作者的菜单
  */
 @DisplayName("S1 补充：角色的数据范围与授权用户")
 class SysRoleServiceS1bContractTest {
@@ -146,7 +146,6 @@ class SysRoleServiceS1bContractTest {
         @Test
         @DisplayName("没有全部数据权限的人明确提交全部数据范围时拒绝新增")
         void insertRejected() {
-            // 现有实现不满足：任何有新增角色权限的人都能建出全部数据范围的角色
             operatorWithScopes(DEPT);
             assertThatThrownBy(() -> service.insertRole(newRole(ALL)))
                 .isInstanceOf(ServiceException.class).hasMessage("没有全部数据权限，不能把角色的数据范围设为全部数据");
@@ -156,7 +155,6 @@ class SysRoleServiceS1bContractTest {
         @Test
         @DisplayName("没有全部数据权限的人不提交数据范围：新角色为“仅本人”")
         void insertBlankDefaultsToSelf() {
-            // 现有实现不满足：不提交数据范围时按表的默认值成为全部数据
             operatorWithScopes(DEPT);
             service.insertRole(newRole(null));
             assertThat(savedScope()).isEqualTo("5");
@@ -165,7 +163,6 @@ class SysRoleServiceS1bContractTest {
         @Test
         @DisplayName("没有全部数据权限的人提交空白的数据范围：同样为“仅本人”")
         void insertEmptyDefaultsToSelf() {
-            // 现有实现不满足：空白的数据范围写入后不是“仅本人”
             operatorWithScopes(DEPT);
             service.insertRole(newRole(" "));
             assertThat(savedScope()).isEqualTo("5");
@@ -191,7 +188,6 @@ class SysRoleServiceS1bContractTest {
         @Test
         @DisplayName("没有全部数据权限的人把其他数据范围改为全部数据时拒绝，不改动任何数据")
         void updateRejected() {
-            // 现有实现不满足：修改角色权限时不检查操作者能否授予全部数据范围
             operatorWithScopes(DEPT, "5");
             when(roleMapper.selectById(5L)).thenReturn(role(DEPT));
             assertThatThrownBy(() -> service.updateRolePermission(permission(ALL)))
@@ -252,7 +248,7 @@ class SysRoleServiceS1bContractTest {
         }
 
         /**
-         * 角色的菜单：SysRoleMapper#selectMenuIdsByRoleIds（规格 S1b 2.1 新增的 Mapper 方法，现有代码中还没有，用反射取得）
+         * 角色的菜单：SysRoleMapper#selectMenuIdsByRoleIds（按角色打桩，用反射取得方法）
          */
         private void roleMenus(Map<Long, Set<Long>> menusByRole) throws Exception {
             menuIdsByRoles = SysRoleMapper.class.getMethod("selectMenuIdsByRoleIds", Collection.class);
@@ -270,7 +266,6 @@ class SysRoleServiceS1bContractTest {
         @Test
         @DisplayName("角色的菜单超出操作者的菜单时整体拒绝，不写入")
         void rejectRoleWithMoreMenus() throws Exception {
-            // 现有实现不满足：授权用户只检查角色与用户的数据权限，不检查角色的菜单是否超出操作者
             operatorWithScopes(DEPT);
             ownMenus(1L, 2L);
             roleMenus(Map.of(5L, Set.of(1L, 3L)));
@@ -282,7 +277,6 @@ class SysRoleServiceS1bContractTest {
         @Test
         @DisplayName("角色的菜单都在操作者的菜单内时照常授权；超级管理员不检查")
         void allowRoleWithinMenus() throws Exception {
-            // 现有实现不满足：需要按规格新增 SysRoleMapper#selectMenuIdsByRoleIds
             operatorWithScopes(DEPT);
             ownMenus(1L, 2L, 3L);
             roleMenus(Map.of(5L, Set.of(1L, 3L)));

@@ -6,11 +6,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-
 /**
- * 字典类型视图对象 sys_dict_type
+ * 字典类型（跨模块使用的字段）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 public class RemoteDictTypeVo implements Serializable {
@@ -29,7 +28,7 @@ public class RemoteDictTypeVo implements Serializable {
     private String dictName;
 
     /**
-     * 字典类型
+     * 字典类型编码
      */
     private String dictType;
 

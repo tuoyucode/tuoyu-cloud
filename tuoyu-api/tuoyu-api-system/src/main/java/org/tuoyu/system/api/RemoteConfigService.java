@@ -1,108 +1,107 @@
 package org.tuoyu.system.api;
 
-import org.tuoyu.common.rpc.annotation.RemoteApi;
 import cn.hutool.core.convert.Convert;
 import cn.hutool.core.lang.Dict;
+import org.tuoyu.common.rpc.annotation.RemoteApi;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * 配置服务
+ * 参数配置服务
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @RemoteApi
 public interface RemoteConfigService {
 
     /**
-     * 获取注册开关
+     * 是否开放用户注册（参数 {@code sys.account.registerUser}）
      *
-     * @return true开启，false关闭
+     * @return 参数值按布尔值解析为真时为 true；参数不存在、为空或不能解析时为 false
      */
     boolean selectRegisterEnabled();
 
     /**
-     * 根据参数 key 获取参数值
+     * 按参数键名读取参数值
      *
-     * @param configKey 参数 key
-     * @return 参数值
+     * @param configKey 参数键名
+     * @return 参数值；参数不存在时为空字符串
      */
     String getConfigValue(String configKey);
 
     /**
-     * 根据参数 key 获取布尔值
+     * 按参数键名读取布尔值
      *
-     * @param configKey 参数 key
-     * @return Boolean 值
+     * @param configKey 参数键名
+     * @return 按 hutool {@code Convert.toBool} 转换：true、yes、1 等为真，其他文字（含参数不存在时的空字符串）为假；
+     * 参数值为 null 时为 null
      */
     default Boolean getConfigBool(String configKey) {
         return Convert.toBool(getConfigValue(configKey));
     }
 
     /**
-     * 根据参数 key 获取整数值
+     * 按参数键名读取整数
      *
-     * @param configKey 参数 key
-     * @return Integer 值
+     * @param configKey 参数键名
+     * @return 整数；参数不存在或不能转换时为 null
      */
     default Integer getConfigInt(String configKey) {
         return Convert.toInt(getConfigValue(configKey));
     }
 
     /**
-     * 根据参数 key 获取长整型值
+     * 按参数键名读取长整数
      *
-     * @param configKey 参数 key
-     * @return Long 值
+     * @param configKey 参数键名
+     * @return 长整数；参数不存在或不能转换时为 null
      */
     default Long getConfigLong(String configKey) {
         return Convert.toLong(getConfigValue(configKey));
     }
 
     /**
-     * 根据参数 key 获取 BigDecimal 值
+     * 按参数键名读取小数
      *
-     * @param configKey 参数 key
-     * @return BigDecimal 值
+     * @param configKey 参数键名
+     * @return 小数；参数不存在或不能转换时为 null
      */
     default BigDecimal getConfigDecimal(String configKey) {
         return Convert.toBigDecimal(getConfigValue(configKey));
     }
 
     /**
-     * 根据参数 key 获取 Map 类型的配置
+     * 按参数键名读取 JSON 对象
      *
-     * @param configKey 参数 key
-     * @return Dict 对象，如果配置为空或无法解析，返回空 Dict
+     * @param configKey 参数键名
+     * @return 解析结果；参数值为空或不是合法的 JSON 对象时为空的 Dict（不为 null）
      */
     Dict getConfigMap(String configKey);
 
     /**
-     * 根据参数 key 获取 Map 类型的配置列表
+     * 按参数键名读取 JSON 对象数组
      *
-     * @param configKey 参数 key
-     * @return Dict 列表，如果配置为空或无法解析，返回空列表
+     * @param configKey 参数键名
+     * @return 解析结果；参数值为空或不是合法的 JSON 数组时为空列表（不为 null）
      */
     List<Dict> getConfigArrayMap(String configKey);
 
     /**
-     * 根据参数 key 获取指定类型的配置对象
+     * 按参数键名读取 JSON 并转换为指定类型的对象
      *
-     * @param configKey 参数 key
-     * @param clazz     目标对象类型
-     * @param <T>       目标对象泛型
-     * @return 对象实例，如果配置为空或无法解析，返回 null
+     * @param configKey 参数键名
+     * @param clazz     目标类型
+     * @return 对象；参数值为空或不能解析时为 null
      */
     <T> T getConfigObject(String configKey, Class<T> clazz);
 
     /**
-     * 根据参数 key 获取指定类型的配置列表
+     * 按参数键名读取 JSON 数组并转换为指定类型的列表
      *
-     * @param configKey 参数 key
-     * @param clazz     目标元素类型
-     * @param <T>       元素类型泛型
-     * @return 指定类型列表，如果配置为空或无法解析，返回空列表
+     * @param configKey 参数键名
+     * @param clazz     元素类型
+     * @return 列表；参数值为空或不能解析时为空列表（不为 null）
      */
     <T> List<T> getConfigArray(String configKey, Class<T> clazz);
 

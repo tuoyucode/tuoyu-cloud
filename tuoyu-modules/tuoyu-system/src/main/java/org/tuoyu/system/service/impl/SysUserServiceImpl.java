@@ -46,9 +46,11 @@ import org.tuoyu.system.service.ISysUserService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -56,6 +58,7 @@ import java.util.function.Function;
  * <p>
  * 列表、导出、按字段更新与数据权限检查经带数据权限的 Mapper 方法执行；按 ID 读取不带数据权限，由调用方先检查。
  * 修改用户不写口令（改口令只能走单独授权的重置密码），新增与修改都不取请求中的创建人、修改人（由审计填充决定）。
+ * 非超级管理员给用户分配的角色，菜单不能超出自己拥有的菜单；查看角色的成员列表前先检查角色的数据权限。
  *
  * @author tuoyu
  */
@@ -113,11 +116,13 @@ public class SysUserServiceImpl implements ISysUserService {
 
     @Override
     public PageResult<SysUserVo> selectAllocatedList(SysUserBo user, PageParam pageParam) {
+        checkListedRoleDataScope(user.getRoleId());
         return PageResults.of(userMapper.selectAllocatedList(pageParam.toPage(SysUser.class, "u"), user));
     }
 
     @Override
     public PageResult<SysUserVo> selectUnallocatedList(SysUserBo user, PageParam pageParam) {
+        checkListedRoleDataScope(user.getRoleId());
         List<Long> assigned = userRoleMapper.selectUserIdsByRoleId(user.getRoleId());
         return PageResults.of(userMapper.selectUnallocatedList(pageParam.toPage(SysUser.class, "u"), user, assigned));
     }
@@ -410,7 +415,8 @@ public class SysUserServiceImpl implements ISysUserService {
     }
 
     /**
-     * 写入用户的角色：普通用户去掉超级管理员角色；角色都在数据权限内；需要时先清除原有角色（在校验之后）
+     * 写入用户的角色：普通用户去掉超级管理员角色；角色都在数据权限内；非超级管理员只能分配菜单不超过自己的角色；
+     * 需要时先清除原有角色（在全部校验之后）
      */
     private void writeUserRoles(Long userId, Long[] roleIds, boolean clearFirst) {
         List<Long> roles = distinct(roleIds);
@@ -420,9 +426,13 @@ public class SysUserServiceImpl implements ISysUserService {
         if (roles.isEmpty()) {
             throw new ServiceException("不允许为普通用户分配超级管理员角色，请至少选择一个其他角色");
         }
-        if (roleMapper.selectRoleCount(roles) != roles.size()) {
-            throw new ServiceException("没有权限访问角色的数据");
+        // 逐个角色按带数据权限的计数检查，有一个不在数据权限内就整体拒绝
+        for (Long roleId : roles) {
+            if (roleMapper.selectRoleCount(List.of(roleId)) != 1) {
+                throw new ServiceException("没有权限访问角色的数据");
+            }
         }
+        checkRoleMenusWithinOperator(roles);
         if (clearFirst) {
             userRoleMapper.deleteByUserId(userId);
         }
@@ -434,6 +444,56 @@ public class SysUserServiceImpl implements ISysUserService {
             rows.add(row);
         }
         userRoleMapper.insert(rows);
+    }
+
+    /**
+     * 非超级管理员只能分配菜单不超过自己的角色：要分配的角色的全部菜单都在操作者拥有的菜单内，有一个超出就整体拒绝
+     *
+     * @param roleIds 要分配的角色（已去掉超级管理员角色）
+     */
+    private void checkRoleMenusWithinOperator(List<Long> roleIds) {
+        if (UserContext.isSuperAdmin()) {
+            return;
+        }
+        Set<Long> requested = roleMapper.selectMenuIdsByRoleIds(roleIds);
+        if (requested.isEmpty()) {
+            return;
+        }
+        if (!operatorMenuIds().containsAll(requested)) {
+            throw new ServiceException("只能分配菜单权限不超过自己的角色");
+        }
+    }
+
+    /**
+     * 操作者拥有的菜单：操作者正常状态的角色授予的菜单（不按租户套餐筛选，套餐外的菜单在租户内本来就不生效）。
+     * 没有登录或没有正常角色时为空集合
+     */
+    private Set<Long> operatorMenuIds() {
+        Long operator = UserContext.userId();
+        if (operator == null) {
+            return new HashSet<>();
+        }
+        List<Long> normalRoles = new ArrayList<>();
+        for (SysRoleVo role : roleMapper.selectRolesByUserId(operator)) {
+            if (role != null && SystemConstants.NORMAL.equals(role.getStatus())) {
+                normalRoles.add(role.getRoleId());
+            }
+        }
+        return roleMapper.selectMenuIdsByRoleIds(normalRoles);
+    }
+
+    /**
+     * 角色的已分配、未分配用户列表：非超级管理员只能查看数据权限内角色的成员
+     *
+     * @param roleId 角色 ID；为 null 时不检查
+     */
+    private void checkListedRoleDataScope(Long roleId) {
+        if (roleId == null || UserContext.isSuperAdmin()) {
+            return;
+        }
+        if (roleMapper.selectRoleCount(List.of(roleId)) != 1) {
+            throw new ServiceException("没有权限访问部分角色数据！");
+        }
     }
 
     /**

@@ -6,21 +6,25 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.tuoyu.common.mybatis.core.domain.TenantEntity;
 
+import java.io.Serial;
 
 /**
- * 通知公告表 sys_notice
+ * 通知公告 sys_notice（按租户隔离）
  *
- * @author Lion Li
+ * @author tuoyu
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("sys_notice")
 public class SysNotice extends TenantEntity {
 
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     /**
-     * 公告ID
+     * 公告 ID
      */
-    @TableId(value = "notice_id")
+    @TableId("notice_id")
     private Long noticeId;
 
     /**
@@ -29,7 +33,7 @@ public class SysNotice extends TenantEntity {
     private String noticeTitle;
 
     /**
-     * 公告类型（1通知 2公告）
+     * 公告类型（1 通知 2 公告）
      */
     private String noticeType;
 
@@ -39,7 +43,7 @@ public class SysNotice extends TenantEntity {
     private String noticeContent;
 
     /**
-     * 公告状态（0正常 1关闭）
+     * 公告状态（0 正常 1 关闭）
      */
     private String status;
 

@@ -1,10 +1,12 @@
 package org.tuoyu.system.controller.system;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaCheckRole;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
@@ -25,6 +27,9 @@ import java.util.List;
 
 /**
  * 客户端管理
+ * <p>
+ * 客户端所有租户共用：写接口除权限码外还要求超级管理员角色，租户管理员不能改动；以后新增的写接口同样标注
+ * {@code @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)}
  *
  * @author Michelle.Chung
  */
@@ -72,6 +77,7 @@ public class SysClientController {
      * 新增客户端管理
      */
     @SaCheckPermission("system:client:add")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "客户端管理", action = AuditAction.CREATE)
     @PreventResubmit
     @PostMapping()
@@ -87,6 +93,7 @@ public class SysClientController {
      * 修改客户端管理
      */
     @SaCheckPermission("system:client:edit")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "客户端管理", action = AuditAction.UPDATE)
     @PreventResubmit
     @PutMapping()
@@ -102,6 +109,7 @@ public class SysClientController {
      * 状态修改
      */
     @SaCheckPermission("system:client:edit")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "客户端管理", action = AuditAction.UPDATE)
     @PutMapping("/changeStatus")
     public ApiResult<Void> changeStatus(@RequestBody SysClientBo bo) {
@@ -115,6 +123,7 @@ public class SysClientController {
      * @param ids 主键串
      */
     @SaCheckPermission("system:client:remove")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "客户端管理", action = AuditAction.DELETE)
     @DeleteMapping("/{ids}")
     public ApiResult<Void> remove(@NotEmpty(message = "主键不能为空")

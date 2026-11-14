@@ -1,15 +1,17 @@
 package org.tuoyu.system.service.impl;
 
 import cn.hutool.core.convert.Convert;
-import cn.hutool.core.util.ObjectUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
 import org.tuoyu.common.core.constant.CacheNames;
 import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.exception.ServiceException;
 import org.tuoyu.common.core.utils.BeanMapper;
-import org.tuoyu.common.core.utils.ObjectUtils;
 import org.tuoyu.common.core.utils.StringUtils;
 import org.tuoyu.common.mybatis.core.page.PageParam;
 import org.tuoyu.common.mybatis.core.page.PageResults;
@@ -20,189 +22,151 @@ import org.tuoyu.system.domain.bo.SysConfigBo;
 import org.tuoyu.system.domain.vo.SysConfigVo;
 import org.tuoyu.system.mapper.SysConfigMapper;
 import org.tuoyu.system.service.ISysConfigService;
-import org.springframework.cache.annotation.CachePut;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 
 /**
- * 参数配置 服务层实现
+ * 参数配置服务实现。
+ * <p>
+ * 参数全平台共享（表中没有租户列），参数值按键名缓存在 {@link CacheNames#SYS_CONFIG}（全局缓存）。
+ * 修改后清除该键的缓存、下次读取时从库中重新加载，不把请求中的值写入缓存：按键修改时请求可能只带部分字段。
  *
- * @author Lion Li
+ * @author tuoyu
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 public class SysConfigServiceImpl implements ISysConfigService {
+
+    /**
+     * 是否开放用户注册的参数键名
+     */
+    private static final String REGISTER_USER_KEY = "sys.account.registerUser";
 
     private final SysConfigMapper configMapper;
 
-    /**
-     * 分页查询参数配置列表
-     *
-     * @param config    查询条件
-     * @param pageParam 分页参数
-     * @return 参数配置分页列表
-     */
     @Override
     public PageResult<SysConfigVo> selectPageConfigList(SysConfigBo config, PageParam pageParam) {
-        LambdaQueryWrapper<SysConfig> lqw = buildQueryWrapper(config);
-        return PageResults.of(configMapper.selectPage(pageParam.toPage(SysConfig.class), lqw), SysConfigVo.class);
+        return PageResults.of(configMapper.selectPage(pageParam.toPage(SysConfig.class),
+            buildQueryWrapper(config, !pageParam.hasSort())), SysConfigVo.class);
     }
 
-    /**
-     * 查询参数配置信息
-     *
-     * @param configId 参数配置ID
-     * @return 参数配置信息
-     */
+    @Override
+    public List<SysConfigVo> selectConfigList(SysConfigBo config) {
+        return BeanMapper.mapList(configMapper.selectList(buildQueryWrapper(config, true)), SysConfigVo.class);
+    }
+
+    @Override
+    public long countConfigList(SysConfigBo config) {
+        return configMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(config, false)).getTotal();
+    }
+
     @Override
     public SysConfigVo selectConfigById(Long configId) {
         return BeanMapper.map(configMapper.selectById(configId), SysConfigVo.class);
     }
 
-    /**
-     * 根据键名查询参数配置信息
-     *
-     * @param configKey 参数key
-     * @return 参数键值
-     */
-    @Cacheable(cacheNames = CacheNames.SYS_CONFIG, key = "#configKey")
     @Override
+    @Cacheable(cacheNames = CacheNames.SYS_CONFIG, key = "#configKey")
     public String selectConfigByKey(String configKey) {
-        SysConfig retConfig = configMapper.selectOne(QueryBuilder.lambda(SysConfig.class).eq(SysConfig::getConfigKey, configKey).build());
-        return ObjectUtils.notNullGetter(retConfig, SysConfig::getConfigValue, StringUtils.EMPTY);
+        return readValue(configKey);
     }
 
-    /**
-     * 获取注册开关
-     *
-     * @return true开启，false关闭
-     */
     @Override
     public boolean selectRegisterEnabled() {
-        String configValue = this.selectConfigByKey("sys.account.registerUser");
-        return Convert.toBool(configValue);
+        return Boolean.TRUE.equals(Convert.toBool(readValue(REGISTER_USER_KEY), false));
     }
 
-    /**
-     * 查询参数配置列表
-     *
-     * @param config 参数配置信息
-     * @return 参数配置集合
-     */
     @Override
-    public List<SysConfigVo> selectConfigList(SysConfigBo config) {
-        LambdaQueryWrapper<SysConfig> lqw = buildQueryWrapper(config);
-        return BeanMapper.mapList(configMapper.selectList(lqw), SysConfigVo.class);
-    }
-
-    /**
-     * 统计符合条件的参数配置数量（导出前先统计，查询条件与列表一致）
-     */
-    @Override
-    public long countConfigList(SysConfigBo config) {
-        return configMapper.selectPage(PageParam.countOnly(), buildQueryWrapper(config)).getTotal();
-    }
-
-    private LambdaQueryWrapper<SysConfig> buildQueryWrapper(SysConfigBo bo) {
-        Map<String, Object> params = bo.getParams();
-        return QueryBuilder.lambda(SysConfig.class)
-            .likeIfText(SysConfig::getConfigName, bo.getConfigName())
-            .eqIfText(SysConfig::getConfigType, bo.getConfigType())
-            .likeIfText(SysConfig::getConfigKey, bo.getConfigKey())
-            .betweenParams(SysConfig::getCreateTime, params, "beginTime", "endTime")
-            .orderByAsc(SysConfig::getConfigId)
-            .build();
-    }
-
-    /**
-     * 新增参数配置
-     *
-     * @param bo 参数配置信息
-     * @return 结果
-     */
     @CachePut(cacheNames = CacheNames.SYS_CONFIG, key = "#bo.configKey")
-    @Override
     public String insertConfig(SysConfigBo bo) {
-        SysConfig config = BeanMapper.map(bo, SysConfig.class);
-        int row = configMapper.insert(config);
-        if (row > 0) {
-            return config.getConfigValue();
+        if (configMapper.insert(BeanMapper.map(bo, SysConfig.class)) == 0) {
+            throw new ServiceException("新增参数'{}'失败", bo.getConfigName());
         }
-        throw new ServiceException("新增参数'{}'失败", bo.getConfigName());
+        return bo.getConfigValue();
     }
 
-    /**
-     * 修改参数配置
-     *
-     * @param bo 参数配置信息
-     * @return 结果
-     */
-    @CachePut(cacheNames = CacheNames.SYS_CONFIG, key = "#bo.configKey")
     @Override
+    @CacheEvict(cacheNames = CacheNames.SYS_CONFIG, key = "#bo.configKey")
     public String updateConfig(SysConfigBo bo) {
-        int row;
         SysConfig config = BeanMapper.map(bo, SysConfig.class);
-        if (config.getConfigId() != null) {
-            SysConfig temp = configMapper.selectById(config.getConfigId());
-            if (ObjectUtil.isNotNull(temp) && !StringUtils.equals(temp.getConfigKey(), config.getConfigKey())) {
-                CacheUtils.evict(CacheNames.SYS_CONFIG, temp.getConfigKey());
+        int rows;
+        String renamedFrom = null;
+        if (bo.getConfigId() != null) {
+            SysConfig old = configMapper.selectById(bo.getConfigId());
+            if (old != null && !Objects.equals(old.getConfigKey(), bo.getConfigKey())) {
+                renamedFrom = old.getConfigKey();
             }
-            row = configMapper.updateById(config);
+            rows = configMapper.updateById(config);
+        } else if (StringUtils.isBlank(bo.getConfigKey())) {
+            rows = 0;
         } else {
-            CacheUtils.evict(CacheNames.SYS_CONFIG, config.getConfigKey());
-            row = configMapper.update(config, QueryBuilder.lambda(SysConfig.class)
-                .eq(SysConfig::getConfigKey, config.getConfigKey())
+            rows = configMapper.update(config, QueryBuilder.lambda(SysConfig.class)
+                .eq(SysConfig::getConfigKey, bo.getConfigKey())
                 .build());
         }
-        if (row > 0) {
-            return config.getConfigValue();
+        if (rows == 0) {
+            String name = StringUtils.isNotBlank(bo.getConfigName()) ? bo.getConfigName() : bo.getConfigKey();
+            throw new ServiceException("修改参数'{}'失败，参数不存在", name);
         }
-        // 按参数键修改时只传了参数键与参数值，没有参数名称
-        String name = StringUtils.isNotBlank(bo.getConfigName()) ? bo.getConfigName() : bo.getConfigKey();
-        throw new ServiceException("修改参数'{}'失败，参数不存在", name);
+        // 改了键名：注解只清除新键名的缓存，原键名的缓存在这里清除
+        if (renamedFrom != null) {
+            CacheUtils.evict(CacheNames.SYS_CONFIG, renamedFrom);
+        }
+        return bo.getConfigValue();
     }
 
-    /**
-     * 批量删除参数信息
-     *
-     * @param configIds 需要删除的参数ID
-     */
     @Override
     public void deleteConfigByIds(List<Long> configIds) {
-        List<SysConfig> list = configMapper.selectByIds(configIds);
-        list.forEach(config -> {
-            if (StringUtils.equals(SystemConstants.YES, config.getConfigType())) {
+        List<SysConfig> configs = configMapper.selectByIds(configIds);
+        for (SysConfig config : configs) {
+            if (SystemConstants.YES.equals(config.getConfigType())) {
                 throw new ServiceException("内置参数【{}】不能删除", config.getConfigKey());
             }
-            CacheUtils.evict(CacheNames.SYS_CONFIG, config.getConfigKey());
-        });
+        }
         configMapper.deleteByIds(configIds);
+        for (SysConfig config : configs) {
+            CacheUtils.evict(CacheNames.SYS_CONFIG, config.getConfigKey());
+        }
     }
 
-    /**
-     * 重置参数缓存数据
-     */
     @Override
     public void resetConfigCache() {
         CacheUtils.clear(CacheNames.SYS_CONFIG);
     }
 
-    /**
-     * 校验参数键名是否唯一
-     *
-     * @param config 参数配置信息
-     * @return 结果
-     */
     @Override
     public boolean checkConfigKeyUnique(SysConfigBo config) {
-        boolean exist = configMapper.exists(QueryBuilder.lambda(SysConfig.class)
+        return !configMapper.exists(QueryBuilder.lambda(SysConfig.class)
             .eq(SysConfig::getConfigKey, config.getConfigKey())
             .neIfPresent(SysConfig::getConfigId, config.getConfigId())
             .build());
-        return !exist;
+    }
+
+    /**
+     * 按键名从库中读取参数值（不经缓存）
+     *
+     * @param configKey 参数键名
+     * @return 参数值；参数不存在时为空字符串
+     */
+    private String readValue(String configKey) {
+        SysConfig config = configMapper.selectOne(QueryBuilder.lambda(SysConfig.class)
+            .eq(SysConfig::getConfigKey, configKey)
+            .build());
+        return config == null ? StringUtils.EMPTY : StringUtils.defaultString(config.getConfigValue());
+    }
+
+    /**
+     * 列表条件：名称模糊、类型相等、键名模糊，创建时间区间；默认按 ID 升序（分页时指定了排序则不加）
+     */
+    private LambdaQueryWrapper<SysConfig> buildQueryWrapper(SysConfigBo bo, boolean defaultOrder) {
+        return QueryBuilder.lambda(SysConfig.class)
+            .likeIfText(SysConfig::getConfigName, bo.getConfigName())
+            .eqIfText(SysConfig::getConfigType, bo.getConfigType())
+            .likeIfText(SysConfig::getConfigKey, bo.getConfigKey())
+            .betweenParams(SysConfig::getCreateTime, bo.getParams(), "beginTime", "endTime")
+            .orderByAsc(defaultOrder, SysConfig::getConfigId)
+            .build();
     }
 
 }

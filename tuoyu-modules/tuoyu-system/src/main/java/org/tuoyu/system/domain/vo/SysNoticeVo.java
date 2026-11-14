@@ -10,11 +10,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-
 /**
- * 通知公告视图对象 sys_notice
+ * 通知公告视图
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @Data
 @AutoMapper(target = SysNotice.class)
@@ -24,7 +23,7 @@ public class SysNoticeVo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 公告ID
+     * 公告 ID
      */
     private Long noticeId;
 
@@ -34,17 +33,17 @@ public class SysNoticeVo implements Serializable {
     private String noticeTitle;
 
     /**
-     * 公告类型（1通知 2公告）
+     * 公告类型（1 通知 2 公告）
      */
     private String noticeType;
 
     /**
-     * 公告内容（纯文本：前端编辑器为多行文本框、按文本展示。改用富文本编辑器时再标注 @RichText）
+     * 公告内容
      */
     private String noticeContent;
 
     /**
-     * 公告状态（0正常 1关闭）
+     * 公告状态（0 正常 1 关闭）
      */
     private String status;
 
@@ -59,7 +58,7 @@ public class SysNoticeVo implements Serializable {
     private Long createBy;
 
     /**
-     * 创建人名称
+     * 创建人名称（按创建者翻译）
      */
     @Translation(type = TransConstant.USER_ID_TO_NAME, mapper = "createBy")
     private String createByName;

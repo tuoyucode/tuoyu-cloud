@@ -25,7 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 参数、字典、客户端的跨模块接口实现（规格 S2 第 8 节）
+ * 参数、字典、客户端的跨模块接口实现
  */
 @DisplayName("跨模块接口契约：参数、字典、客户端")
 class RemoteBasicDataServicesContractTest {
@@ -90,7 +90,6 @@ class RemoteBasicDataServicesContractTest {
     @Test
     @DisplayName("参数：值为空或不能解析时，Map 为空 Dict、列表为空列表、对象为 null，不抛异常")
     void configJsonEmptyOrInvalid() {
-        // 现有实现不满足：值为空时 Map 与 Map 列表返回 null，值不是合法 JSON 时抛出解析异常（接口说明要求返回空结果）
         when(configService.selectConfigByKey("empty")).thenReturn("");
         when(configService.selectConfigByKey("bad")).thenReturn("not json");
         assertThat(remoteConfig.getConfigMap("empty")).isNotNull().isEmpty();

@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 参数、字典、客户端、通知公告请求体的校验提示（规格 S2 第 3 节）
+ * 参数、字典、客户端、通知公告请求体的校验提示
  */
 @DisplayName("数据类契约：参数、字典、客户端、通知公告")
 class BasicDataDomainContractTest {

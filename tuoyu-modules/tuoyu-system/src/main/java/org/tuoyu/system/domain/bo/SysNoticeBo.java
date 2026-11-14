@@ -13,11 +13,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 通知公告业务对象 sys_notice
+ * 通知公告请求对象（新增、修改、列表条件）
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
-
 @Data
 @AutoMapper(target = SysNotice.class, reverseConvertGenerate = false)
 public class SysNoticeBo implements Serializable {
@@ -26,7 +25,7 @@ public class SysNoticeBo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 公告ID
+     * 公告 ID
      */
     private Long noticeId;
 
@@ -39,17 +38,17 @@ public class SysNoticeBo implements Serializable {
     private String noticeTitle;
 
     /**
-     * 公告类型（1通知 2公告）
+     * 公告类型（1 通知 2 公告）
      */
     private String noticeType;
 
     /**
-     * 公告内容（纯文本：前端编辑器为多行文本框、按文本展示。改用富文本编辑器时再标注 @RichText）
+     * 公告内容。按纯文本保存与展示（前端是多行文本框），不做富文本清洗；改用富文本编辑器时再标注 {@code @RichText}
      */
     private String noticeContent;
 
     /**
-     * 公告状态（0正常 1关闭）
+     * 公告状态（0 正常 1 关闭）
      */
     private String status;
 
@@ -59,7 +58,7 @@ public class SysNoticeBo implements Serializable {
     private String remark;
 
     /**
-     * 创建人名称
+     * 创建人账号（列表条件：按创建人查询）
      */
     private String createByName;
 

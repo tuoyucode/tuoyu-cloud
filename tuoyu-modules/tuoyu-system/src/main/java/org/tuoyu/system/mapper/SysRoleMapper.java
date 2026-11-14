@@ -10,11 +10,14 @@ import org.tuoyu.common.mybatis.annotation.DataColumn;
 import org.tuoyu.common.mybatis.annotation.DataPermission;
 import org.tuoyu.common.mybatis.core.query.QueryBuilder;
 import org.tuoyu.system.domain.SysRole;
+import org.tuoyu.system.domain.SysRoleMenu;
 import org.tuoyu.system.domain.SysUserRole;
 import org.tuoyu.system.domain.vo.SysRoleVo;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 角色数据层。数据权限按角色的创建部门与创建人（经 Spring 代理调用标注的方法时生效）
@@ -94,6 +97,36 @@ public interface SysRoleMapper extends BaseMapper<SysRole>, MPJBaseMapper<SysRol
             .leftJoin(SysUserRole.class, "sur", SysUserRole::getRoleId, SysRole::getRoleId)
             .eq("sur", SysUserRole::getUserId, userId)
             .build());
+    }
+
+    /**
+     * 这些角色授予的全部菜单 ID（含按钮），用于比较操作者能否授予这些角色。
+     * <p>
+     * 不按角色、菜单的状态过滤；不带数据权限：这是权限比较，不是数据查询，调用方先检查了角色的数据权限。
+     *
+     * @param roleIds 角色 ID
+     * @return 去重后的菜单 ID（可修改）；角色为空时为空集合，不查库
+     */
+    default Set<Long> selectMenuIdsByRoleIds(Collection<Long> roleIds) {
+        Set<Long> menuIds = new HashSet<>();
+        if (roleIds == null || roleIds.isEmpty()) {
+            return menuIds;
+        }
+        List<SysRoleMenu> rows = this.selectJoinList(SysRoleMenu.class, QueryBuilder.lambdaJoin("r", SysRole.class)
+            .distinct()
+            .selectAs("srm", SysRoleMenu::getMenuId, SysRoleMenu::getMenuId)
+            .leftJoin(SysRoleMenu.class, "srm", SysRoleMenu::getRoleId, SysRole::getRoleId)
+            .in("srm", SysRoleMenu::getRoleId, roleIds)
+            .build());
+        if (rows == null) {
+            return menuIds;
+        }
+        for (SysRoleMenu row : rows) {
+            if (row != null && row.getMenuId() != null) {
+                menuIds.add(row.getMenuId());
+            }
+        }
+        return menuIds;
     }
 
 }

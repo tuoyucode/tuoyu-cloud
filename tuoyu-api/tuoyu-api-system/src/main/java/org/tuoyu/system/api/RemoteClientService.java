@@ -6,16 +6,16 @@ import org.tuoyu.system.api.domain.vo.RemoteClientVo;
 /**
  * 客户端服务
  *
- * @author Michelle.Chung
+ * @author tuoyu
  */
 @RemoteApi
 public interface RemoteClientService {
 
     /**
-     * 根据客户端id获取客户端详情
+     * 按客户端 ID 查询客户端（含密钥，只供认证服务校验客户端）
      *
-     * @param clientId 客户端id
-     * @return 客户端对象
+     * @param clientId 客户端 ID
+     * @return 客户端；不存在时为 null
      */
     RemoteClientVo queryByClientId(String clientId);
 

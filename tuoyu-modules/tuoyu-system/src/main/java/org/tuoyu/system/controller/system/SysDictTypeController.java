@@ -1,8 +1,10 @@
 package org.tuoyu.system.controller.system;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import cn.dev33.satoken.annotation.SaCheckRole;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.tuoyu.common.core.constant.SystemConstants;
 import org.tuoyu.common.core.domain.PageResult;
 import org.tuoyu.common.core.domain.ApiResult;
 import org.tuoyu.common.core.exception.ServiceException;
@@ -22,6 +24,9 @@ import java.util.List;
 
 /**
  * 数据字典信息
+ * <p>
+ * 字典全平台共享：写接口除权限码外还要求超级管理员角色，租户管理员不能改动；以后新增的写接口同样标注
+ * {@code @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)}
  *
  * @author Lion Li
  */
@@ -69,6 +74,7 @@ public class SysDictTypeController {
      * 新增字典类型
      */
     @SaCheckPermission("system:dict:add")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "字典类型", action = AuditAction.CREATE)
     @PreventResubmit
     @PostMapping
@@ -84,6 +90,7 @@ public class SysDictTypeController {
      * 修改字典类型
      */
     @SaCheckPermission("system:dict:edit")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "字典类型", action = AuditAction.UPDATE)
     @PreventResubmit
     @PutMapping
@@ -101,6 +108,7 @@ public class SysDictTypeController {
      * @param dictIds 字典ID串
      */
     @SaCheckPermission("system:dict:remove")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "字典类型", action = AuditAction.DELETE)
     @DeleteMapping("/{dictIds}")
     public ApiResult<Void> remove(@PathVariable Long[] dictIds) {
@@ -112,6 +120,7 @@ public class SysDictTypeController {
      * 刷新字典缓存
      */
     @SaCheckPermission("system:dict:remove")
+    @SaCheckRole(SystemConstants.SUPER_ADMIN_ROLE_KEY)
     @OperationLog(module = "字典类型", action = AuditAction.CLEAN)
     @PreventResubmit
     @DeleteMapping("/refreshCache")

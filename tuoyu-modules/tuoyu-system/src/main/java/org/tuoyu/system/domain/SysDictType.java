@@ -6,21 +6,25 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.tuoyu.common.mybatis.core.domain.BaseEntity;
 
-/**
- * 字典类型表 sys_dict_type
- *
- * @author Lion Li
- */
+import java.io.Serial;
 
+/**
+ * 字典类型 sys_dict_type。全平台共享（表中没有租户列）
+ *
+ * @author tuoyu
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("sys_dict_type")
 public class SysDictType extends BaseEntity {
 
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     /**
      * 字典主键
      */
-    @TableId(value = "dict_id")
+    @TableId("dict_id")
     private Long dictId;
 
     /**
@@ -29,7 +33,7 @@ public class SysDictType extends BaseEntity {
     private String dictName;
 
     /**
-     * 字典类型
+     * 字典类型编码
      */
     private String dictType;
 
